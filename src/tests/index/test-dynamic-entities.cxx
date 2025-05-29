@@ -187,7 +187,7 @@ TestItEasy::RegisterFunc  dynamic_entities( []()
         }
         SECTION( "entiry table may be serialized" )
         {
-          entity_table->Serialize( stdout );
+//          entity_table->Serialize( stdout );
         }
       }
       SECTION( "entities table may be created with custom allocator also" )

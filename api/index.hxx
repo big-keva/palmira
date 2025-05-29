@@ -9,24 +9,36 @@ namespace palmira
 
   struct IEntity: public mtc::Iface
   {
-    class Id;
-    class Attributes;
+    struct Attribute;
 
-    virtual auto  GetId() const -> Id = 0;
+    virtual auto  GetId() const -> Attribute = 0;
     virtual auto  GetIndex() const -> uint32_t = 0;
-    virtual auto  GetAttributes() const -> Attributes = 0;
+    virtual auto  GetAttributes() const -> Attribute = 0;
   };
 
-  struct IEntity::Id: public std::string_view, protected mtc::api<Iface>
+/*
+ * IMapping
+ *
+ * Mapping object properties to be stored in inverted index and in a plain data storage.
+ */
+  struct IMapping: public mtc::Iface
   {
-    Id( const Id& ) = default;
-    Id( const std::string_view& s, api i = nullptr ): std::string_view( s ), api( i ) {}
   };
 
-  struct IEntity::Attributes: public mtc::zmap::dump, protected mtc::api<Iface>
+  struct IStorage: public mtc::Iface
   {
-    Attributes( const Attributes& ) = default;
-    Attributes( const dump& d, api i = nullptr ): dump( d ), api( i ) {}
+    virtual auto  GetEntity( std::string_view ) const -> mtc::api<const IEntity> = 0;
+    virtual auto  GetEntity( std::string_view )       -> mtc::api<      IEntity> = 0;
+
+    virtual bool  DelEntity( std::string_view ) const = 0;
+
+    virtual auto  SetEntity( std::string_view, mtc::api<const IMapping> ) -> mtc::api<const IEntity> = 0;
+  };
+
+  struct IEntity::Attribute: public std::string_view, protected mtc::api<Iface>
+  {
+    Attribute( const Attribute& ) = default;
+    Attribute( const std::string_view& s, api i = nullptr ): std::string_view( s ), api( i ) {}
   };
 
 }
