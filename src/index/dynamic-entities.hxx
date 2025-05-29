@@ -4,11 +4,9 @@
 # include "../tools/primes.hxx"
 # include <mtc/ptrpatch.h>
 # include <type_traits>
-# include <functional>
 # include <vector>
 # include <string>
 # include <atomic>
-#include <complex.h>
 
 namespace palmira {
 namespace index   {
@@ -39,9 +37,9 @@ namespace dynamic {
       auto  SetOwnerPtr( mtc::api<Iface> p ) -> Entity*;
 
     public:   // overridables from IEntity
-      auto  GetId() const -> Id override {  return { id, owner_ptr };  }
+      auto  GetId() const -> Attribute override {  return { id, owner_ptr };  }
       auto  GetIndex() const -> uint32_t override {  return index;  }
-      auto  GetAttributes() const -> Attributes override {  return { attribute.data(), owner_ptr };  }
+      auto  GetAttributes() const -> Attribute override {  return { attribute, owner_ptr };  }
 
     public:   // serialization
       template <class O>
