@@ -76,6 +76,7 @@ namespace palmira
   struct IContentsIndex: public mtc::Iface
   {
     struct IKeyValue;
+    struct IEntities;
 
    /*
     * GetEntity()
@@ -99,29 +100,33 @@ namespace palmira
     * and indexable properties
     */
     virtual auto  SetEntity( EntityId id,
-      mtc::api<const IContents>         props = nullptr,
+      mtc::api<const IContents>         index = nullptr,
       mtc::api<const mtc::IByteBuffer>  attrs = nullptr,
       mtc::api<const mtc::IByteBuffer>  image = nullptr ) -> mtc::api<const IEntity> = 0;
 
    /*
-    * FlushSink()
+    * Commit()
     *
     * Writes all index data to storage held inside and return access to stored data.
     */
-    virtual auto  FlushSink() -> mtc::api<IStorage::ISerialized> = 0;
+    virtual auto  Commit() -> mtc::api<IStorage::ISerialized> = 0;
 
    /*
-    * Linearise()
+    * Reduce()
     *
     * Return pointer to simplified version of index being optimized.
     */
-    virtual auto  Linearise() -> mtc::api<IContentsIndex> = 0;
+    virtual auto  Reduce() -> mtc::api<IContentsIndex> = 0;
 
-    /*
-     * Index statistics and service information
-     */
+   /*
+    * Index statistics and service information
+    */
     virtual auto  GetMaxIndex() const -> uint32_t = 0;
+//    virtual auto  CountEntities() const -> uint32_t = 0;
 
+   /*
+    * Blocks search api
+    */
   };
 
  /*
@@ -132,6 +137,17 @@ namespace palmira
   struct IContentsIndex::IKeyValue
   {
     virtual void  Insert( std::string_view key, std::string_view value ) = 0;
+  };
+
+  struct IContentsIndex::IEntities: public mtc::Iface
+  {
+    struct Reference
+    {
+      uint32_t    entity;
+      const char* details;
+      uint32_t    detsize;
+    };
+    virtual auto  Find( uint32_t ) -> Reference = 0;
   };
 
  /*
