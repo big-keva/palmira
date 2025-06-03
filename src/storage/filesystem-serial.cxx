@@ -29,11 +29,12 @@ namespace filesys {
     auto  NewPatch() -> mtc::api<IPatch> override;
 
   protected:
-    StoragePolicies                   policies;
-    mtc::api<const mtc::IByteBuffer>  entities;
-    mtc::api<const mtc::IByteBuffer>  contents;
-    mtc::api<const mtc::IFlatStream>  blocks;
-    mtc::api<const mtc::IByteBuffer>  chains;
+    const StoragePolicies                 policies;
+
+    mtc::api<const mtc::IByteBuffer>      entities;
+    mtc::api<const mtc::IByteBuffer>      contents;
+    mtc::api<const mtc::IFlatStream>      blocks;
+    mtc::api<const IStorage::IImageStore> images;
 
   };
 
@@ -66,7 +67,16 @@ namespace filesys {
 
   void  Serial::Remove()
   {
+    entities = nullptr;  blocks = nullptr;
+    contents = nullptr;  images = nullptr;
 
+    for ( auto unit: { Unit::entities, Unit::blocks, Unit::contents, Unit::images, Unit::status } )
+    {
+      auto  policy = policies.GetPolicy( unit );
+
+      if ( policy != nullptr )
+        remove( policy->GetFilePath( unit ).c_str() );
+    }
   }
 
   auto  Serial::NewPatch() -> mtc::api<IPatch>

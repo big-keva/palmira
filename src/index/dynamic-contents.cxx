@@ -48,8 +48,8 @@ namespace dynamic {
       mtc::api<const mtc::IByteBuffer>  attrs = nullptr,
       mtc::api<const mtc::IByteBuffer>  image = nullptr ) -> mtc::api<const IEntity> override;
 
-    auto  FlushSink() -> mtc::api<IStorage::ISerialized> override;
-    auto  Linearise() -> mtc::api<IContentsIndex> override  {  return this;  }
+    auto  Commit() -> mtc::api<IStorage::ISerialized> override;
+    auto  Reduce() -> mtc::api<IContentsIndex> override  {  return this;  }
 
     auto  GetMaxIndex() const -> uint32_t override  {  return entities.GetEntityCount();  }
 
@@ -119,7 +119,7 @@ namespace dynamic {
     return entity.ptr();
   }
 
-  auto  ContentsIndex::FlushSink() -> mtc::api<IStorage::ISerialized>
+  auto  ContentsIndex::Commit() -> mtc::api<IStorage::ISerialized>
   {
     if ( pStorage == nullptr )
       throw std::logic_error( "output storage is not defined, but FlushSink() was called" );

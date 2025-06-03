@@ -66,7 +66,9 @@ TestItEasy::RegisterFunc  storage_fs( []()
 
             REQUIRE( SearchFiles( "/tmp/k2.*" ) );
             REQUIRE( SearchFiles( "/tmp/k2.*.status" ) );
-          }
+
+            RemoveFiles( "/tmp/k2.*" );
+}
         }
       }
     }

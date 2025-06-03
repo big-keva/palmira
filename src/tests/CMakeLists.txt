@@ -8,4 +8,7 @@ add_executable(test-palmira-index
 	index/test-dynamic-chains.cxx
 	index/test-dynamic-contents.cxx
 
+	index/test-static-entities.cxx
+	index/test-static-contents.cxx
+
 	test-main.cxx)

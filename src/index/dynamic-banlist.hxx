@@ -20,6 +20,8 @@ namespace dynamic {
     };
 
   public:
+    BanList( Allocator alloc = Allocator() ):
+      vector_type( alloc ) {}
     BanList( size_t maxSize, Allocator alloc = Allocator() ):
       vector_type( (maxSize + element_bits - 1) / element_bits, alloc ) {}
 
@@ -39,7 +41,7 @@ namespace dynamic {
     {
       auto& item = vector_type::operator[]( uindex );
 
-      for ( auto uval = item.load(); !item.compare_exchange_weak( uval, uval | ushift ); )
+      for ( auto uval = item.load(); !item.compare_exchange_weak( uval, uval | ddmask ); )
         (void)NULL;
     } else throw std::range_error( "entity index exceeds deleted map capacity" );
   }

@@ -6,7 +6,8 @@ add_library(palmira-index
 	storage/filesystem-output.cxx
 	storage/filesystem-serial.cxx
 
-	index/dynamic-contents.cxx)
+	index/dynamic-contents.cxx
+	index/static-contents.cxx)
 
 add_subdirectory(tests)
 	

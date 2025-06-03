@@ -26,10 +26,10 @@ TestItEasy::RegisterFunc  dynamic_chains( []()
         SECTION( "existing keys are found" )
         {
           if ( REQUIRE( chains.Lookup( "k1" ) != nullptr ) )
-            REQUIRE( chains.Lookup( "k1" )->ncount == 4 );
+            REQUIRE( chains.Lookup( "k1" )->ncount == 4U );
 
           if ( REQUIRE( chains.Lookup( "k2" ) != nullptr ) )
-            REQUIRE( chains.Lookup( "k2" )->ncount == 1 );
+            REQUIRE( chains.Lookup( "k2" )->ncount == 1U );
         }
       }
       SECTION( "BlockChains may be created in Arena" )

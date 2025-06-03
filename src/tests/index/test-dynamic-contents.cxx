@@ -46,7 +46,7 @@ TestItEasy::RegisterFunc  dynamic_ccontents( []()
         }
         SECTION( "if dynamic contents index is saved without storage specified, it throws logic_error" )
         {
-          REQUIRE_EXCEPTION( contents->FlushSink(), std::logic_error );
+          REQUIRE_EXCEPTION( contents->Commit(), std::logic_error );
         }
       }
       SECTION( "dynamic::contents index may be created with entity count limitation" )
@@ -91,7 +91,7 @@ TestItEasy::RegisterFunc  dynamic_ccontents( []()
         REQUIRE_NOTHROW( contents->SetEntity( "bbb", KeyValues( { { "bbb", 1162 } } ).ptr() ) );
         REQUIRE_NOTHROW( contents->SetEntity( "ccc", KeyValues( { { "ccc", 1163 } } ).ptr() ) );
 
-        if ( REQUIRE_NOTHROW( well = contents->FlushSink() ) && REQUIRE( well != nullptr ) )
+        if ( REQUIRE_NOTHROW( well = contents->Commit() ) && REQUIRE( well != nullptr ) )
           REQUIRE_NOTHROW( well->Remove() );
         contents = nullptr;
       }
