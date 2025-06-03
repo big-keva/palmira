@@ -1,9 +1,12 @@
 # if !defined( __palmira_src_index_dynamic_entities_hxx__ )
 # define __palmira_src_index_dynamic_entities_hxx__
-# include "../../api/index.hxx"
+# include "../../api/contents-index.hxx"
 # include "../tools/primes.hxx"
 # include <mtc/ptrpatch.h>
+# include <mtc/wcsstr.h>
 # include <type_traits>
+# include <algorithm>
+# include <stdexcept>
 # include <vector>
 # include <string>
 # include <atomic>
@@ -30,8 +33,8 @@ namespace dynamic {
       implement_lifetime_stub
 
     public:
-      Entity() = default;
-      Entity( std::string_view id, uint32_t ix, Allocator mm );
+      Entity( Allocator );
+      Entity( std::string_view, uint32_t, Allocator );
 
     public:
       auto  SetOwnerPtr( mtc::api<Iface> p ) -> Entity*;
@@ -40,6 +43,7 @@ namespace dynamic {
       auto  GetId() const -> Attribute override {  return { id, owner_ptr };  }
       auto  GetIndex() const -> uint32_t override {  return index;  }
       auto  GetAttributes() const -> Attribute override {  return { attribute, owner_ptr };  }
+      auto  GetImage() const -> mtc::api<const mtc::IByteBuffer> override {  return {};  }
 
     public:   // serialization
       template <class O>
@@ -128,6 +132,7 @@ namespace dynamic {
     EntityVector   entStore;  // the entities storage
     AtomicEntity   ptrStore;
     StrHashTable   entTable;
+
   };
 
   template <class Allocator>
@@ -159,6 +164,12 @@ namespace dynamic {
   };
 
   // EntityTable::Entiry implementation
+
+  template <class Allocator>
+  EntityTable<Allocator>::Entity::Entity( Allocator mm ):
+    id( mm ),
+    attribute( mm ),
+    index( 0 )  {}
 
   template <class Allocator>
   EntityTable<Allocator>::Entity::Entity( std::string_view id, uint32_t ix, Allocator mm ):
@@ -253,7 +264,7 @@ namespace dynamic {
   // finish with entptr -> allocated entry
     for ( ;; )
     {
-      if ( entptr == &getEntity( 0 ) + entStore.size() )
+      if ( entptr >= &getEntity( 0 ) + entStore.size() )
         throw count_overflow( mtc::strprintf( "index size achieved limit of %d documents", entStore.size() ) );
 
       if ( !ptrStore.compare_exchange_weak( entptr, entptr + 1 ) )
@@ -368,7 +379,7 @@ namespace dynamic {
   {
     std::vector<const Entity*>  sorted;
 
-    if ( (o = Entity().Serialize( o )) == nullptr )
+    if ( (o = Entity( entTable.get_allocator() ).Serialize( o )) == nullptr )
       return nullptr;
 
     sorted.reserve( ptrStore.load() - &getEntity( 1 ) );

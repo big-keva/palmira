@@ -1,6 +1,11 @@
-link_libraries(palmira-tools mtc)
+link_libraries(palmira-index palmira-tools mtc)
 
 add_executable(test-palmira-index
+        storage/test-storage-fs-based.cxx
+
+	index/test-dynamic-chains-ringbuffer.cxx
 	index/test-dynamic-entities.cxx
 	index/test-dynamic-chains.cxx
+	index/test-dynamic-contents.cxx
+
 	test-main.cxx)

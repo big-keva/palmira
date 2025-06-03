@@ -7,11 +7,11 @@ TestItEasy::RegisterFunc  dynamic_chains( []()
   {
     TEST_CASE( "index/dynamic-chains" )
     {
-      SECTION( "KeyBlockChains may be allocated with default allocator" )
+      SECTION( "BlockChains may be allocated with default allocator" )
       {
-        palmira::index::dynamic::KeyBlockChains<> chains;
+        palmira::index::dynamic::BlockChains<> chains;
 
-        SECTION( "keys may be added to KeyBlockChains" )
+        SECTION( "keys may be added to BlockChains" )
         {
           REQUIRE_NOTHROW( chains.Insert( "k1", 1, {} ) );
           REQUIRE_NOTHROW( chains.Insert( "k1", 2, "xxx" ) );
@@ -32,10 +32,10 @@ TestItEasy::RegisterFunc  dynamic_chains( []()
             REQUIRE( chains.Lookup( "k2" )->ncount == 1 );
         }
       }
-      SECTION( "KeyBlockChains may be created in Arena" )
+      SECTION( "BlockChains may be created in Arena" )
       {
         auto  mArena = mtc::Arena();
-        auto  chains = mArena.Create<palmira::index::dynamic::KeyBlockChains<mtc::Arena::allocator<char>>>();
+        auto  chains = mArena.Create<palmira::index::dynamic::BlockChains<mtc::Arena::allocator<char>>>();
 
         SECTION( "arena-allocated object also is functional" )
         {
@@ -50,10 +50,12 @@ TestItEasy::RegisterFunc  dynamic_chains( []()
           REQUIRE( chains->Lookup( "k1" ) != nullptr );
           REQUIRE( chains->Lookup( "k2" ) != nullptr );
         }
+
+        chains->StopIt();
       }
-      SECTION( "KeyBlockChains provide correct inserion order in multithreaded environments" )
+      SECTION( "BlockChains provide correct inserion order in multithreaded environments" )
       {
-        auto  chains = palmira::index::dynamic::KeyBlockChains<>();
+        auto  chains = palmira::index::dynamic::BlockChains<>();
         auto  thlist = std::vector<std::thread>();
         auto  runner = [&]( int startEntity, int finalEntity )
           {
