@@ -24,8 +24,7 @@ namespace filesys {
       autoRemove( std::move( sink.autoRemove ) ),
       entities( std::move( sink.entities ) ),
       contents( std::move( sink.contents ) ),
-      blocks( std::move( sink.blocks ) ),
-      images( std::move( sink.images ) )  {}
+      blocks( std::move( sink.blocks ) )  {}
     Sink( const Sink& ) = delete;
 
   protected:  // lifetime control
@@ -36,7 +35,6 @@ namespace filesys {
     auto  Entities() -> mtc::api<mtc::IByteStream> override {  return entities;  }
     auto  Index() -> mtc::api<mtc::IByteStream> override  {  return contents;  }
     auto  Chains() -> mtc::api<mtc::IByteStream> override {  return blocks;  }
-    auto  Images() -> mtc::api<IStorage::IImageStore> override  {  return images;  }
 
     auto  Commit() -> mtc::api<IStorage::ISerialized> override;
     void  Remove() override;
@@ -48,7 +46,6 @@ namespace filesys {
     mtc::api<mtc::IByteStream>      entities;
     mtc::api<mtc::IByteStream>      contents;
     mtc::api<mtc::IByteStream>      blocks;
-    mtc::api<IStorage::IImageStore> images;
 
   };
 
@@ -61,7 +58,7 @@ namespace filesys {
     if ( rcount == 0 )
     {
       entities = nullptr;  blocks = nullptr;
-      contents = nullptr;  images = nullptr;
+      contents = nullptr;
 
       if ( autoRemove )
         Sink::Remove();
@@ -89,9 +86,9 @@ namespace filesys {
   void  Sink::Remove()
   {
     entities = nullptr;  blocks = nullptr;
-    contents = nullptr;  images = nullptr;
+    contents = nullptr;
 
-    for ( auto unit: { Unit::entities, Unit::blocks, Unit::contents, Unit::images, Unit::status } )
+    for ( auto unit: { Unit::entities, Unit::blocks, Unit::contents, Unit::status } )
     {
       auto  policy = policies.GetPolicy( unit );
 
@@ -156,7 +153,7 @@ namespace filesys {
 
   auto  CreateSink( const StoragePolicies& policies ) -> mtc::api<IStorage::IIndexStore>
   {
-    auto  units = std::initializer_list<Unit>{ entities, contents, blocks, images };
+    auto  units = std::initializer_list<Unit>{ entities, contents, blocks };
     auto  stamp = CaptureIndex( units, policies );
     Sink  aSink( policies.GetInstance( stamp ) );
 

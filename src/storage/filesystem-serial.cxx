@@ -9,19 +9,18 @@ namespace palmira {
 namespace storage {
 namespace filesys {
 
-  class Serial final: public IStorage::ISerialized
+  class Serialized final: public IStorage::ISerialized
   {
     implement_lifetime_control
 
   public:
-    Serial( const StoragePolicies& pol ):
+    Serialized( const StoragePolicies& pol ):
       policies( pol ) {}
 
   public:
     auto  Entities() -> mtc::api<const mtc::IByteBuffer> override;
     auto  Contents() -> mtc::api<const mtc::IByteBuffer> override;
-    auto  Blocks() -> mtc::api<const mtc::IFlatStream> override;
-    auto  Images() -> mtc::api<IStorage::IImageStore> override;
+    auto  Blocks() -> mtc::api<mtc::IFlatStream> override;
 
     auto  Commit() -> mtc::api<ISerialized> override;
     void  Remove() override;
@@ -33,42 +32,63 @@ namespace filesys {
 
     mtc::api<const mtc::IByteBuffer>      entities;
     mtc::api<const mtc::IByteBuffer>      contents;
-    mtc::api<const mtc::IFlatStream>      blocks;
-    mtc::api<const IStorage::IImageStore> images;
+    mtc::api<      mtc::IFlatStream>      blocks;
 
   };
 
-  // Serial implementation
-
-  auto  Serial::Entities() -> mtc::api<const mtc::IByteBuffer>
+  auto  LoadByteBuffer( const StoragePolicies& policies, Unit unit ) -> mtc::api<const mtc::IByteBuffer>
   {
+    auto  policy = policies.GetPolicy( unit );
+
+    if ( policy != nullptr )
+    {
+      auto  infile = mtc::OpenFileStream( policy->GetFilePath( unit ).c_str(), O_RDONLY,
+        mtc::enable_exceptions );
+
+    // check the signature
+
+    // if preloaded, return preloaded buffer, else memory-mapped
+      if ( policy->mode == preloaded )
+        return infile->PGet( 0, infile->Size() - 0 ).ptr();
+      if ( policy->mode == memory_mapped )
+        return infile->MemMap( 0, infile->Size() - 0 ).ptr();
+      throw std::invalid_argument( "invalid open mode" );
+    }
     return nullptr;
   }
 
-  auto  Serial::Contents() -> mtc::api<const mtc::IByteBuffer>
+  // Serialized implementation
+
+ /*
+  * Serialized::Entities()
+  *
+  * Loads and returns the byte buffer for entities table access.
+  */
+  auto  Serialized::Entities() -> mtc::api<const mtc::IByteBuffer>
   {
-    return nullptr;
+    return LoadByteBuffer( policies, Unit::entities );
   }
 
-  auto  Serial::Blocks() -> mtc::api<const mtc::IFlatStream>
+  auto  Serialized::Contents() -> mtc::api<const mtc::IByteBuffer>
   {
-    return nullptr;
+    return LoadByteBuffer( policies, Unit::contents );
   }
 
-  auto  Serial::Images() -> mtc::api<IStorage::IImageStore>
+  auto  Serialized::Blocks() -> mtc::api<mtc::IFlatStream>
   {
-    return nullptr;
+    return blocks = mtc::OpenFileStream( policies.GetPolicy( Unit::blocks )->GetFilePath( Unit::blocks ).c_str(),
+      O_RDONLY, mtc::enable_exceptions ).ptr();
   }
 
-  auto  Serial::Commit() -> mtc::api<ISerialized>
+  auto  Serialized::Commit() -> mtc::api<ISerialized>
   {
     return this;
   }
 
-  void  Serial::Remove()
+  void  Serialized::Remove()
   {
     entities = nullptr;  blocks = nullptr;
-    contents = nullptr;  images = nullptr;
+    contents = nullptr;
 
     for ( auto unit: { Unit::entities, Unit::blocks, Unit::contents, Unit::images, Unit::status } )
     {
@@ -79,14 +99,14 @@ namespace filesys {
     }
   }
 
-  auto  Serial::NewPatch() -> mtc::api<IPatch>
+  auto  Serialized::NewPatch() -> mtc::api<IPatch>
   {
     return nullptr;
   }
 
   auto  OpenSerial( const StoragePolicies& policies ) -> mtc::api<IStorage::ISerialized>
   {
-    return new Serial( policies );
+    return new Serialized( policies );
   }
 
 }}}
