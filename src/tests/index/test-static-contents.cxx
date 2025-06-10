@@ -17,12 +17,14 @@ public:
   auto  ptr() const -> const palmira::IContents*
     {  return this;  }
 
-  void  Enumerate( palmira::IContentsIndex::IKeyValue* to ) const override
+  void  Enumerate( palmira::IContentsIndex::IIndexAPI* to ) const override
     {
       for ( auto keyvalue: *this )
       {
+        auto  val = keyvalue.second.to_string();
+
         to->Insert( { (const char*)keyvalue.first.data(), keyvalue.first.size() },
-          keyvalue.second.to_string() );
+          { val.data(), val.size() } );
       }
     }
 };
@@ -50,12 +52,58 @@ TestItEasy::RegisterFunc  static_ccontents( []()
             { "ccc", 1263 },
             { "ddd", 1264 },
             { "eee", 1265 } } ).ptr() ) );
+        REQUIRE_NOTHROW( contents->DelEntity( "bbb" ) );
         REQUIRE_NOTHROW( serialized = contents->Commit() );
 
-        if ( REQUIRE_NOTHROW( contents = palmira::index::static_::contents().Create( serialized ) )
+        if ( REQUIRE_NOTHROW( contents = palmira::index::Static::Create( serialized ) )
           && REQUIRE( contents != nullptr ) )
         {
+          mtc::api<palmira::IContentsIndex::IEntities>  entities;
 
+          SECTION( "key statistics is available" )
+          {
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "aaa", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "aaa", 3 ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "bbb", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "bbb", 3 ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ccc", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "ccc", 3 ).nCount == 2 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ddd", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "ddd", 3 ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "eee", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "eee", 3 ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "fff", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "fff", 3 ).nCount == 0 );
+          }
+          SECTION( "key blocks are available" )
+          {
+            palmira::IContentsIndex::IEntities::Reference entRef;
+
+            if ( REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "aaa", 3 ) ) && REQUIRE( entities != nullptr ) )
+            {
+              if ( REQUIRE_NOTHROW( entRef = entities->Find( 1 ) ) )
+              {
+                REQUIRE( entRef.uEntity == 1 );
+                if ( REQUIRE_NOTHROW( entRef = entities->Find( entRef.uEntity + 1 ) ) )
+                {
+              /*
+                  REQUIRE( entRef.uEntity == uint32_t(-1) );
+                  */
+              }
+                }
+            }
+
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "bbb", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "bbb", 3 ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ccc", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "ccc", 3 ).nCount == 2 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ddd", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "ddd", 3 ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "eee", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "eee", 3 ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "fff", 3 ) ) )
+              REQUIRE( contents->GetKeyStats( "fff", 3 ).nCount == 0 );
+          }
         }
       }
     }

@@ -15,12 +15,14 @@ public:
   auto  ptr() const -> const palmira::IContents*
     {  return this;  }
 
-  void  Enumerate( palmira::IContentsIndex::IKeyValue* to ) const override
+  void  Enumerate( palmira::IContentsIndex::IIndexAPI* to ) const override
     {
       for ( auto keyvalue: *this )
       {
+        auto  val = keyvalue.second.to_string();
+
         to->Insert( { (const char*)keyvalue.first.data(), keyvalue.first.size() },
-          keyvalue.second.to_string() );
+          { val.data(), val.size() } );
       }
     }
 };
@@ -38,11 +40,43 @@ TestItEasy::RegisterFunc  dynamic_ccontents( []()
         SECTION( "objects may be inserted to the contents index" )
         {
           contents->SetEntity( "aaa", KeyValues( {
-            { "aaa", 1161 },
-            { "bbb", 1262 },
-            { "ccc", 1263 },
-            { "ddd", 1264 },
-            { "eee", 1265 } } ).ptr() );
+            { "k1", 1161 },
+            { "k2", 1262 },
+            { "k3", 1263 } } ).ptr() );
+          contents->SetEntity( "bbb", KeyValues( {
+            { "k2", 1262 },
+            { "k3", 1263 },
+            { "k4", 1264 } } ).ptr() );
+          contents->SetEntity( "ccc", KeyValues( {
+            { "k3", 1263 },
+            { "k4", 1264 },
+            { "k5", 1265 } } ).ptr() );
+          contents->DelEntity( "bbb" );
+        }
+        SECTION( "objects are indexed by keys, so keys may be get" )
+        {
+          mtc::api<palmira::IContentsIndex::IEntities>  entities;
+
+          if ( REQUIRE_NOTHROW( contents->GetKeyStats( "k0", 2 ) ) )
+            REQUIRE( contents->GetKeyStats( "k0", 2 ).nCount == 0 );
+          if ( REQUIRE_NOTHROW( contents->GetKeyStats( "k1", 2 ) ) )
+          {
+            REQUIRE( contents->GetKeyStats( "k1", 2 ).nCount == 1 );
+            REQUIRE( contents->GetKeyStats( "k2", 2 ).nCount == 2 );
+            REQUIRE( contents->GetKeyStats( "k3", 2 ).nCount == 3 );
+            REQUIRE( contents->GetKeyStats( "k4", 2 ).nCount == 2 );
+            REQUIRE( contents->GetKeyStats( "k5", 2 ).nCount == 1 );
+          }
+
+          if ( REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "k3", 2 ) ) )
+            if ( REQUIRE( entities != nullptr ) )
+            {
+              REQUIRE( entities->Find( 0 ).uEntity == 1U );
+              REQUIRE( entities->Find( 1 ).uEntity == 1U );
+              REQUIRE( entities->Find( 2 ).uEntity == 3U );
+              REQUIRE( entities->Find( 3 ).uEntity == 3U );
+              REQUIRE( entities->Find( 4 ).uEntity == uint32_t(-1) );
+            }
         }
         SECTION( "if dynamic contents index is saved without storage specified, it throws logic_error" )
         {

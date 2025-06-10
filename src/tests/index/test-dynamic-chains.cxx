@@ -13,11 +13,11 @@ TestItEasy::RegisterFunc  dynamic_chains( []()
 
         SECTION( "keys may be added to BlockChains" )
         {
-          REQUIRE_NOTHROW( chains.Insert( "k1", 1, {} ) );
-          REQUIRE_NOTHROW( chains.Insert( "k1", 2, "xxx" ) );
-          REQUIRE_NOTHROW( chains.Insert( "k2", 1, "yyy" ) );
-          REQUIRE_NOTHROW( chains.Insert( "k1", 4, "zzz" ) );
-          REQUIRE_NOTHROW( chains.Insert( "k1", 3, "ttt" ) );
+          REQUIRE_NOTHROW( chains.Insert( "k1", 1, { "aaa", 3 }, -1 ) );
+          REQUIRE_NOTHROW( chains.Insert( "k1", 2, { "xxx", 3 }, -1 ) );
+          REQUIRE_NOTHROW( chains.Insert( "k2", 1, { "yyy", 3 }, -1 ) );
+          REQUIRE_NOTHROW( chains.Insert( "k1", 4, { "zzz", 3 }, -1 ) );
+          REQUIRE_NOTHROW( chains.Insert( "k1", 3, { "ttt", 3 }, -1 ) );
         }
         SECTION( "non-existing keys are not found" )
         {
@@ -39,11 +39,11 @@ TestItEasy::RegisterFunc  dynamic_chains( []()
 
         SECTION( "arena-allocated object also is functional" )
         {
-          REQUIRE_NOTHROW( chains->Insert( "k1", 1, {} ) );
-          REQUIRE_NOTHROW( chains->Insert( "k1", 2, "xxx" ) );
-          REQUIRE_NOTHROW( chains->Insert( "k2", 1, "yyy" ) );
-          REQUIRE_NOTHROW( chains->Insert( "k1", 4, "zzz" ) );
-          REQUIRE_NOTHROW( chains->Insert( "k1", 3, "ttt" ) );
+          REQUIRE_NOTHROW( chains->Insert( "k1", 1, { "aaa", 3 }, -1 ) );
+          REQUIRE_NOTHROW( chains->Insert( "k1", 2, { "xxx", 3 }, -1 ) );
+          REQUIRE_NOTHROW( chains->Insert( "k2", 1, { "yyy", 3 }, -1 ) );
+          REQUIRE_NOTHROW( chains->Insert( "k1", 4, { "zzz", 3 }, -1 ) );
+          REQUIRE_NOTHROW( chains->Insert( "k1", 3, { "ttt", 3 }, -1 ) );
 
           REQUIRE( chains->Lookup( "k0" ) == nullptr );
 
@@ -72,7 +72,7 @@ TestItEasy::RegisterFunc  dynamic_chains( []()
                 {
                   auto  skey = mtc::strprintf( "%u", ikey );
 
-                  chains.Insert( skey, entity, {} );
+                  chains.Insert( skey, entity, {}, -1 );
 
                   keyset[ikey / 32] |= (1 << (ikey % 32));
                   ++word;

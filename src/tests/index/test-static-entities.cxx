@@ -7,7 +7,7 @@
 
 #include "../../index/dynamic-entities.hxx"
 
-auto  CreateEntityTable( std::initializer_list<std::pair<std::string, std::string>> entities ) -> mtc::api<const mtc::IByteBuffer>
+auto  CreateEntityTable( std::initializer_list<std::pair<std::string, std::string>> entities ) -> std::vector<char>
 {
   palmira::index::dynamic::EntityTable<>  dynamicEntities( 100 );
 
@@ -18,7 +18,7 @@ auto  CreateEntityTable( std::initializer_list<std::pair<std::string, std::strin
 
   serialBuffer.resize( dynamicEntities.Serialize( serialBuffer.data() ) - serialBuffer.data() );
 
-  return mtc::CreateByteBuffer( serialBuffer.data(), serialBuffer.size() ).ptr();
+  return serialBuffer;
 }
 
 TestItEasy::RegisterFunc  static_entities( []()
