@@ -11,4 +11,6 @@ add_executable(test-palmira-index
 	index/test-static-entities.cxx
 	index/test-static-contents.cxx
 
+	index/test-patch-table.cxx
+
 	test-main.cxx)
