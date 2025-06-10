@@ -1,6 +1,6 @@
 # if !defined( __palmira_api_contents_index_hxx__ )
 # define __palmira_api_contents_index_hxx__
-# include <mtc/iBuffer.h>
+# include "span.hxx"
 # include <mtc/iStream.h>
 # include <string_view>
 
@@ -18,7 +18,6 @@ namespace palmira
     virtual auto  GetId() const -> Attribute = 0;
     virtual auto  GetIndex() const -> uint32_t = 0;
     virtual auto  GetAttributes() const -> Attribute = 0;
-    virtual auto  GetImage() const -> mtc::api<const mtc::IByteBuffer> = 0;
   };
 
   struct IEntity::Attribute: public std::string_view, protected mtc::api<Iface>
@@ -29,14 +28,8 @@ namespace palmira
 
   struct IStorage: public mtc::Iface
   {
-    struct IImageStore;
     struct IIndexStore;       // interface to write indices
     struct ISerialized;       // interface to read indices
-  };
-
-  struct IStorage::IImageStore: public mtc::Iface
-  {
-    virtual auto  Put( mtc::api<const mtc::IByteBuffer> ) -> uint64_t = 0;
   };
 
   struct IStorage::IIndexStore: public mtc::Iface
@@ -44,7 +37,6 @@ namespace palmira
     virtual auto  Entities() -> mtc::api<mtc::IByteStream> = 0;
     virtual auto  Index() -> mtc::api<mtc::IByteStream> = 0;
     virtual auto  Chains() -> mtc::api<mtc::IByteStream> = 0;
-    virtual auto  Images() -> mtc::api<IImageStore> = 0;
 
     virtual auto  Commit() -> mtc::api<ISerialized> = 0;
     virtual void  Remove() = 0;
@@ -56,8 +48,7 @@ namespace palmira
 
     virtual auto  Entities() -> mtc::api<const mtc::IByteBuffer> = 0;
     virtual auto  Contents() -> mtc::api<const mtc::IByteBuffer> = 0;
-    virtual auto  Blocks() -> mtc::api<const mtc::IFlatStream> = 0;
-    virtual auto  Images() -> mtc::api<IImageStore> = 0;
+    virtual auto  Blocks() -> mtc::api<mtc::IFlatStream> = 0;
 
     virtual auto  Commit() -> mtc::api<ISerialized> = 0;
     virtual void  Remove() = 0;
@@ -75,8 +66,17 @@ namespace palmira
 
   struct IContentsIndex: public mtc::Iface
   {
-    struct IKeyValue;
     struct IEntities;
+    struct IIndexAPI;
+
+   /*
+    * entity details block statistics
+    */
+    struct BlockInfo
+    {
+      uint32_t    bkType;
+      uint32_t    nCount;
+    };
 
    /*
     * GetEntity()
@@ -101,8 +101,7 @@ namespace palmira
     */
     virtual auto  SetEntity( EntityId id,
       mtc::api<const IContents>         index = nullptr,
-      mtc::api<const mtc::IByteBuffer>  attrs = nullptr,
-      mtc::api<const mtc::IByteBuffer>  image = nullptr ) -> mtc::api<const IEntity> = 0;
+      mtc::api<const mtc::IByteBuffer>  attrs = nullptr ) -> mtc::api<const IEntity> = 0;
 
    /*
     * Commit()
@@ -127,6 +126,9 @@ namespace palmira
    /*
     * Blocks search api
     */
+    virtual auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> = 0;
+    virtual auto  GetKeyStats( const void*, size_t ) const -> BlockInfo = 0;
+
   };
 
  /*
@@ -134,31 +136,33 @@ namespace palmira
   *
   * Internal indexer interface to set key -> value pairs for object being indexed.
   */
-  struct IContentsIndex::IKeyValue
+  struct IContentsIndex::IIndexAPI
   {
-    virtual void  Insert( std::string_view key, std::string_view value ) = 0;
+    virtual void  Insert( const Span& key, const Span& block, unsigned bkType = unsigned(-1) ) = 0;
   };
 
   struct IContentsIndex::IEntities: public mtc::Iface
   {
     struct Reference
     {
-      uint32_t    entity;
-      const char* details;
-      uint32_t    detsize;
+      uint32_t    uEntity;
+      Span        details;
     };
+
     virtual auto  Find( uint32_t ) -> Reference = 0;
+    virtual auto  Size() const -> uint32_t = 0;
+    virtual auto  Type() const -> uint32_t = 0;
   };
 
  /*
   * IContents - keys indexing API provided to IContentsIndex::SetEntity()
   *
-  * Method is called with sing interface argument to send (key; value)
+  * Method is called with single interface argument to send (key; value)
   * pairs to contents index
   */
   struct IContents: public mtc::Iface
   {
-    virtual void  Enumerate( IContentsIndex::IKeyValue* ) const = 0;
+    virtual void  Enumerate( IContentsIndex::IIndexAPI* ) const = 0;
   };
 
 }
