@@ -2,7 +2,7 @@
 # define __palmira_src_index_dynamic_chains_hxx__
 # include "../../api/contents-index.hxx"
 # include "dynamic-chains-ringbuffer.hxx"
-# include "dynamic-banlist.hxx"
+# include "dynamic-bitmap.hxx"
 # include <mtc/recursive_shared_mutex.hpp>
 # include <mtc/radix-tree.hpp>
 # include <mtc/ptrpatch.h>
@@ -49,7 +49,8 @@ namespace dynamic {
       uint32_t    lblock;
 
     public:
-      ChainLink( uint32_t ent, std::string_view blk ): entity( ent )
+      template <class T>
+      ChainLink( uint32_t ent, const T& blk ): entity( ent )
         {  memcpy( data(), blk.data(), lblock = blk.size() );  }
 
     public:
@@ -72,31 +73,31 @@ namespace dynamic {
         cache_step = 64
       };
 
-      const unsigned      bkType;
-      LinkAllocator       malloc;
-      AtomicHook          pchain;               // collisions
+      const unsigned        bkType;
+      LinkAllocator         malloc;
+      AtomicHook            pchain;               // collisions
 
-      AtomicLink          pfirst = nullptr;     // first in chain
-      AtomicLink          points[cache_size];   // points cache
-      LastAnchor          ppoint = points - 1;  // invalid value
-      std::atomic_size_t  ncount = 0;
+      AtomicLink            pfirst = nullptr;     // first in chain
+      AtomicLink            points[cache_size];   // points cache
+      LastAnchor            ppoint = points - 1;  // invalid value
+      std::atomic_uint32_t  ncount = 0;
 
-      size_t              cchkey;               // key length
+      size_t                cchkey;               // key length
 
     public:
       auto  data() const -> const char* {  return (const char*)(this + 1);  }
       auto  data() -> char* {  return (char*)(this + 1);  }
 
     public:
-      ChainHook( unsigned blockType, std::string_view, ChainHook*, Allocator );
+      ChainHook( const Span& key, unsigned blockType, ChainHook*, Allocator );
      ~ChainHook();
 
     public:
-      bool  operator == ( const std::string_view& s ) const
+      bool  operator == ( const Span& s ) const
         {  return cchkey == s.size() && memcmp( data(), s.data(), s.size() ) == 0;  }
 
     public:
-      void  Insert( uint32_t, std::string_view );
+      void  Insert( uint32_t entity, const Span& block );
       void  Markup();
      /*
       * bool  Verify() const;
@@ -107,7 +108,7 @@ namespace dynamic {
       */
       bool  Verify() const;
       template <class OtherAllocator>
-      auto  Remove( const BanList<OtherAllocator>& ) -> ChainHook&;
+      auto  Remove( const Bitmap<OtherAllocator>& ) -> ChainHook&;
 
     };
 
@@ -116,10 +117,10 @@ namespace dynamic {
    ~BlockChains();
 
   public:
-    void  Insert( std::string_view, uint32_t, std::string_view );
-    auto  Lookup( std::string_view s ) const -> const ChainHook*;
+    void  Insert( const Span& key, uint32_t entity, const Span& block, unsigned bkType );
+    auto  Lookup( const Span& key ) const -> const ChainHook*;
     template <class OtherAllocator>
-    auto  Remove( const BanList<OtherAllocator>& ) -> BlockChains&;
+    auto  Remove( const Bitmap<OtherAllocator>& ) -> BlockChains&;
     auto  StopIt() -> BlockChains&;
 
    /*
@@ -197,16 +198,24 @@ namespace dynamic {
   }
 
   template <class Allocator>
-  void  BlockChains<Allocator>::Insert( std::string_view key, uint32_t entity, std::string_view block )
+  void  BlockChains<Allocator>::Insert( const Span& key, uint32_t entity, const Span& block, unsigned bkType )
   {
-    auto  hindex = std::hash<std::string_view>{}( key ) % hashTable.size();
+    auto  hindex = std::hash<std::string_view>{}( { key.data(), key.size() } ) % hashTable.size();
     auto  hentry = &hashTable[hindex];
     auto  hvalue = mtc::ptr::clean( hentry->load() );
 
+  // check block type; set the type value if is not set yet
+    if ( bkType == unsigned(-1) )
+      bkType = block.size() != 0 ? 0x10 : 0;
+
   // first try find existing block in the hash chain
-    while ( hvalue != nullptr )
-      if ( *hvalue == key ) return hvalue->Insert( entity, block );
-        else hvalue = hvalue->pchain.load();
+    for ( ; hvalue != nullptr; hvalue = hvalue->pchain.load() )
+      if ( *hvalue == key )
+      {
+        if ( hvalue->bkType != bkType )
+          throw std::invalid_argument( "Block type do not match the previously defined type" );
+        return hvalue->Insert( entity, block );
+      }
 
   // now try lock the hash table entry to create record
     for ( hvalue = mtc::ptr::clean( hentry->load() ); !hentry->compare_exchange_weak( hvalue, mtc::ptr::dirty( hvalue ) ); )
@@ -214,19 +223,23 @@ namespace dynamic {
 
   // check if locked hvalue list still contains no needed key; unlock and finish
   // if key is now found
-    while ( hvalue != nullptr )
+    for ( ; hvalue != nullptr; hvalue = hvalue->pchain.load() )
       if ( *hvalue == key )
       {
         hentry->store( mtc::ptr::clean( hentry->load() ) );
+
+        if ( hvalue->bkType != bkType )
+          throw std::invalid_argument( "Block type do not match the previously defined type" );
+
         return hvalue->Insert( entity, block );
-      } else hvalue = hvalue->pchain.load();
+      }
 
   // list contains no needed entry; allocate new ChainHook for new key;
   // for possible exceptions, unlock the entry and continue tracing
     try
     {
       new( hvalue = hookAlloc.allocate( (sizeof(ChainHook) * 2 + key.size() - 1) / sizeof(ChainHook) ) )
-        ChainHook( 0, key, mtc::ptr::clean( hentry->load() ), hookAlloc );
+        ChainHook( key, bkType, mtc::ptr::clean( hentry->load() ), hookAlloc );
 
       hentry->store( hvalue );
 
@@ -243,9 +256,9 @@ namespace dynamic {
   }
 
   template <class Allocator>
-  auto  BlockChains<Allocator>::Lookup( std::string_view key ) const -> const ChainHook*
+  auto  BlockChains<Allocator>::Lookup( const Span& key ) const -> const ChainHook*
   {
-    auto  hindex = std::hash<std::string_view>{}( key ) % hashTable.size();
+    auto  hindex = std::hash<std::string_view>{}( { key.data(), key.size() } ) % hashTable.size();
     auto  hvalue = mtc::ptr::clean( hashTable[hindex].load() );
 
   // first try find existing block in the hash chain
@@ -270,7 +283,7 @@ namespace dynamic {
 
   template <class Allocator>
   template <class OtherAllocator>
-  auto  BlockChains<Allocator>::Remove( const BanList<OtherAllocator>& deleted ) -> BlockChains&
+  auto  BlockChains<Allocator>::Remove( const Bitmap<OtherAllocator>& deleted ) -> BlockChains&
   {
     for ( auto it = radixTree.begin(); it != radixTree.end(); )
     {
@@ -310,13 +323,36 @@ namespace dynamic {
 
       next->value.blockOffset = offset;
 
-      for ( auto p = next->value.blocksChain->pfirst.load(); p != nullptr; p = p->p_next.load() )
-        if ( p->entity != uint32_t(-1) )
-        {
-          length += ::GetBufLen( p->entity - lastId - 1 ) + p->lblock;
-            chain = ::Serialize( ::Serialize( chain, p->entity - lastId - 1 ), p->data(), p->lblock );
-          lastId = p->entity;
-        }
+    // store block acctoding to block type:
+    //  * blocks without coordinates;
+    //  * blocks with coordinates
+      if ( next->value.blocksChain->bkType == 0 )
+      {
+        for ( auto p = next->value.blocksChain->pfirst.load(); p != nullptr; p = p->p_next.load() )
+          if ( p->entity != uint32_t(-1) )
+          {
+            auto  diffId = p->entity - lastId - 1;
+
+            length += ::GetBufLen( diffId );
+              chain = ::Serialize( chain, diffId );
+            lastId = p->entity;
+          }
+      }
+        else
+      {
+        for ( auto p = next->value.blocksChain->pfirst.load(); p != nullptr; p = p->p_next.load() )
+          if ( p->entity != uint32_t(-1) )
+          {
+            auto  diffId = p->entity - lastId - 1;
+            auto  diffBl = p->lblock - 1;
+
+            length += ::GetBufLen( diffId ) + p->lblock + ::GetBufLen( diffBl );
+              chain = ::Serialize( ::Serialize( ::Serialize( chain,
+                diffId ),
+                diffBl ), p->data(), diffBl + 1 );
+            lastId = p->entity;
+          }
+      }
 
       offset += (next->value.blockLength = length);
     }
@@ -349,7 +385,7 @@ namespace dynamic {
   // KeyBlockChains::ChainHook template implementation
 
   template <class Allocator>
-  BlockChains<Allocator>::ChainHook::ChainHook( unsigned b, std::string_view key, ChainHook* p, Allocator m ):
+  BlockChains<Allocator>::ChainHook::ChainHook( const Span& key, unsigned b, ChainHook* p, Allocator m ):
     bkType( b ),
     malloc( m ),
     pchain( p )
@@ -369,7 +405,7 @@ namespace dynamic {
   }
 
   template <class Allocator>
-  void  BlockChains<Allocator>::ChainHook::Insert( uint32_t entity, std::string_view block )
+  void  BlockChains<Allocator>::ChainHook::Insert( uint32_t entity, const Span& block )
   {
     auto        newptr = new( malloc.allocate( (sizeof(ChainLink) * 2 + block.size() - 1) / sizeof(ChainLink) ) )
       ChainLink( entity, block );
@@ -460,10 +496,10 @@ namespace dynamic {
 
   template <class Allocator>
   template <class OtherAllocator>
-  auto  BlockChains<Allocator>::ChainHook::Remove( const BanList<OtherAllocator>& deleted ) -> ChainHook&
+  auto  BlockChains<Allocator>::ChainHook::Remove( const Bitmap<OtherAllocator>& deleted ) -> ChainHook&
   {
     for ( auto p = pfirst.load(); p != nullptr; p = p->p_next.load() )
-      if ( deleted.Get( p->entity ) == p->entity )
+      if ( deleted.Get( p->entity ) )
       {
         p->entity = uint32_t(-1);
         --ncount;

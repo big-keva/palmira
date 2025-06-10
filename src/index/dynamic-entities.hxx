@@ -43,7 +43,6 @@ namespace dynamic {
       auto  GetId() const -> Attribute override {  return { id, owner_ptr };  }
       auto  GetIndex() const -> uint32_t override {  return index;  }
       auto  GetAttributes() const -> Attribute override {  return { attribute, owner_ptr };  }
-      auto  GetImage() const -> mtc::api<const mtc::IByteBuffer> override {  return {};  }
 
     public:   // serialization
       template <class O>
@@ -231,8 +230,8 @@ namespace dynamic {
         if ( bfirst ) hentry->store( mtc::ptr::dirty( hvalue->collision.load() ) );
           else hentry->store( hvalue->collision.load() );
 
-        del_id = hvalue - (Entity*)entTable.data();
-        hvalue->index = uint32_t(-1);
+        std::swap( del_id, hvalue->index );
+          break;
       }
         else
       {

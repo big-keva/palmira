@@ -2,9 +2,9 @@
 # define __palmira_src_index_static_entities_hxx__
 # include "../../api/contents-index.hxx"
 # include "../tools/primes.hxx"
-# include "dynamic-banlist.hxx"
 # include <mtc/ptrpatch.h>
 # include <functional>
+# include <stdexcept>
 # include <algorithm>
 
 namespace palmira {
@@ -30,7 +30,6 @@ namespace static_ {
       auto  GetId() const -> Attribute override {  return { entity_id, owner };  }
       auto  GetIndex() const -> uint32_t override {  return index;  }
       auto  GetAttributes() const -> Attribute override {  return { attribute, owner };  }
-      auto  GetImage() const -> mtc::api<const mtc::IByteBuffer> override {  return {};  }
 
       auto  SetOwnerId( mtc::Iface* pw ) -> Entity* {  return owner = pw, this;  }
       bool  ValidIndex() const noexcept {  return index != 0 && index != uint32_t(-1);  }
@@ -39,7 +38,7 @@ namespace static_ {
     // loading
       auto  FetchFrom( const char* ) -> const char*;
 
-    protected:
+    public:
       mtc::Iface*       owner = nullptr;
       Entity*           collision = nullptr;
       uint32_t          index = 0;            // order of creation, default 0
@@ -55,7 +54,7 @@ namespace static_ {
     using hash_vector = std::vector<Entity*, Allocator>;
 
   public:
-    EntityTable( mtc::api<const mtc::IByteBuffer>, Allocator = Allocator() );
+    EntityTable( const Span&, Allocator = Allocator() );
    ~EntityTable();
 
     auto  GetMaxEntities() const -> size_t {  return entityTable.size() - 1;  };
@@ -77,10 +76,8 @@ namespace static_ {
   protected:
     using IndexByKeys = std::vector<uint32_t, Allocator>;
 
-    const mtc::api<const mtc::IByteBuffer>  tableSource;
     vector_type                             entityTable;
     hash_vector                             entitiesMap;
-    dynamic::BanList<Allocator>             deleted;
     mutable std::atomic<IndexByKeys*>       indexByKeys = nullptr;
 
   };
@@ -135,16 +132,14 @@ namespace static_ {
   // EntityTable implementation
 
   template <class Allocator>
-  EntityTable<Allocator>::EntityTable( mtc::api<const mtc::IByteBuffer> inbuf, Allocator alloc ):
-    tableSource( inbuf ),
+  EntityTable<Allocator>::EntityTable( const Span& input, Allocator alloc ):
     entityTable( alloc ),
-    entitiesMap( alloc ),
-    deleted( alloc )
+    entitiesMap( alloc )
   {
-    entityTable.reserve( inbuf->GetLen() / 0x40 );
+    entityTable.reserve( input.size() / 0x40 );
 
   // load the table
-    for ( auto src = inbuf->GetPtr(), end = src + inbuf->GetLen(); src != nullptr && src != end; )
+    for ( auto src = input.data(), end = input.data() + input.size(); src != nullptr && src != end; )
     {
       entityTable.resize( entityTable.size() + 1 );
         src = entityTable.back().FetchFrom( src );
@@ -179,8 +174,7 @@ namespace static_ {
   template <class Allocator>
   auto  EntityTable<Allocator>::GetEntity( uint32_t id ) const -> mtc::api<const Entity>
   {
-    return id > 0 && id < entityTable.size() && !deleted.Get( id ) ?
-      &entityTable[id] : nullptr;
+    return id > 0 && id < entityTable.size() ? &entityTable[id] : nullptr;
   }
 
   template <class Allocator>
@@ -195,7 +189,7 @@ namespace static_ {
       auto  offs = hash % entitiesMap.size();
 
       for ( auto next = entitiesMap[offs]; next != nullptr; next = next->collision )
-        if ( !deleted.Get( next->index ) && next->entity_id == id )
+        if ( next->entity_id == id )
           return next;
     }
 
@@ -207,7 +201,7 @@ namespace static_ {
   {
     for ( ; id < entityTable.size(); ++id )
     {
-      if ( entityTable[id].index != 0 && !deleted.Get( id ) )
+      if ( entityTable[id].ValidIndex() )
         return Iterator( *this, &EntityTable::getNextByIx, id );
     }
     return Iterator( *this, &EntityTable::getNextByIx, uint32_t(-1) );
@@ -220,7 +214,7 @@ namespace static_ {
     auto  pfound = std::lower_bound( pindex->begin(), pindex->end(), id, [&]( uint32_t i, std::string_view id )
       {  return entityTable[i].entity_id <= id;  } );
 
-    while ( pfound != pindex->end() && deleted.Get( *pfound ) )
+    while ( pfound != pindex->end() && !entityTable[*pfound].ValidIndex() )
       ++pfound;
 
     return Iterator( *this, &EntityTable::getNextById, pfound != pindex->end() ?
@@ -250,7 +244,7 @@ namespace static_ {
 
         // fill table with document indices
           for ( auto& next: entityTable )
-            if ( next.index != 0 && next.index != uint32_t(-1) && !deleted.Get( next.index ) )
+            if ( next.index != 0 && next.index != uint32_t(-1) )
               pindex->push_back( next.index );
 
         // sort ids by entity id
@@ -267,7 +261,7 @@ namespace static_ {
   {
     if ( id != uint32_t(-1) )
     {
-      for ( ++id; id != entityTable.size() && deleted.Get( id ); ++id )
+      for ( ++id; id != entityTable.size() && !entityTable[id].ValidIndex(); ++id )
         (void)NULL;
       if ( id == entityTable.size() )
         id = uint32_t(-1);
@@ -286,7 +280,7 @@ namespace static_ {
       if ( pfound != pindex->end() )
         ++pfound;
 
-      while ( pfound != pindex->end() && deleted.Get( *pfound ) )
+      while ( pfound != pindex->end() && !entityTable[*pfound].ValidIndex() )
         ++pfound;
 
       if ( pfound != pindex->end() )
