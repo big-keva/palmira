@@ -24,7 +24,7 @@ namespace dynamic {
   public:
     class Iterator;
 
-    class Entity: public IEntity
+    class Entity: public IEntity, protected mtc::IByteBuffer
     {
       friend class EntityTable;
 
@@ -39,12 +39,25 @@ namespace dynamic {
     public:
       auto  SetOwnerPtr( mtc::api<Iface> p ) -> Entity*;
 
-    public:   // overridables from IEntity
-      auto  GetId() const -> Attribute override {  return { id, owner_ptr };  }
-      auto  GetIndex() const -> uint32_t override {  return index;  }
-      auto  GetAttributes() const -> Attribute override {  return { attribute, owner_ptr };  }
+    public:     // overridables from IEntity
+      auto  GetId() const -> Attribute override
+        {  return { id, owner_ptr };  }
+      auto  GetIndex() const -> uint32_t override
+        {  return index;  }
+      auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> override
+        {  return this;  }
 
-    public:   // serialization
+    protected:  // overridables from IByteBuffer
+      auto  GetPtr() const noexcept -> const char* override
+        {  return attribute.data();  }
+      auto  GetLen() const noexcept -> size_t override
+        {  return attribute.size();  }
+      int   SetBuf( const void*, size_t ) override
+        {  throw std::logic_error( "not implemented" );  }
+      int   SetLen( size_t ) override
+        {  throw std::logic_error( "not implemented" );  }
+
+    public:     // serialization
       template <class O>
       O*  Serialize( O* ) const;
 

@@ -13,4 +13,8 @@ add_executable(test-palmira-index
 
 	index/test-patch-table.cxx
 
+	index/test-commit-contents.cxx
+
+        index/test-index-flakes.cxx
+
 	test-main.cxx)

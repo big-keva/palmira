@@ -164,7 +164,7 @@ namespace dynamic {
     auto  tabStream = pStorage->Entities();
       entities.Serialize( tabStream.ptr() );
 
-    auto  keyIndex = pStorage->Index();
+    auto  keyIndex = pStorage->Contents();
     auto  keyChain = pStorage->Chains();
 
     contents.Serialize( keyIndex.ptr(), keyChain.ptr() );
@@ -204,13 +204,13 @@ namespace dynamic {
 
   // contents implementation
 
-  auto  contents::SetAllocationLimit( uint32_t maxAllocateBytes ) -> contents&
+  auto  Contents::SetAllocationLimit( uint32_t maxAllocateBytes ) -> Contents&
     {  return maxAllocate = maxAllocateBytes, *this;  }
-  auto  contents::SetMaxEntitiesCount( uint32_t maxEntitiesCount ) -> contents&
+  auto  Contents::SetMaxEntitiesCount( uint32_t maxEntitiesCount ) -> Contents&
     {  return maxEntities = maxEntitiesCount, *this;  }
-  auto  contents::SetOutStorageSink( mtc::api<IStorage::IIndexStore> sink ) -> contents&
+  auto  Contents::SetOutStorageSink( mtc::api<IStorage::IIndexStore> sink ) -> Contents&
     {  return storageSink = sink, *this;  }
-  auto  contents::Create() const -> mtc::api<IContentsIndex>
+  auto  Contents::Create() const -> mtc::api<IContentsIndex>
     {  return new ContentsIndex( maxEntities, maxAllocate, storageSink );  }
 
 }}}

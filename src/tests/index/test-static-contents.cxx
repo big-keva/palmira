@@ -29,7 +29,7 @@ public:
     }
 };
 
-TestItEasy::RegisterFunc  static_ccontents( []()
+TestItEasy::RegisterFunc  static_contents( []()
   {
     TEST_CASE( "index/static-contents" )
     {
@@ -38,7 +38,7 @@ TestItEasy::RegisterFunc  static_ccontents( []()
         auto  contents = mtc::api<palmira::IContentsIndex>();
         auto  serialized = mtc::api<palmira::IStorage::ISerialized>();
 
-        REQUIRE_NOTHROW( contents = palmira::index::dynamic::contents()
+        REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents()
           .SetOutStorageSink( palmira::storage::filesys::CreateSink( "/tmp/k2" ) ).Create() );
         REQUIRE_NOTHROW( contents->SetEntity( "aaa", KeyValues( {
             { "aaa", 1161 },
@@ -85,12 +85,8 @@ TestItEasy::RegisterFunc  static_ccontents( []()
               {
                 REQUIRE( entRef.uEntity == 1 );
                 if ( REQUIRE_NOTHROW( entRef = entities->Find( entRef.uEntity + 1 ) ) )
-                {
-              /*
                   REQUIRE( entRef.uEntity == uint32_t(-1) );
-                  */
               }
-                }
             }
 
             if ( REQUIRE_NOTHROW( contents->GetKeyStats( "bbb", 3 ) ) )
@@ -103,6 +99,41 @@ TestItEasy::RegisterFunc  static_ccontents( []()
               REQUIRE( contents->GetKeyStats( "eee", 3 ).nCount == 1 );
             if ( REQUIRE_NOTHROW( contents->GetKeyStats( "fff", 3 ) ) )
               REQUIRE( contents->GetKeyStats( "fff", 3 ).nCount == 0 );
+          }
+          SECTION( "entity may be deleted" )
+          {
+            bool  deleted;
+
+            if ( REQUIRE_NOTHROW( deleted = contents->DelEntity( "aaa" ) ) )
+              REQUIRE( deleted == true );
+
+            SECTION( "after deletion entity may not be found" )
+            {
+              SECTION( "- by id" )
+              {
+                if ( REQUIRE_NOTHROW( contents->GetEntity( "aaa" ) ) )
+                  REQUIRE( contents->GetEntity( "aaa" ) == nullptr );
+              }
+              SECTION( "- by index" )
+              {
+                if ( REQUIRE_NOTHROW( contents->GetEntity( 1 ) ) )
+                  REQUIRE( contents->GetEntity( 1 ) == nullptr );
+              }
+              SECTION( "- by contents" )
+              {
+                palmira::IContentsIndex::IEntities::Reference entRef;
+
+                REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "aaa", 3 ) );
+                REQUIRE( entities != nullptr );
+
+                if ( REQUIRE_NOTHROW( entRef = entities->Find( 1 ) ) )
+                  REQUIRE( entRef.uEntity == uint32_t(-1) );
+              }
+            }
+            SECTION( "second deletion of deleted object returns false" )
+            {
+              REQUIRE( contents->DelEntity( "aaa" ) == false );
+            }
           }
         }
       }

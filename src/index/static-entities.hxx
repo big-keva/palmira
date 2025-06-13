@@ -15,6 +15,32 @@ namespace static_ {
   class EntityTable
   {
   public:
+    class Region final: public mtc::IByteBuffer
+    {
+      implement_lifetime_control
+
+    public:
+      Region( const char* p, size_t l, const mtc::Iface* o ):
+        bufptr( p ),
+        length( l ),
+        iOwner( o ) {}
+
+    public:
+      auto  GetPtr() const -> const char* override
+        {  return bufptr;  }
+      auto  GetLen() const -> size_t override
+        {  return length;  }
+      int   SetBuf( const void*, size_t ) override
+        {  throw std::logic_error( "not implemented" );  }
+      int   SetLen( size_t ) override
+        {  throw std::logic_error( "not implemented" );  }
+
+    protected:
+      const char*                 bufptr;
+      size_t                      length;
+      mtc::api<const mtc::Iface>  iOwner;
+    };
+
     class Entity: public IEntity
     {
       friend class EntityTable;
@@ -27,9 +53,12 @@ namespace static_ {
       Entity() = default;
 
     // overridables from IEntity
-      auto  GetId() const -> Attribute override {  return { entity_id, owner };  }
-      auto  GetIndex() const -> uint32_t override {  return index;  }
-      auto  GetAttributes() const -> Attribute override {  return { attribute, owner };  }
+      auto  GetId() const -> Attribute override
+        {  return { entity_id, owner };  }
+      auto  GetIndex() const -> uint32_t override
+        {  return index;  }
+      auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> override
+        {  return new Region( attribute.data(), attribute.size(), owner );  }
 
       auto  SetOwnerId( mtc::Iface* pw ) -> Entity* {  return owner = pw, this;  }
       bool  ValidIndex() const noexcept {  return index != 0 && index != uint32_t(-1);  }
@@ -57,8 +86,7 @@ namespace static_ {
     EntityTable( const Span&, Allocator = Allocator() );
    ~EntityTable();
 
-    auto  GetMaxEntities() const -> size_t {  return entityTable.size() - 1;  };
-    auto  GetEntityCount() const -> size_t {  return entityTable.size() - 1;  };
+    auto  GetEntityCount() const -> uint32_t {  return std::max( 1U, uint32_t( entityTable.size() ) ) - 1;  };
 
   // entities access
     auto  GetEntity( uint32_t id ) const -> mtc::api<const Entity>;

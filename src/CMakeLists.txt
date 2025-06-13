@@ -7,10 +7,15 @@ add_library(palmira-index
 	storage/filesystem-serial.cxx
 
         index/contents-index.cxx
-	index/dynamic-contents-index.cxx
-	index/static-contents-index.cxx
-	index/commit-contents-index.cxx
-	index/flaked-contents-index.cxx)
+	index/override-entities.cxx
+
+	index/dynamic-contents.cxx
+	index/static-contents.cxx
+	index/commit-contents.cxx
+
+        index/index-flakes.cxx
+
+	index/flaked-contents.cxx)
 
 add_subdirectory(tests)
 	

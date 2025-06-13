@@ -27,7 +27,7 @@ public:
     }
 };
 
-TestItEasy::RegisterFunc  dynamic_ccontents( []()
+TestItEasy::RegisterFunc  dynamic_contents( []()
   {
     TEST_CASE( "index/dynamic-contents" )
     {
@@ -35,7 +35,7 @@ TestItEasy::RegisterFunc  dynamic_ccontents( []()
 
       SECTION( "dynamic::contents index may be created" )
       {
-        REQUIRE_NOTHROW( contents = palmira::index::dynamic::contents().Create() );
+        REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents().Create() );
 
         SECTION( "objects may be inserted to the contents index" )
         {
@@ -85,7 +85,7 @@ TestItEasy::RegisterFunc  dynamic_ccontents( []()
       }
       SECTION( "dynamic::contents index may be created with entity count limitation" )
       {
-        REQUIRE_NOTHROW( contents = palmira::index::dynamic::contents()
+        REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents()
           .SetMaxEntitiesCount( 3 ).Create() );
 
         SECTION( "insertion of more entities than the limit causes count_overflow" )
@@ -100,9 +100,9 @@ TestItEasy::RegisterFunc  dynamic_ccontents( []()
       }
       SECTION( "dynamic::contents index may be created with size count limitation" )
       {
-        REQUIRE_NOTHROW( contents = palmira::index::dynamic::contents()
+        REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents()
           .SetMaxEntitiesCount( 3 )
-          .SetAllocationLimit( 168480 ).Create() );
+          .SetAllocationLimit( 168880 ).Create() );
 
         SECTION( "insertion of more entities than the limit causes count_overflow" )
         {
@@ -117,7 +117,7 @@ TestItEasy::RegisterFunc  dynamic_ccontents( []()
         auto  sink = palmira::storage::filesys::CreateSink( "/tmp/k2" );
         auto  well = mtc::api<palmira::IStorage::ISerialized>();
 
-        REQUIRE_NOTHROW( contents = palmira::index::dynamic::contents()
+        REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents()
           .SetOutStorageSink( sink )
           .Create() );
 

@@ -1,6 +1,7 @@
 # include "../api/static-contents.hxx"
 # include "static-entities.hxx"
 # include "dynamic-bitmap.hxx"
+# include "patch-table.hxx"
 # include <mtc/radix-tree.hpp>
 # include <mtc/arena.hpp>
 
@@ -15,6 +16,7 @@ namespace index {
     using IByteBuffer = mtc::IByteBuffer;
     using IFlatStream = mtc::IFlatStream;
     using KeyContents = mtc::radix::dump<const char>;
+    using PatchHolder = PatchTable<Allocator>;
 
     class EntitiesBase;
     class EntitiesLite;
@@ -38,10 +40,13 @@ namespace index {
     auto  Reduce() -> mtc::api<IContentsIndex> override  {  return this;  }
 
     auto  GetMaxIndex() const -> uint32_t override
-      {  return entities.GetMaxEntities();  }
+      {  return entities.GetEntityCount();  }
 
     auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override;
     auto  GetKeyStats( const void*, size_t ) const -> BlockInfo override;
+
+  protected:
+    bool  delEntity( EntityId, uint32_t );
 
   protected:
     mtc::Arena                  memArena;       // allocation arena
@@ -50,8 +55,9 @@ namespace index {
     mtc::api<const IByteBuffer> radixBuf;
     EntityTable                 entities;       // static entities table
     KeyContents                 contents;       // radix tree view
-    mtc::api<IFlatStream>       blockBox;
+    PatchHolder                 patchTab;
     Bitmap<Allocator>           shadowed;       // deleted documents identifiers
+    mtc::api<IFlatStream>       blockBox;
 
   };
 
@@ -104,7 +110,8 @@ namespace index {
     entities( tableBuf, memArena.get_allocator<char>() ),
     contents( radixBuf->GetPtr() ),
     blockBox( storage->Blocks() ),
-    shadowed( entities.GetMaxEntities(), memArena.get_allocator<char>() )
+    patchTab( std::max( 1000U, entities.GetEntityCount() ), memArena.get_allocator<char>() ),
+    shadowed( entities.GetEntityCount(), memArena.get_allocator<char>() )
   {
   }
 
@@ -120,8 +127,23 @@ namespace index {
     return !shadowed.Get( id ) ? entities.GetEntity( id ).ptr() : nullptr;
   }
 
+ /*
+  * DelEntity( EntityId id )
+  *
+  * Creates the patch record for the deleted document.
+  */
   bool  ContentsIndex::DelEntity( EntityId id )
   {
+    auto  getdoc = entities.GetEntity( id );
+
+    if ( getdoc != nullptr )
+    {
+      auto  ppatch = patchTab.Search( { id.data(), id.size() } );
+
+      if ( ppatch == nullptr || ppatch->GetLen() != size_t(-1) )
+        return delEntity( id, getdoc->index );
+    }
+    return false;
   }
 
   auto  ContentsIndex::SetEntity( EntityId,
@@ -177,6 +199,14 @@ namespace index {
     return { 0, 0 };
   }
 
+  bool  ContentsIndex::delEntity( EntityId id, uint32_t index )
+  {
+    patchTab.Delete( { id.data(), id.size() } );
+    patchTab.Delete( index );
+    shadowed.Set( index );
+    return true;
+  }
+
   // ContentsIndex::EntitiesBase implementation
 
   ContentsIndex::EntitiesBase::EntitiesBase(
@@ -212,7 +242,7 @@ namespace index {
 
   auto  ContentsIndex::EntitiesRich::Find( uint32_t tofind ) -> Reference
   {
-    for ( tofind = std::max( tofind, 1U ); ptrtop != ptrend; )
+    for ( tofind = std::max( tofind, 1U ); ptrtop < ptrend; )
     {
       unsigned  udelta;
       unsigned  ublock;
@@ -220,15 +250,16 @@ namespace index {
       if ( (ptrtop = ::FetchFrom( ::FetchFrom( ptrtop, udelta ), ublock )) == nullptr )
         return curref = { (uint32_t)-1, { nullptr, 0 } };
 
-      if ( (curref.uEntity += udelta + 1) >= tofind )
+      if ( (curref.uEntity += udelta + 1) >= tofind && !parent->shadowed.Get( curref.uEntity ) )
       {
         curref.details = { ptrtop, ublock + 1 };
         return ptrtop += ublock + 1, curref;
       }
 
-      ptrtop += ublock + 1;
+      if ( (ptrtop += ublock + 1) >= ptrend )
+        break;
     }
-    return curref.uEntity >= tofind ? curref : curref = { (uint32_t)-1, { nullptr, 0 } };
+    return curref = { (uint32_t)-1, { nullptr, 0 } };
   }
 
   // contents implementation

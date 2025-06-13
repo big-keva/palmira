@@ -33,7 +33,7 @@ namespace filesys {
 
   public:
     auto  Entities() -> mtc::api<mtc::IByteStream> override {  return entities;  }
-    auto  Index() -> mtc::api<mtc::IByteStream> override  {  return contents;  }
+    auto  Contents() -> mtc::api<mtc::IByteStream> override  {  return contents;  }
     auto  Chains() -> mtc::api<mtc::IByteStream> override {  return blocks;  }
 
     auto  Commit() -> mtc::api<IStorage::ISerialized> override;

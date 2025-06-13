@@ -5,6 +5,10 @@
 # include <cstring>
 # include <vector>
 # include <atomic>
+#include <stdexcept>
+#include <mtc/serialize.h>
+
+#include "../../api/contents-index.hxx"
 
 namespace palmira {
 namespace index   {
@@ -21,50 +25,77 @@ namespace index   {
     using MakeAllocator = typename std::allocator_traits<Allocator>::rebind_alloc<Target>;
 
   public:
-    class PatchAPI;
-
-  public:
     PatchTable( size_t maxPatches, Allocator alloc = Allocator() );
    ~PatchTable();
 
   public:
-    auto  Update( const Span& id, const Span& md ) -> PatchAPI
+    auto  Update( const Span& id, const Span& md ) -> mtc::api<const mtc::IByteBuffer>
       {  return Modify( id, PatchVal::Create( md, hashTable.get_allocator() ) );  }
     void  Delete( const Span& id )
-      {  return (void)Modify( id, { PatchVal::deleted(), hashTable.get_allocator() } );  }
-    auto  Search( const Span& ) -> PatchAPI;
-    auto  Update( uint32_t ix, const Span& md ) -> PatchAPI {  return Update( MakeId( ix ), md );  }
-    void  Delete( uint32_t ix )                             {  return Delete( MakeId( ix ) );  }
-    auto  Search( uint32_t ix ) -> PatchAPI                 {  return Search( MakeId( ix ) );  }
+      {  return (void)Modify( id, PatchVal::Create( PatchVal::deleted, hashTable.get_allocator() ) );  }
+    auto  Search( const Span& ) -> mtc::api<const mtc::IByteBuffer>;
+    auto  Update( uint32_t ix, const Span& md ) -> mtc::api<const mtc::IByteBuffer>
+      {  return Update( MakeId( ix ), md );  }
+    void  Delete( uint32_t ix )
+      {  return Delete( MakeId( ix ) );  }
+    auto  Search( uint32_t ix ) -> mtc::api<const mtc::IByteBuffer>
+      {  return Search( MakeId( ix ) );  }
 
-    auto  Modify( const Span&, const PatchAPI& ) -> PatchAPI;
+    void  Commit( mtc::api<IStorage::ISerialized> );
+
+  protected:
+    auto  Modify( const Span&, const mtc::api<const mtc::IByteBuffer>& ) -> mtc::api<const mtc::IByteBuffer>;
+
   protected:
     static  auto  MakeId( uint32_t ix ) -> Span;
     static  auto  HashId( const Span& ) -> size_t;
+    static  bool  IsUint( const Span& );
 
   protected:
+    std::atomic_long                  modifiers = 0;
     std::vector<HashItem, Allocator>  hashTable;
 
   };
 
   template <class Allocator>
-  class PatchTable<Allocator>::PatchVal   // record keeping the serialized value
+  class PatchTable<Allocator>::PatchVal final: public mtc::IByteBuffer  // record keeping the serialized value
   {
     friend class PatchTable;
 
-    std::atomic_long  rcount = 0;
-    size_t            length;
+    using PatchAlloc = MakeAllocator<PatchVal>;
 
-    constexpr static PatchVal* deleted() noexcept {  return (PatchVal*)(uintptr_t(nullptr) - 1); }
+    struct deleted_t {};
+
+    constexpr static deleted_t deleted{};
+
+  protected:
+    PatchVal( const Span&, Allocator );
+    PatchVal( const deleted_t&, Allocator );
 
   public:
     static
-    auto  Create( const Span&, Allocator ) -> PatchAPI;
-    void  Delete( Allocator );
+    auto  Create( const Span&, Allocator ) -> mtc::api<const IByteBuffer>;
+    static
+    auto  Create( const deleted_t&, Allocator ) -> mtc::api<const IByteBuffer>;
 
   public:
-    char*   data() const {  return (char*)(this + 1);  }
-    size_t  size() const {  return length;  }
+    long  Attach() override {  return ++rcount;  }
+    long  Detach() override;
+
+  public:
+    auto  GetPtr() const -> const char* override
+      {  return length != size_t(-1) ? (char*)(this + 1) : nullptr;  }
+    auto  GetLen() const -> size_t
+      {  return length;  }
+    int   SetBuf( const void*, size_t ) override
+      {  throw std::logic_error( "not implemented" );  }
+    int   SetLen( size_t ) override
+      {  throw std::logic_error( "not implemented" );  }
+
+  protected:
+    PatchAlloc        memman;
+    std::atomic_long  rcount = 0;
+    size_t            length;
   };
 
   template <class Allocator>
@@ -73,13 +104,13 @@ namespace index   {
     friend class PatchTable;
 
   public:
-    PatchRec( PatchRec* ptr, const Span& key, PatchVal* val ):
+    PatchRec( PatchRec* ptr, const Span& key, const mtc::IByteBuffer* val ):
       collision( ptr ),
       entityKey( key ),
       patchData( val )
     {
-      if ( val != nullptr && val != PatchVal::deleted() )
-        ++patchData.load()->rcount;
+      if ( val != nullptr )
+        const_cast<mtc::IByteBuffer*>( val )->Attach();
     }
 
   public:
@@ -88,92 +119,62 @@ namespace index   {
     bool  operator != ( const Span& to ) const  {  return !(*this == to);  }
 
     // helper func
-    auto  Modify( PatchAPI ) -> PatchAPI;
+    auto  Modify( mtc::api<const mtc::IByteBuffer> ) -> mtc::api<const mtc::IByteBuffer>;
 
   protected:
-    std::atomic<PatchRec*>  collision = nullptr;
-    Span                    entityKey = { nullptr, 0 };
-    std::atomic<PatchVal*>  patchData = nullptr;
-
-  };
-
-  template <class Allocator>
-  class PatchTable<Allocator>::PatchAPI
-  {
-    friend class PatchTable;
-
-    void  Detach()
-    {
-      if ( ptr != nullptr && ptr != PatchVal::deleted() )
-        ptr->Delete( mem );
-    }
-
-    PatchAPI( PatchVal* p, Allocator a ): mem( a ), ptr( p )
-    {
-      if ( ptr != nullptr && ptr != PatchVal::deleted() )
-        ++ptr->rcount;
-    }
-
-  public:
-    PatchAPI() = default;
-    PatchAPI( const PatchAPI& p ): mem( p.mem ), ptr( p.ptr )
-    {
-      if ( ptr != nullptr && ptr != PatchVal::deleted() )
-        ++ptr->rcount;
-    }
-   ~PatchAPI()
-    {
-      Detach();
-    }
-    PatchAPI& operator = ( const PatchAPI& p )
-    {
-      Detach();
-      if ( (ptr = p.ptr) != nullptr && ptr != PatchVal::deleted() )
-        ++ptr->rcount;
-      return *this;
-    }
-
-    auto  data() const -> const char* {  return ptr != nullptr ? ptr->data() : nullptr; }
-    auto  size() const -> size_t {  return ptr != nullptr ? ptr->size() : 0;  }
-
-    bool  operator == ( nullptr_t ) const {  return ptr == nullptr;  }
-    bool  operator != ( nullptr_t ) const {  return !(*this == nullptr);  }
-
-    bool  IsDeleted() const {  return ptr == PatchVal::deleted(); }
-    bool  IsUpdated() const {  return ptr != PatchVal::deleted(); }
-
-    auto  get_allocator() const -> Allocator  {  return mem;  }
-    auto  get() const -> PatchVal* {  return (PatchVal*)ptr; }
-    auto  release() -> PatchVal* {  auto p = ptr;  ptr = nullptr;  return p; }
-
-  protected:
-    Allocator  mem;
-    PatchVal*  ptr = nullptr;
+    std::atomic<PatchRec*>                collision = nullptr;
+    Span                                  entityKey = { nullptr, 0 };
+    std::atomic<const mtc::IByteBuffer*>  patchData = nullptr;
+    std::atomic_long                      patchTime = 0;
 
   };
 
   // PatchVal implementation
 
   template <class Allocator>
-  auto  PatchTable<Allocator>::PatchVal::Create( const Span& data, Allocator mman ) -> PatchAPI
+  PatchTable<Allocator>::PatchVal::PatchVal( const Span& data, Allocator mman ):
+    memman( mman ),
+    length( data.size() )
   {
-    auto  nalloc = (sizeof(PatchVal) * 2 + data.size() - 1) / sizeof(PatchVal);
-    auto  palloc = new( MakeAllocator<PatchVal>( mman ).allocate( nalloc ) )
-      PatchVal();
-
-    memcpy( palloc->data(), data.data(), palloc->length = data.size() );
-
-    return { palloc, mman };
+    memcpy( (void*)PatchVal::GetPtr(), data.data(), length );
   }
 
   template <class Allocator>
-  void  PatchTable<Allocator>::PatchVal::Delete( Allocator alloc )
+  PatchTable<Allocator>::PatchVal::PatchVal( const deleted_t&, Allocator mman ):
+    memman( mman ),
+    length( -1 )
   {
-    if ( --rcount == 0 )
+  }
+
+  template <class Allocator>
+  auto  PatchTable<Allocator>::PatchVal::Create( const Span& data, Allocator mman ) -> mtc::api<const mtc::IByteBuffer>
+  {
+    auto  nalloc = (sizeof(PatchVal) * 2 + data.size() - 1) / sizeof(PatchVal);
+    auto  palloc = new( MakeAllocator<PatchVal>( mman ).allocate( nalloc ) )
+      PatchVal( data, mman );
+
+    return palloc;
+  }
+
+  template <class Allocator>
+  auto  PatchTable<Allocator>::PatchVal::Create( const PatchVal::deleted_t&, Allocator mman ) -> mtc::api<const mtc::IByteBuffer>
+  {
+    return new( MakeAllocator<PatchVal>( mman ).allocate( 1 ) )
+      PatchVal( PatchVal::deleted, mman );
+  }
+
+  template <class Allocator>
+  long  PatchTable<Allocator>::PatchVal::Detach()
+  {
+    auto  refcount = --rcount;
+
+    if ( refcount == 0 )
     {
       this->~PatchVal();
-      MakeAllocator<PatchVal>( alloc ).deallocate( this, 0 );
+      memman.deallocate( this, 0 );
     }
+
+    return refcount;
   }
 
   // PatchTable::PatchRec implementation
@@ -195,37 +196,38 @@ namespace index   {
   }
 
  /*
-  * PatchTable<Allocator>::PatchRec::Delete()
+  * PatchTable<Allocator>::PatchRec::Modify( data )
   *
-  * Set the PatchVal pointer of PatchRec to ptr(-1) to mark as deleted object.
-  *
-  * If there is an existing patch data, deletes it if no objects refer.
+  * Set the PatchVal data to value passed.
+  * If there is an existing patch data, updates it.
+  * Does not override deleted data.
   */
-  /*
-   * PatchTable<Allocator>::PatchRec::Update( PatchAPI )
-   *
-   * Set the PatchVal data to value passed.
-   * If there is an existing patch data, updates it.
-   * Does not override Deleted().
-   */
   template <class Allocator>
-  auto  PatchTable<Allocator>::PatchRec::Modify( PatchAPI data ) -> PatchAPI
+  auto  PatchTable<Allocator>::PatchRec::Modify( mtc::api<const mtc::IByteBuffer> data ) -> mtc::api<const mtc::IByteBuffer>
   {
-    auto  pvalue = patchData.load();
+    auto  pvalue = mtc::ptr::clean( patchData.load() );
+    auto  result = data;
 
-    while ( pvalue != PatchVal::deleted() && !patchData.compare_exchange_weak( pvalue, data.get() ) )
-      (void)NULL;
+  // get and lock current patch value
+    while ( !patchData.compare_exchange_weak( pvalue, mtc::ptr::dirty( pvalue ) ) )
+      pvalue = mtc::ptr::clean( pvalue );
 
-    if ( pvalue != PatchVal::deleted() )
+  // check if current value is valid
+    if ( pvalue == nullptr )
     {
-      auto  result = data;
-
-      if ( pvalue != nullptr )
-        pvalue->Delete( data.get_allocator() );
-
-      return data.release(), result;
+      patchData.store( pvalue );
+      throw std::logic_error( "invalid PatchRec value == NULL" );
     }
-    return { pvalue, data.get_allocator() };
+
+  // check if existing document is already deleted; ignore value passed
+  // and return current value
+    if ( pvalue->GetLen() == size_t(-1) )
+      return (result = pvalue), patchData.store( pvalue ), result;
+
+  // override current patchData
+    const_cast<mtc::IByteBuffer*>( pvalue )->Detach();
+
+    return patchData.store( data.release() ), result;
   }
 
   // PatchTable implementation
@@ -239,7 +241,6 @@ namespace index   {
   PatchTable<Allocator>::~PatchTable()
   {
     auto  entryAlloc = MakeAllocator<PatchRec>( hashTable.get_allocator() );
-    auto  patchAlloc = MakeAllocator<PatchVal>( hashTable.get_allocator() );
 
     for ( auto& rentry: hashTable )
       for ( auto pentry = mtc::ptr::clean( rentry.load() ); pentry != nullptr; )
@@ -247,8 +248,8 @@ namespace index   {
         auto  pfetch = pentry->collision.load();
         auto  pvalue = pentry->patchData.load();
 
-        if ( pvalue != nullptr && pvalue != PatchVal::deleted() )
-          pvalue->Delete( patchAlloc );
+        if ( pvalue != nullptr )
+          const_cast<mtc::IByteBuffer*>( pvalue )->Detach();
 
         pentry->~PatchRec();
         entryAlloc.deallocate( pentry, 0 );
@@ -261,7 +262,7 @@ namespace index   {
   * Creates a metadata update record with no override for 'deleted'
   */
   template <class Allocator>
-  auto  PatchTable<Allocator>::Modify( const Span& key, const PatchAPI& pvalue ) -> PatchAPI
+  auto  PatchTable<Allocator>::Modify( const Span& key, const mtc::api<const mtc::IByteBuffer>& pvalue ) -> mtc::api<const mtc::IByteBuffer>
   {
     auto& rentry = hashTable[HashId( key ) % hashTable.size()];
     auto  pentry = mtc::ptr::clean( rentry.load() );
@@ -287,7 +288,7 @@ namespace index   {
     try
     {
       pentry = new ( MakeAllocator<PatchRec>( hashTable.get_allocator() ).allocate( 1 ) )
-        PatchRec( mtc::ptr::clean( rentry.load() ), key, pvalue.get() );
+        PatchRec( mtc::ptr::clean( rentry.load() ), key, pvalue.ptr() );
       rentry.store( pentry );
       return pvalue;
     }
@@ -299,7 +300,7 @@ namespace index   {
   }
 
   template <class Allocator>
-  auto  PatchTable<Allocator>::Search( const Span& key ) -> PatchAPI
+  auto  PatchTable<Allocator>::Search( const Span& key ) -> mtc::api<const mtc::IByteBuffer>
   {
     auto& rentry = hashTable[HashId( key ) % hashTable.size()];
     auto  pentry = mtc::ptr::clean( rentry.load() );
@@ -307,9 +308,52 @@ namespace index   {
   // check if element exists
     for ( ; pentry != nullptr; pentry = mtc::ptr::clean( pentry->collision.load() ) )
       if ( *pentry == key )
-        return { pentry->patchData.load(), hashTable.get_allocator() };
+        return pentry->patchData.load();
 
-    return { nullptr, hashTable.get_allocator() };
+    return {};
+  }
+
+  template <class Allocator>
+  void  PatchTable<Allocator>::Commit( mtc::api<IStorage::ISerialized> serial )
+  {
+    if ( serial == nullptr )
+      throw std::invalid_argument( "empty PatchTable::Commit storage argument" );
+
+    for ( auto modClock = 0L, curClock = modifiers.load(); modClock < modifiers.load(); modClock = curClock )
+    {
+      auto  ipatch = decltype(serial->NewPatch()){};
+
+      for ( auto& next: hashTable )
+      {
+        auto  ppatch = next.load();
+
+      // skip if record is empty, is already saved, or is integer index
+        if ( ppatch != nullptr && !IsUint( ppatch->entityKey ) && ppatch->patchTime > modClock )
+        {
+          auto  pvalue = mtc::ptr::clean( ppatch->patchData.load() );
+          auto  locked = mtc::api<const mtc::IByteBuffer>();
+
+        // lock the variable
+          while ( !ppatch->patchData.compare_exchange_weak( pvalue, mtc::ptr::dirty( pvalue ) ) )
+            ipatch = mtc::ptr::clean( pvalue );
+
+        // get locked value and restore the lock
+          locked = pvalue;  ppatch.store( pvalue );
+
+        // ensure patch storage
+          if ( ipatch == nullptr )
+            ipatch = serial->NewPatch();
+
+          if ( locked->GetLen() == size_t(-1) )
+            ipatch->Delete( ppatch->entityKey );
+          else
+            ipatch->Update( ppatch->entityKey, locked->GetPtr(), locked->GetLen() );
+        }
+      }
+
+      if ( ipatch != nullptr )
+        ipatch->Commit();
+    }
   }
 
   template <class Allocator>
@@ -322,6 +366,12 @@ namespace index   {
       return uintptr_t(key.data()) & 0xffffffffUL;
 
     return std::hash<std::string_view>()( { key.data(), key.size() } );
+  }
+
+  template <class Allocator>
+  bool  PatchTable<Allocator>::IsUint( const Span& key )
+  {
+    return (uintptr_t(key.data()) >> 32) == uint32_t(-1);
   }
 
   template <class Allocator>

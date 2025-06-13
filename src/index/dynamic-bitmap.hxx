@@ -23,6 +23,10 @@ namespace index   {
       vector_type( alloc ) {}
     Bitmap( size_t maxSize, Allocator alloc = Allocator() ):
       vector_type( (maxSize + element_bits - 1) / element_bits, alloc ) {}
+    Bitmap( Bitmap&& bim ):
+      vector_type( std::move( bim ) ) {}
+    Bitmap& operator=( Bitmap&& bim )
+      {  return vector_type::operator=( std::move( bim ) ), *this;  }
 
   public:
     void  Set( uint32_t );
