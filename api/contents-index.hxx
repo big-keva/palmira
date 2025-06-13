@@ -17,7 +17,7 @@ namespace palmira
 
     virtual auto  GetId() const -> Attribute = 0;
     virtual auto  GetIndex() const -> uint32_t = 0;
-    virtual auto  GetAttributes() const -> Attribute = 0;
+    virtual auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> = 0;
   };
 
   struct IEntity::Attribute: public std::string_view, protected mtc::api<Iface>
@@ -30,12 +30,14 @@ namespace palmira
   {
     struct IIndexStore;       // interface to write indices
     struct ISerialized;       // interface to read indices
+
+    virtual auto  Create() -> mtc::api<IIndexStore> = 0;
   };
 
   struct IStorage::IIndexStore: public mtc::Iface
   {
     virtual auto  Entities() -> mtc::api<mtc::IByteStream> = 0;
-    virtual auto  Index() -> mtc::api<mtc::IByteStream> = 0;
+    virtual auto  Contents() -> mtc::api<mtc::IByteStream> = 0;
     virtual auto  Chains() -> mtc::api<mtc::IByteStream> = 0;
 
     virtual auto  Commit() -> mtc::api<ISerialized> = 0;
@@ -59,8 +61,7 @@ namespace palmira
   struct IStorage::ISerialized::IPatch: public mtc::Iface
   {
     virtual void  Delete( EntityId ) = 0;
-    virtual auto  Update( EntityId, const void*, size_t ) -> mtc::api<const IEntity> = 0;
-
+    virtual void  Update( EntityId, const void*, size_t );
     virtual void  Commit() = 0;
   };
 

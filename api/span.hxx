@@ -3,6 +3,7 @@
 # include <mtc/iBuffer.h>
 # include <string_view>
 # include <vector>
+# include <atomic>
 
 namespace palmira
 {

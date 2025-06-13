@@ -6,7 +6,7 @@ namespace palmira {
 namespace index {
 namespace dynamic {
 
-  class contents
+  class Contents
   {
     using Storage = mtc::api<IStorage::IIndexStore>;
 
@@ -15,9 +15,9 @@ namespace dynamic {
     Storage   storageSink;
 
   public:
-    auto  SetMaxEntitiesCount( uint32_t maxEntitiesCount ) -> contents&;
-    auto  SetAllocationLimit( uint32_t maxAllocateBytes ) -> contents&;
-    auto  SetOutStorageSink( mtc::api<IStorage::IIndexStore> ) -> contents&;
+    auto  SetMaxEntitiesCount( uint32_t maxEntitiesCount ) -> Contents&;
+    auto  SetAllocationLimit( uint32_t maxAllocateBytes ) -> Contents&;
+    auto  SetOutStorageSink( mtc::api<IStorage::IIndexStore> ) -> Contents&;
 
   public:
     auto  Create() const -> mtc::api<IContentsIndex>;
