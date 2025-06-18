@@ -39,7 +39,7 @@ TestItEasy::RegisterFunc  static_contents( []()
         auto  serialized = mtc::api<palmira::IStorage::ISerialized>();
 
         REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents()
-          .SetOutStorageSink( palmira::storage::filesys::CreateSink( "/tmp/k2" ) ).Create() );
+          .Set( palmira::storage::posixFS::CreateSink( "/tmp/k2" ) ).Create() );
         REQUIRE_NOTHROW( contents->SetEntity( "aaa", KeyValues( {
             { "aaa", 1161 },
             { "bbb", 1262 },
@@ -55,11 +55,75 @@ TestItEasy::RegisterFunc  static_contents( []()
         REQUIRE_NOTHROW( contents->DelEntity( "bbb" ) );
         REQUIRE_NOTHROW( serialized = contents->Commit() );
 
-        if ( REQUIRE_NOTHROW( contents = palmira::index::Static::Create( serialized ) )
+        if ( REQUIRE_NOTHROW( contents = palmira::index::static_::Contents().Create( serialized ) )
           && REQUIRE( contents != nullptr ) )
         {
           mtc::api<palmira::IContentsIndex::IEntities>  entities;
+          mtc::api<const palmira::IEntity>  entity;
 
+          SECTION( "entities may be get" )
+          {
+            SECTION( "* by id" )
+            {
+              if ( REQUIRE_NOTHROW( entity = contents->GetEntity( "aaa" ) ) && REQUIRE( entity != nullptr ) )
+                REQUIRE( entity->GetId() == "aaa" );
+              if ( REQUIRE_NOTHROW( entity = contents->GetEntity( "bbb" ) ) )
+                REQUIRE( entity == nullptr );
+              if ( REQUIRE_NOTHROW( entity = contents->GetEntity( "ccc" ) ) && REQUIRE( entity != nullptr ) )
+                REQUIRE( entity->GetId() == "ccc" );
+            }
+            SECTION( "* by index" )
+            {
+              if ( REQUIRE_NOTHROW( entity = contents->GetEntity( 1U ) ) && REQUIRE( entity != nullptr ) )
+              {
+                REQUIRE( entity->GetIndex() == 1 );
+                REQUIRE( entity->GetId() == "aaa" );
+              }
+              if ( REQUIRE_NOTHROW( entity = contents->GetEntity( 2U ) ) )
+                REQUIRE( entity != nullptr );
+              if ( REQUIRE_NOTHROW( entity = contents->GetEntity( 3U ) ) && REQUIRE( entity != nullptr ) )
+              {
+                REQUIRE( entity->GetIndex() == 3 );
+                REQUIRE( entity->GetId() == "ccc" );
+              }
+            }
+          }
+          SECTION( "entities are iterable" )
+          {
+            auto  it = mtc::api<palmira::IContentsIndex::IIterator>();
+
+            SECTION( "* by id" )
+            {
+              if ( REQUIRE_NOTHROW( it = contents->GetIterator( "" ) ) && REQUIRE( it != nullptr ) )
+              {
+                if ( REQUIRE_NOTHROW( entity = it->Curr() ) && REQUIRE( entity != nullptr ) )
+                  REQUIRE( entity->GetId() == "aaa" );
+                if ( REQUIRE_NOTHROW( entity = it->Next() ) && REQUIRE( entity != nullptr ) )
+                  REQUIRE( entity->GetId() == "ccc" );
+                if ( REQUIRE_NOTHROW( entity = it->Next() ) )
+                  REQUIRE( entity == nullptr );
+
+                SECTION( "- it may be positioned to some entity on create" )
+                {
+                  if ( REQUIRE_NOTHROW( it = contents->GetIterator( "b" ) ) && REQUIRE( it != nullptr ) )
+                    if ( REQUIRE_NOTHROW( entity = it->Curr() ) && REQUIRE( entity != nullptr ) )
+                      REQUIRE( entity->GetId() == "ccc" );
+                }
+              }
+            }
+            SECTION( "* by index" )
+            {
+              if ( REQUIRE_NOTHROW( it = contents->GetIterator( 0U ) ) && REQUIRE( it != nullptr ) )
+              {
+                if ( REQUIRE_NOTHROW( entity = it->Curr() ) && REQUIRE( entity != nullptr ) )
+                  REQUIRE( entity->GetIndex() == 1 );
+                if ( REQUIRE_NOTHROW( entity = it->Next() ) && REQUIRE( entity != nullptr ) )
+                  REQUIRE( entity->GetIndex() == 3 );
+                if ( REQUIRE_NOTHROW( entity = it->Next() ) )
+                  REQUIRE( entity == nullptr );
+              }
+            }
+          }
           SECTION( "key statistics is available" )
           {
             if ( REQUIRE_NOTHROW( contents->GetKeyStats( "aaa", 3 ) ) )
@@ -99,6 +163,51 @@ TestItEasy::RegisterFunc  static_contents( []()
               REQUIRE( contents->GetKeyStats( "eee", 3 ).nCount == 1 );
             if ( REQUIRE_NOTHROW( contents->GetKeyStats( "fff", 3 ) ) )
               REQUIRE( contents->GetKeyStats( "fff", 3 ).nCount == 0 );
+          }
+          SECTION( "entity may be stashed" )
+          {
+            REQUIRE_NOTHROW( contents->Stash( "aaa" ) );
+
+            SECTION( "stashed entities are invisible" )
+            {
+
+              SECTION( "for GetEntity()" )
+              {
+                if ( REQUIRE_NOTHROW( entity = contents->GetEntity( "aaa" ) ) )
+                  REQUIRE( entity == nullptr );
+                if ( REQUIRE_NOTHROW( entity = contents->GetEntity( 1U ) ) )
+                  REQUIRE( entity == nullptr );
+              }
+              SECTION( "for iterators" )
+              {
+                auto  it = mtc::api<palmira::IContentsIndex::IIterator>();
+
+                SECTION( "* by id" )
+                {
+                  if ( REQUIRE_NOTHROW( it = contents->GetIterator( "aaa" ) ) && REQUIRE( it != nullptr ) )
+                    if ( REQUIRE_NOTHROW( entity = it->Curr() ) && REQUIRE( entity != nullptr ) )
+                      REQUIRE( entity->GetId() == "ccc" );
+                }
+                SECTION( "* by index" )
+                {
+                  auto  it = mtc::api<palmira::IContentsIndex::IIterator>();
+
+                  if ( REQUIRE_NOTHROW( it = contents->GetIterator( 0U ) ) && REQUIRE( it != nullptr ) )
+                    if ( REQUIRE_NOTHROW( entity = it->Curr() ) && REQUIRE( entity != nullptr ) )
+                      REQUIRE( entity->GetIndex() == 3 );
+                }
+              }
+              SECTION( "for key blocks" )
+              {
+                palmira::IContentsIndex::IEntities::Reference entRef;
+
+                REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "ccc", 3 ) );
+                REQUIRE( entities != nullptr );
+
+                if ( REQUIRE_NOTHROW( entRef = entities->Find( 1 ) ) )
+                  REQUIRE( entRef.uEntity == 3 );
+              }
+            }
           }
           SECTION( "entity may be deleted" )
           {

@@ -9,7 +9,7 @@
 
 auto  CreateEntityTable( std::initializer_list<std::pair<std::string, std::string>> entities ) -> std::vector<char>
 {
-  palmira::index::dynamic::EntityTable<>  dynamicEntities( 100 );
+  palmira::index::dynamic::EntityTable<>  dynamicEntities( 100, nullptr );
 
   for ( auto& next: entities )
     dynamicEntities.SetEntity( next.first );
@@ -73,7 +73,7 @@ TestItEasy::RegisterFunc  static_entities( []()
       {
         mtc::Arena  memArena;
         auto        entities = memArena.Create<palmira::index::static_::EntityTable<mtc::Arena::allocator<char>>>(
-          serialized );
+          serialized, nullptr );
 
         SECTION( "iterators are available" )
         {

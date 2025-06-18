@@ -5,7 +5,7 @@
 
 namespace palmira {
 namespace storage {
-namespace filesys {
+namespace posixFS {
 
   struct StoragePolicies::Impl: public std::vector<Policy>
   {
@@ -67,7 +67,7 @@ namespace filesys {
     return *this;
   }
 
-  auto StoragePolicies::GetInstance( const char* stamp ) const -> StoragePolicies
+  auto  StoragePolicies::GetInstance( const char* stamp ) const -> StoragePolicies
   {
     StoragePolicies policies;
 
@@ -85,7 +85,7 @@ namespace filesys {
     return policies;
   }
 
-  auto StoragePolicies::GetInstance( const std::string& stamp ) const -> StoragePolicies
+  auto  StoragePolicies::GetInstance( const std::string& stamp ) const -> StoragePolicies
   {
     return GetInstance( stamp.c_str() );
   }

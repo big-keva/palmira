@@ -15,6 +15,10 @@ add_executable(test-palmira-index
 
 	index/test-commit-contents.cxx
 
-        index/test-index-flakes.cxx
+        index/test-index-layers.cxx
+
+        index/test-layered-contents.cxx
+
+        index/test-stream-indexing.cxx
 
 	test-main.cxx)

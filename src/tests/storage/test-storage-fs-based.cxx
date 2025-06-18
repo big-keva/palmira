@@ -34,13 +34,13 @@ TestItEasy::RegisterFunc  storage_fs( []()
           RemoveFiles( "/tmp/k2.*" );
 
           SECTION( "being called with empty path, id throws std::invalid_argument" )
-            {  REQUIRE_EXCEPTION( palmira::storage::filesys::CreateSink( "" ), std::invalid_argument );  }
+            {  REQUIRE_EXCEPTION( palmira::storage::posixFS::CreateSink( "" ), std::invalid_argument );  }
           SECTION( "being called with invalid path, id throws mtc::file_error" )
-            {  REQUIRE_EXCEPTION( palmira::storage::filesys::CreateSink( "/tmp/Palmira/index" ), mtc::file_error );  }
+            {  REQUIRE_EXCEPTION( palmira::storage::posixFS::CreateSink( "/tmp/Palmira/index" ), mtc::file_error );  }
           SECTION( "being called with correct dir but without generic-name, id throws std::invalid_argument" )
-            {  REQUIRE_EXCEPTION( palmira::storage::filesys::CreateSink( "/tmp/" ), std::invalid_argument );  }
+            {  REQUIRE_EXCEPTION( palmira::storage::posixFS::CreateSink( "/tmp/" ), std::invalid_argument );  }
           SECTION( "being called with correct path, it creates the storage" )
-            {  REQUIRE_NOTHROW( storageSink = palmira::storage::filesys::CreateSink( "/tmp/k2" ) );  }
+            {  REQUIRE_NOTHROW( storageSink = palmira::storage::posixFS::CreateSink( "/tmp/k2" ) );  }
           SECTION( "storage streams may be accessed..." )
           {
             if ( REQUIRE_NOTHROW( outStream = storageSink->Entities() )
@@ -59,7 +59,7 @@ TestItEasy::RegisterFunc  storage_fs( []()
           {
             RemoveFiles( "/tmp/k2.*" );
 
-            REQUIRE_NOTHROW( storageSink = palmira::storage::filesys::CreateSink( "/tmp/k2" ) );
+            REQUIRE_NOTHROW( storageSink = palmira::storage::posixFS::CreateSink( "/tmp/k2" ) );
             REQUIRE_NOTHROW( outStream = storageSink->Entities() );
             REQUIRE_NOTHROW( storageSink->Commit() );
             REQUIRE_NOTHROW( storageSink = nullptr );

@@ -7,7 +7,7 @@
 
 namespace palmira {
 namespace storage {
-namespace filesys {
+namespace posixFS {
 
   class Serialized final: public IStorage::ISerialized
   {

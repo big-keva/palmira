@@ -17,7 +17,7 @@ TestItEasy::RegisterFunc  dynamic_entities( []()
 
         auto  entity_table = std::unique_ptr<EntityTable>( nullptr );
 
-        REQUIRE_NOTHROW( entity_table = std::make_unique<EntityTable>( max_document_count ) );
+        REQUIRE_NOTHROW( entity_table = std::make_unique<EntityTable>( max_document_count, nullptr ) );
           REQUIRE( entity_table->GetMaxEntities() == max_document_count );
           REQUIRE( entity_table->GetHashTableSize() == palmira::UpperPrime( max_document_count ) );
         SECTION( "for invalid access index, GetEntity( ... ) throws std::invalid_argument" )
@@ -73,7 +73,7 @@ TestItEasy::RegisterFunc  dynamic_entities( []()
           SECTION( "after filling entity table, any SetEntity() causes overflow" )
           {
             REQUIRE_EXCEPTION( entity = entity_table->SetEntity( "qqq" ),
-              palmira::index::dynamic::count_overflow );
+              palmira::index_overflow );
           }
           SECTION( "entity may be removed" )
           {
@@ -193,7 +193,7 @@ TestItEasy::RegisterFunc  dynamic_entities( []()
       SECTION( "entities table may be created with custom allocator also" )
       {
         auto  entity_arena = mtc::Arena();
-        auto  entity_table = entity_arena.Create<palmira::index::dynamic::EntityTable<mtc::Arena::allocator<char>>>( 10000 );
+        auto  entity_table = entity_arena.Create<palmira::index::dynamic::EntityTable<mtc::Arena::allocator<char>>>( 10000, nullptr );
         auto  entity = mtc::api<palmira::IEntity>();
 
         if ( REQUIRE_NOTHROW( entity = entity_table->SetEntity( "aaa" ) ) )

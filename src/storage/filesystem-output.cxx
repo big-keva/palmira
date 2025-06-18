@@ -8,7 +8,7 @@
 
 namespace palmira {
 namespace storage {
-namespace filesys {
+namespace posixFS {
 
   class Sink final: public IStorage::IIndexStore
   {

@@ -4,7 +4,9 @@
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>
 
-class KeyValues: public palmira::IContents, protected mtc::zmap
+using namespace palmira;
+
+class KeyValues: public IContents, protected mtc::zmap
 {
   implement_lifetime_stub
 
@@ -12,10 +14,10 @@ public:
   KeyValues( const mtc::zmap& keyval ):
     zmap( keyval )  {}
 
-  auto  ptr() const -> const palmira::IContents*
+  auto  ptr() const -> const IContents*
     {  return this;  }
 
-  void  Enumerate( palmira::IContentsIndex::IIndexAPI* to ) const override
+  void  Enumerate( IContentsIndex::IIndexAPI* to ) const override
     {
       for ( auto keyvalue: *this )
       {
@@ -31,13 +33,14 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
   {
     TEST_CASE( "index/dynamic-contents" )
     {
-      auto  contents = mtc::api<palmira::IContentsIndex>();
+      auto  contents = mtc::api<IContentsIndex>();
+      auto  entity = mtc::api<const IEntity>();
 
       SECTION( "dynamic::contents index may be created" )
       {
-        REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents().Create() );
+        REQUIRE_NOTHROW( contents = index::dynamic::Contents().Create() );
 
-        SECTION( "objects may be inserted to the contents index" )
+        SECTION( "entities may be inserted to the contents index" )
         {
           contents->SetEntity( "aaa", KeyValues( {
             { "k1", 1161 },
@@ -53,9 +56,68 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
             { "k5", 1265 } } ).ptr() );
           contents->DelEntity( "bbb" );
         }
-        SECTION( "objects are indexed by keys, so keys may be get" )
+        SECTION( "entities may be get by id" )
         {
-          mtc::api<palmira::IContentsIndex::IEntities>  entities;
+          if ( REQUIRE_NOTHROW( entity = contents->GetEntity( "aaa" ) ) )
+            if ( REQUIRE( entity != nullptr ) )
+              REQUIRE( entity->GetId() == "aaa" );
+        }
+        SECTION( "entities may be get by index" )
+        {
+          if ( REQUIRE_NOTHROW( entity = contents->GetEntity( 3 ) ) )
+            if ( REQUIRE( entity != nullptr ) )
+              REQUIRE( entity->GetId() == "ccc" );
+        }
+        SECTION( "entities iterators are available" )
+        {
+          auto  it = mtc::api<IContentsIndex::IIterator>();
+
+          SECTION( "* by index" )
+          {
+            if ( REQUIRE_NOTHROW( it = contents->GetIterator( 0U ) ) && REQUIRE( it != nullptr ) )
+            {
+              if ( REQUIRE( it->Curr() != nullptr ) )
+                REQUIRE( it->Curr()->GetIndex() == 1U );
+              if ( REQUIRE( it->Next() != nullptr ) )
+                REQUIRE( it->Curr()->GetIndex() == 3U );
+              REQUIRE( it->Next() == nullptr );
+
+              SECTION( "- iterator may start at specified index" )
+              {
+                if ( REQUIRE_NOTHROW( it = contents->GetIterator( 2U ) ) && REQUIRE( it != nullptr ) )
+                {
+                  if ( REQUIRE( it->Curr() != nullptr ) )
+                    REQUIRE( it->Curr()->GetIndex() == 3U );
+                  REQUIRE( it->Next() == nullptr );
+                }
+              }
+            }
+          }
+          SECTION( "* by id")
+          {
+            if ( REQUIRE_NOTHROW( it = contents->GetIterator( "" ) ) && REQUIRE( it != nullptr ) )
+            {
+              if ( REQUIRE( it->Curr() != nullptr ) )
+                REQUIRE( it->Curr()->GetId() == "aaa" );
+              if ( REQUIRE( it->Next() != nullptr ) )
+                REQUIRE( it->Curr()->GetId() == "ccc" );
+              REQUIRE( it->Next() == nullptr );
+
+              SECTION( "- iterator may start at specified id" )
+              {
+                if ( REQUIRE_NOTHROW( it = contents->GetIterator( "bbb" ) ) && REQUIRE( it != nullptr ) )
+                {
+                  if ( REQUIRE( it->Curr() != nullptr ) )
+                    REQUIRE( it->Curr()->GetId() == "ccc" );
+                  REQUIRE( it->Next() == nullptr );
+                }
+              }
+            }
+          }
+        }
+        SECTION( "entities are indexed by keys, so keys may be get" )
+        {
+          mtc::api<IContentsIndex::IEntities>  entities;
 
           if ( REQUIRE_NOTHROW( contents->GetKeyStats( "k0", 2 ) ) )
             REQUIRE( contents->GetKeyStats( "k0", 2 ).nCount == 0 );
@@ -85,8 +147,10 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
       }
       SECTION( "dynamic::contents index may be created with entity count limitation" )
       {
-        REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents()
-          .SetMaxEntitiesCount( 3 ).Create() );
+        REQUIRE_NOTHROW( contents = index::dynamic::Contents()
+          .Set( index::dynamic::Settings()
+            .SetMaxEntities( 3 ) )
+          .Create() );
 
         SECTION( "insertion of more entities than the limit causes count_overflow" )
         {
@@ -95,30 +159,32 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
           REQUIRE_NOTHROW( contents->SetEntity( "bbb", KeyValues( {
             { "bbb", 1161 } } ).ptr() ) );
           REQUIRE_EXCEPTION( contents->SetEntity( "ccc", KeyValues( {
-            { "ccc", 1161 } } ).ptr() ), palmira::index::dynamic::index_overflow );
+            { "ccc", 1161 } } ).ptr() ), index_overflow );
         }
       }
       SECTION( "dynamic::contents index may be created with size count limitation" )
       {
-        REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents()
-          .SetMaxEntitiesCount( 3 )
-          .SetAllocationLimit( 168880 ).Create() );
+        REQUIRE_NOTHROW( contents = index::dynamic::Contents()
+          .Set( index::dynamic::Settings()
+            .SetMaxEntities( 3 )
+            .SetMaxAllocate( 168880 ) )
+          .Create() );
 
         SECTION( "insertion of more entities than the limit causes count_overflow" )
         {
           REQUIRE_NOTHROW( contents->SetEntity( "aaa", KeyValues( {
             { "aaa", 1161 } } ).ptr() ) );
           REQUIRE_EXCEPTION( contents->SetEntity( "bbb", KeyValues( {
-            { "bbb", 1161 } } ).ptr() ), palmira::index::dynamic::index_overflow );
+            { "bbb", 1161 } } ).ptr() ), index_overflow );
         }
       }
       SECTION( "created with storage sink, it saves index as static" )
       {
-        auto  sink = palmira::storage::filesys::CreateSink( "/tmp/k2" );
-        auto  well = mtc::api<palmira::IStorage::ISerialized>();
+        auto  sink = storage::posixFS::CreateSink( "/tmp/k2" );
+        auto  well = mtc::api<IStorage::ISerialized>();
 
-        REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents()
-          .SetOutStorageSink( sink )
+        REQUIRE_NOTHROW( contents = index::dynamic::Contents()
+          .Set( sink )
           .Create() );
 
         REQUIRE_NOTHROW( contents->SetEntity( "aaa", KeyValues( { { "aaa", 1161 } } ).ptr() ) );

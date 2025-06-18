@@ -1,4 +1,4 @@
-# include "../../index/index-flakes.hxx"
+# include "../../index/index-layers.hxx"
 # include "../../../api/storage-filesystem.hxx"
 # include "../../../api/dynamic-contents.hxx"
 # include "../../../api/static-contents.hxx"
@@ -32,11 +32,12 @@ public:
 
 auto  CreateDynamicIndex( const mtc::zmap& ix ) -> mtc::api<IContentsIndex>
 {
-  auto  pstore = palmira::storage::filesys::CreateSink( "/tmp/k2" );
+  auto  pstore = palmira::storage::posixFS::CreateSink( "/tmp/k2" );
   auto  pindex = palmira::index::dynamic::Contents()
-    .SetAllocationLimit( 2 * 1024 * 1024 )
-    .SetMaxEntitiesCount( 1024 )
-    .SetOutStorageSink( pstore )
+    .Set( palmira::index::dynamic::Settings()
+      .SetMaxEntities( 1024 )
+      .SetMaxAllocate( 2 * 1024 * 1024 ) )
+    .Set( pstore )
     .Create();
 
   for ( auto& next: ix )
@@ -49,16 +50,16 @@ auto  CreateStaticIndex( const mtc::zmap& ix ) -> mtc::api<IContentsIndex>
 {
   auto  serial = CreateDynamicIndex( ix )->Commit();
 
-  return index::Static::Create( serial );
+  return index::static_::Contents().Create( serial );
 }
 
-TestItEasy::RegisterFunc  index_flakes( []()
+TestItEasy::RegisterFunc  index_layers( []()
   {
-    TEST_CASE( "index/index-flakes" )
+    TEST_CASE( "index/index-layers" )
     {
-      SECTION( "IndexFlakes manages a list of indices with index ranges" )
+      SECTION( "IndexLayers manages a list of indices with index ranges" )
       {
-        index::IndexFlakes flakes;
+        index::IndexLayers  flakes;
 
         SECTION( "uninitialized, it has no entities" )
         {
@@ -71,7 +72,7 @@ TestItEasy::RegisterFunc  index_flakes( []()
         }
         SECTION( "begin initialized, it lists objects" )
         {
-          REQUIRE_NOTHROW( flakes.add( CreateStaticIndex( {
+          REQUIRE_NOTHROW( flakes.addContents( CreateStaticIndex( {
             { "i1", mtc::zmap{
               { "aaa", "aaa" },
               { "bbb", "bbb" },
@@ -85,7 +86,7 @@ TestItEasy::RegisterFunc  index_flakes( []()
               { "ddd", "ddd" },
               { "eee", "eee" } } },
           } ) ) );
-          REQUIRE_NOTHROW( flakes.add( CreateStaticIndex( {
+          REQUIRE_NOTHROW( flakes.addContents( CreateStaticIndex( {
             { "i4", mtc::zmap{
               { "ddd", "ddd" },
               { "eee", "eee" },
