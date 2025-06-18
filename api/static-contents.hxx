@@ -4,12 +4,13 @@
 
 namespace palmira {
 namespace index {
+namespace static_ {
 
-  struct Static
+  struct Contents
   {
-    static  auto  Create( mtc::api<IStorage::ISerialized> ) -> mtc::api<IContentsIndex>;
+    auto  Create( mtc::api<IStorage::ISerialized> ) -> mtc::api<IContentsIndex>;
   };
 
-}}
+}}}
 
 # endif   // !__palmira_api_index_static_contents_hxx__

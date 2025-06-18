@@ -20,7 +20,7 @@ namespace palmira
     virtual auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> = 0;
   };
 
-  struct IEntity::Attribute: public std::string_view, protected mtc::api<Iface>
+  struct IEntity::Attribute: public std::string_view, protected mtc::api<const Iface>
   {
     Attribute( const Attribute& ) = default;
     Attribute( const std::string_view& s, api i = nullptr ): std::string_view( s ), api( i ) {}
@@ -30,8 +30,15 @@ namespace palmira
   {
     struct IIndexStore;       // interface to write indices
     struct ISerialized;       // interface to read indices
+    struct ISourceList;
 
-    virtual auto  Create() -> mtc::api<IIndexStore> = 0;
+    virtual auto  ListIndices() -> mtc::api<ISourceList> = 0;
+    virtual auto  CreateStore() -> mtc::api<IIndexStore> = 0;
+  };
+
+  struct IStorage::ISourceList: public mtc::Iface
+  {
+    virtual auto  Get() -> mtc::api<ISerialized> = 0;
   };
 
   struct IStorage::IIndexStore: public mtc::Iface
@@ -61,7 +68,7 @@ namespace palmira
   struct IStorage::ISerialized::IPatch: public mtc::Iface
   {
     virtual void  Delete( EntityId ) = 0;
-    virtual void  Update( EntityId, const void*, size_t );
+    virtual void  Update( EntityId, const void*, size_t ) = 0;
     virtual void  Commit() = 0;
   };
 
@@ -69,6 +76,7 @@ namespace palmira
   {
     struct IEntities;
     struct IIndexAPI;
+    struct IIterator;
 
    /*
     * entity details block statistics
@@ -105,20 +113,6 @@ namespace palmira
       mtc::api<const mtc::IByteBuffer>  attrs = nullptr ) -> mtc::api<const IEntity> = 0;
 
    /*
-    * Commit()
-    *
-    * Writes all index data to storage held inside and return access to stored data.
-    */
-    virtual auto  Commit() -> mtc::api<IStorage::ISerialized> = 0;
-
-   /*
-    * Reduce()
-    *
-    * Return pointer to simplified version of index being optimized.
-    */
-    virtual auto  Reduce() -> mtc::api<IContentsIndex> = 0;
-
-   /*
     * Index statistics and service information
     */
     virtual auto  GetMaxIndex() const -> uint32_t = 0;
@@ -130,6 +124,35 @@ namespace palmira
     virtual auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> = 0;
     virtual auto  GetKeyStats( const void*, size_t ) const -> BlockInfo = 0;
 
+   /*
+    * Iterators
+    */
+    virtual auto  GetIterator( EntityId ) -> mtc::api<IIterator> = 0;
+    virtual auto  GetIterator( uint32_t ) -> mtc::api<IIterator> = 0;
+
+   /*
+    * Commit()
+    *
+    * Writes all index data to storage held inside and returns
+    * serialized interface.
+    */
+    virtual auto  Commit() -> mtc::api<IStorage::ISerialized> = 0;
+
+   /*
+    * Reduce()
+    *
+    * Return pointer to simplified version of index being optimized.
+    */
+    virtual auto  Reduce() -> mtc::api<IContentsIndex> = 0;
+
+   /*
+    * Stash( id )
+    *
+    * Stashes entity wothout any modifications to index.
+    *
+    * Defined for static indices.
+    */
+    virtual void  Stash( EntityId ) = 0;
   };
 
  /*
@@ -153,6 +176,12 @@ namespace palmira
     virtual auto  Find( uint32_t ) -> Reference = 0;
     virtual auto  Size() const -> uint32_t = 0;
     virtual auto  Type() const -> uint32_t = 0;
+  };
+
+  struct IContentsIndex::IIterator: public mtc::Iface
+  {
+    virtual auto  Curr() -> mtc::api<const IEntity> = 0;
+    virtual auto  Next() -> mtc::api<const IEntity> = 0;
   };
 
  /*

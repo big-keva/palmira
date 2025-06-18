@@ -5,7 +5,7 @@
 
 namespace palmira {
 namespace storage {
-namespace filesys {
+namespace posixFS {
 
   enum Unit: unsigned
   {
@@ -69,6 +69,8 @@ namespace filesys {
 
   auto  CreateSink( const StoragePolicies& ) -> mtc::api<IStorage::IIndexStore>;
   auto  OpenSerial( const StoragePolicies& ) -> mtc::api<IStorage::ISerialized>;
+
+  auto  Open( const StoragePolicies& ) -> mtc::api<IStorage>;
 
   // StoragePolicies template implementation
 
