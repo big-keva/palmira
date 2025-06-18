@@ -1,24 +1,14 @@
 # include "../../api/contents-index.hxx"
+# include "notify-events.hxx"
 # include <functional>
 
 namespace palmira {
 namespace index   {
+namespace commit {
 
-  struct Notify final
+  struct Contents
   {
-    enum: unsigned
-    {
-      OK = 1,
-      Cancel = 2,
-      Failed = 3
-    };
-
-    using Update = std::function<void( void*, unsigned )>;
+    auto  Create( mtc::api<IContentsIndex>, Notify::Func ) -> mtc::api<IContentsIndex>;
   };
 
-  struct Commiter
-  {
-    static  auto  Create( mtc::api<IContentsIndex>, Notify::Update ) -> mtc::api<IContentsIndex>;
-  };
-
-}}
+}}}

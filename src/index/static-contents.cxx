@@ -7,6 +7,7 @@
 
 namespace palmira {
 namespace index {
+namespace static_ {
 
   class ContentsIndex final: public IContentsIndex
   {
@@ -21,6 +22,7 @@ namespace index {
     class EntitiesBase;
     class EntitiesLite;
     class EntitiesRich;
+    class Iterator;
 
     implement_lifetime_control
 
@@ -36,14 +38,19 @@ namespace index {
       mtc::api<const IContents>   props = nullptr,
       mtc::api<const IByteBuffer> attrs = nullptr ) -> mtc::api<const IEntity> override;
 
-    auto  Commit() -> mtc::api<IStorage::ISerialized> override;
-    auto  Reduce() -> mtc::api<IContentsIndex> override  {  return this;  }
-
     auto  GetMaxIndex() const -> uint32_t override
       {  return entities.GetEntityCount();  }
 
     auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override;
     auto  GetKeyStats( const void*, size_t ) const -> BlockInfo override;
+
+    auto  GetIterator( EntityId ) -> mtc::api<IIterator> override;
+    auto  GetIterator( uint32_t ) -> mtc::api<IIterator> override;
+
+    auto  Commit() -> mtc::api<IStorage::ISerialized> override;
+    auto  Reduce() -> mtc::api<IContentsIndex> override  {  return this;  }
+
+    void  Stash( EntityId ) override;
 
   protected:
     bool  delEntity( EntityId, uint32_t );
@@ -55,9 +62,9 @@ namespace index {
     mtc::api<const IByteBuffer> radixBuf;
     EntityTable                 entities;       // static entities table
     KeyContents                 contents;       // radix tree view
+    mtc::api<IFlatStream>       blockBox;
     PatchHolder                 patchTab;
     Bitmap<Allocator>           shadowed;       // deleted documents identifiers
-    mtc::api<IFlatStream>       blockBox;
 
   };
 
@@ -81,7 +88,7 @@ namespace index {
 
   };
 
-  class ContentsIndex::EntitiesLite: public EntitiesBase
+  class ContentsIndex::EntitiesLite final: public EntitiesBase
   {
     using EntitiesBase::EntitiesBase;
 
@@ -91,13 +98,32 @@ namespace index {
 
   };
 
-  class ContentsIndex::EntitiesRich: public EntitiesBase
+  class ContentsIndex::EntitiesRich final: public EntitiesBase
   {
     using EntitiesBase::EntitiesBase;
 
     implement_lifetime_control
   public:
     auto  Find( uint32_t ) -> Reference override;
+
+  };
+
+  class ContentsIndex::Iterator final: public IIterator
+  {
+    implement_lifetime_control
+
+  public:
+    Iterator( EntityTable::Iterator&& it, ContentsIndex* pc ):
+      contents( pc ),
+      iterator( std::move( it ) ) {}
+
+  public:
+    auto  Curr() -> mtc::api<const IEntity> override;
+    auto  Next() -> mtc::api<const IEntity> override;
+
+  protected:
+    mtc::api<ContentsIndex> contents;
+    EntityTable::Iterator   iterator;
 
   };
 
@@ -107,7 +133,7 @@ namespace index {
     xStorage( storage ),
     tableBuf( storage->Entities() ),
     radixBuf( storage->Contents() ),
-    entities( tableBuf, memArena.get_allocator<char>() ),
+    entities( tableBuf, this, memArena.get_allocator<char>() ),
     contents( radixBuf->GetPtr() ),
     blockBox( storage->Blocks() ),
     patchTab( std::max( 1000U, entities.GetEntityCount() ), memArena.get_allocator<char>() ),
@@ -152,11 +178,6 @@ namespace index {
     throw std::logic_error( "static_::ContentsIndex::SetEntity( ) must not be called" );
   }
 
-  auto  ContentsIndex::Commit() -> mtc::api<IStorage::ISerialized>
-  {
-    return xStorage;
-  }
-
   auto  ContentsIndex::GetKeyBlock( const void* key, size_t size ) const -> mtc::api<IEntities>
   {
     auto  pfound = contents.Search( { (const char*)key, size } );
@@ -196,7 +217,30 @@ namespace index {
       if ( ::FetchFrom( ::FetchFrom( pfound, blockInfo.bkType ), blockInfo.nCount ) != nullptr )
         return blockInfo;
     }
-    return { 0, 0 };
+    return { uint32_t(-1), 0 };
+  }
+
+  auto  ContentsIndex::GetIterator( EntityId id ) -> mtc::api<IIterator>
+  {
+    return new Iterator( entities.GetIterator( id ), this );
+  }
+
+  auto  ContentsIndex::GetIterator( uint32_t ix ) -> mtc::api<IIterator>
+  {
+    return new Iterator( entities.GetIterator( ix ), this );
+  }
+
+  auto  ContentsIndex::Commit() -> mtc::api<IStorage::ISerialized>
+  {
+    return xStorage;
+  }
+
+  void  ContentsIndex::Stash( EntityId id )
+  {
+    auto  getdoc = entities.GetEntity( id );
+
+    if ( getdoc != nullptr )
+      shadowed.Set( getdoc->index );
   }
 
   bool  ContentsIndex::delEntity( EntityId id, uint32_t index )
@@ -262,13 +306,33 @@ namespace index {
     return curref = { (uint32_t)-1, { nullptr, 0 } };
   }
 
+  // ContentsIndex::Iterator implementation
+
+  auto  ContentsIndex::Iterator::Curr() -> mtc::api<const IEntity>
+  {
+    for ( auto ent = iterator.Curr(); ent != nullptr; ent = iterator.Next() )
+      if ( !contents->shadowed.Get( ent->GetIndex() ) )
+        return ent;
+
+    return nullptr;
+  }
+
+  auto  ContentsIndex::Iterator::Next() -> mtc::api<const IEntity>
+  {
+    for ( auto ent = iterator.Next(); ent != nullptr; ent = iterator.Next() )
+      if ( !contents->shadowed.Get( ent->GetIndex() ) )
+        return ent;
+
+    return nullptr;
+  }
+
   // contents implementation
 
-  auto  Static::Create( mtc::api<IStorage::ISerialized> serialized ) -> mtc::api<IContentsIndex>
+  auto  Contents::Create( mtc::api<IStorage::ISerialized> serialized ) -> mtc::api<IContentsIndex>
   {
     if ( serialized->Entities() == nullptr )
       throw std::invalid_argument( "static_::ContentsIndex::Create() must not be called" );
     return new ContentsIndex( serialized );
   }
 
-}}
+}}}

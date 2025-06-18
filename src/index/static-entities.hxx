@@ -47,20 +47,24 @@ namespace static_ {
 
       using string = std::basic_string<char, std::char_traits<char>, Allocator>;
 
-      implement_lifetime_stub
+    public:
+      Entity( mtc::Iface* owner ):
+        owner_ptr( owner )  {}
 
     public:
-      Entity() = default;
+      long  Attach() override
+        {  return owner_ptr != nullptr ? owner_ptr->Attach() : 1;  }
+      long  Detach() override
+        {  return owner_ptr != nullptr ? owner_ptr->Detach() : 0;  }
 
     // overridables from IEntity
       auto  GetId() const -> Attribute override
-        {  return { entity_id, owner };  }
+        {  return { entity_id, owner_ptr };  }
       auto  GetIndex() const -> uint32_t override
         {  return index;  }
       auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> override
-        {  return new Region( attribute.data(), attribute.size(), owner );  }
+        {  return new Region( attribute.data(), attribute.size(), owner_ptr );  }
 
-      auto  SetOwnerId( mtc::Iface* pw ) -> Entity* {  return owner = pw, this;  }
       bool  ValidIndex() const noexcept {  return index != 0 && index != uint32_t(-1);  }
 
     protected:
@@ -68,7 +72,7 @@ namespace static_ {
       auto  FetchFrom( const char* ) -> const char*;
 
     public:
-      mtc::Iface*       owner = nullptr;
+      mtc::Iface*       owner_ptr = nullptr;
       Entity*           collision = nullptr;
       uint32_t          index = 0;            // order of creation, default 0
       std::string_view  entity_id;
@@ -83,7 +87,7 @@ namespace static_ {
     using hash_vector = std::vector<Entity*, Allocator>;
 
   public:
-    EntityTable( const Span&, Allocator = Allocator() );
+    EntityTable( const Span&, mtc::Iface* = nullptr, Allocator = Allocator() );
    ~EntityTable();
 
     auto  GetEntityCount() const -> uint32_t {  return std::max( 1U, uint32_t( entityTable.size() ) ) - 1;  };
@@ -104,6 +108,7 @@ namespace static_ {
   protected:
     using IndexByKeys = std::vector<uint32_t, Allocator>;
 
+    mtc::Iface*                             contentsPtr = nullptr;
     vector_type                             entityTable;
     hash_vector                             entitiesMap;
     mutable std::atomic<IndexByKeys*>       indexByKeys = nullptr;
@@ -160,7 +165,8 @@ namespace static_ {
   // EntityTable implementation
 
   template <class Allocator>
-  EntityTable<Allocator>::EntityTable( const Span& input, Allocator alloc ):
+  EntityTable<Allocator>::EntityTable( const Span& input, mtc::Iface* owner, Allocator alloc ):
+    contentsPtr( owner ),
     entityTable( alloc ),
     entitiesMap( alloc )
   {
@@ -169,8 +175,8 @@ namespace static_ {
   // load the table
     for ( auto src = input.data(), end = input.data() + input.size(); src != nullptr && src != end; )
     {
-      entityTable.resize( entityTable.size() + 1 );
-        src = entityTable.back().FetchFrom( src );
+      entityTable.emplace_back( contentsPtr );
+      src = entityTable.back().FetchFrom( src );
     }
 
   // allocate hash table
@@ -196,7 +202,13 @@ namespace static_ {
       pindex = mtc::ptr::clean( pindex );
 
     if ( pindex != nullptr )
-      delete pindex;
+    {
+      auto  malloc = typename std::allocator_traits<Allocator>::rebind_alloc<IndexByKeys>(
+        entityTable.get_allocator() );
+
+      pindex->~IndexByKeys();
+      malloc.deallocate( pindex, 0 );
+    }
   }
 
   template <class Allocator>
@@ -240,7 +252,7 @@ namespace static_ {
   {
     auto  pindex = getKeyIndex().indexByKeys.load();
     auto  pfound = std::lower_bound( pindex->begin(), pindex->end(), id, [&]( uint32_t i, std::string_view id )
-      {  return entityTable[i].entity_id <= id;  } );
+      {  return entityTable[i].entity_id < id;  } );
 
     while ( pfound != pindex->end() && !entityTable[*pfound].ValidIndex() )
       ++pfound;
@@ -277,7 +289,9 @@ namespace static_ {
 
         // sort ids by entity id
           std::sort( pindex->begin(), pindex->end(), [&]( uint32_t lhs, uint32_t rhs )
-            {  return entityTable[lhs].entity_id < entityTable[rhs].entity_id;  } );
+          {
+            return entityTable[lhs].entity_id < entityTable[rhs].entity_id;
+          } );
 
           return indexByKeys = pindex, *this;
         }

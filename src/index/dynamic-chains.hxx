@@ -274,8 +274,11 @@ namespace dynamic {
   {
     if ( keyThread.joinable() )
     {
+      while ( !runThread )
+        std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+
       runThread = false;
-      keySyncro.notify_all();
+      keySyncro.notify_one();
       keyThread.join();
     }
     return *this;
@@ -377,7 +380,7 @@ namespace dynamic {
     {
       ChainHook*  keyChain;
 
-      for ( keySyncro.wait( locker ); keysQueue.Get( keyChain ); )
+      for ( keySyncro.wait( locker, [&](){  return !runThread;  } ); keysQueue.Get( keyChain ); )
         radixTree.Insert( { keyChain->data(), keyChain->cchkey }, { keyChain, 0, 0 } );
     }
   }

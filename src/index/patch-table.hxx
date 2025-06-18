@@ -104,10 +104,11 @@ namespace index   {
     friend class PatchTable;
 
   public:
-    PatchRec( PatchRec* ptr, const Span& key, const mtc::IByteBuffer* val ):
+    PatchRec( PatchRec* ptr, const Span& key, const mtc::IByteBuffer* val, long ver ):
       collision( ptr ),
       entityKey( key ),
-      patchData( val )
+      patchData( val ),
+      patchTime( ver )
     {
       if ( val != nullptr )
         const_cast<mtc::IByteBuffer*>( val )->Attach();
@@ -288,7 +289,7 @@ namespace index   {
     try
     {
       pentry = new ( MakeAllocator<PatchRec>( hashTable.get_allocator() ).allocate( 1 ) )
-        PatchRec( mtc::ptr::clean( rentry.load() ), key, pvalue.ptr() );
+        PatchRec( mtc::ptr::clean( rentry.load() ), key, pvalue.ptr(), ++modifiers );
       rentry.store( pentry );
       return pvalue;
     }
@@ -325,29 +326,34 @@ namespace index   {
 
       for ( auto& next: hashTable )
       {
-        auto  ppatch = next.load();
+        auto  ppatch = next.load();   // PatchRec*
 
       // skip if record is empty, is already saved, or is integer index
         if ( ppatch != nullptr && !IsUint( ppatch->entityKey ) && ppatch->patchTime > modClock )
         {
-          auto  pvalue = mtc::ptr::clean( ppatch->patchData.load() );
+          auto  pvalue = mtc::ptr::clean( ppatch->patchData.load() );    // const mtc::IByteBuffer*
           auto  locked = mtc::api<const mtc::IByteBuffer>();
 
         // lock the variable
           while ( !ppatch->patchData.compare_exchange_weak( pvalue, mtc::ptr::dirty( pvalue ) ) )
-            ipatch = mtc::ptr::clean( pvalue );
+            pvalue = mtc::ptr::clean( pvalue );
 
         // get locked value and restore the lock
-          locked = pvalue;  ppatch.store( pvalue );
+          ppatch->patchData.store( (locked = pvalue).ptr() );
 
         // ensure patch storage
           if ( ipatch == nullptr )
             ipatch = serial->NewPatch();
 
           if ( locked->GetLen() == size_t(-1) )
-            ipatch->Delete( ppatch->entityKey );
-          else
-            ipatch->Update( ppatch->entityKey, locked->GetPtr(), locked->GetLen() );
+          {
+            ipatch->Delete( { ppatch->entityKey.data(), ppatch->entityKey.size() } );
+          }
+            else
+          {
+            ipatch->Update( { ppatch->entityKey.data(), ppatch->entityKey.size() },
+              locked->GetPtr(), locked->GetLen() );
+          }
         }
       }
 

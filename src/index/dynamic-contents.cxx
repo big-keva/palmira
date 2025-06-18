@@ -18,6 +18,7 @@ namespace dynamic {
 
     class KeyValue;
     class Entities;
+    class Iterator;
 
   public:
     ContentsIndex(
@@ -28,18 +29,23 @@ namespace dynamic {
   public:
     auto  GetEntity( EntityId ) const -> mtc::api<const IEntity> override;
     auto  GetEntity( uint32_t ) const -> mtc::api<const IEntity> override;
+
     bool  DelEntity( EntityId ) override;
     auto  SetEntity( EntityId,
       mtc::api<const IContents>         props = nullptr,
       mtc::api<const mtc::IByteBuffer>  attrs = nullptr ) -> mtc::api<const IEntity> override;
 
+    auto  GetMaxIndex() const -> uint32_t override  {  return entities.GetEntityCount();  }
+    auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override;
+    auto  GetKeyStats( const void*, size_t ) const -> BlockInfo override;
+
+    auto  GetIterator( EntityId ) -> mtc::api<IIterator> override;
+    auto  GetIterator( uint32_t ) -> mtc::api<IIterator> override;
+
     auto  Commit() -> mtc::api<IStorage::ISerialized> override;
     auto  Reduce() -> mtc::api<IContentsIndex> override  {  return this;  }
 
-    auto  GetMaxIndex() const -> uint32_t override  {  return entities.GetEntityCount();  }
-
-    auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override;
-    auto  GetKeyStats( const void*, size_t ) const -> BlockInfo override;
+    void  Stash( EntityId ) override  {  throw std::logic_error("not implemented");  }
 
   protected:
     const uint32_t                  memLimit;
@@ -99,12 +105,31 @@ namespace dynamic {
 
   };
 
+  class ContentsIndex::Iterator final: public IIterator
+  {
+    implement_lifetime_control
+
+  public:
+    Iterator( EntTable::Iterator&& it, ContentsIndex* pc ):
+      contents( pc ),
+      iterator( std::move( it ) ) {}
+
+  public:
+    auto  Curr() -> mtc::api<const IEntity> override  {  return iterator.Curr().ptr();  }
+    auto  Next() -> mtc::api<const IEntity> override  {  return iterator.Next().ptr();  }
+
+  protected:
+    mtc::api<ContentsIndex> contents;
+    EntTable::Iterator      iterator;
+
+  };
+
   // ContentsIndex implementation
 
   ContentsIndex::ContentsIndex( uint32_t maxEntities, uint32_t maxAllocate, mtc::api<IStorage::IIndexStore> storageSink  ):
     memLimit( maxAllocate ),
     pStorage( storageSink ),
-    entities( maxEntities, memArena.get_allocator<char>() ),
+    entities( maxEntities, this, memArena.get_allocator<char>() ),
     contents( memArena.get_allocator<char>() ),
     shadowed( maxEntities, memArena.get_allocator<char>() )
   {
@@ -129,7 +154,7 @@ namespace dynamic {
 
   auto  ContentsIndex::SetEntity( EntityId id,
     mtc::api<const IContents>         props,
-    mtc::api<const mtc::IByteBuffer>  attrs ) -> mtc::api<const IEntity>
+    mtc::api<const mtc::IByteBuffer>  /*attrs*/ ) -> mtc::api<const IEntity>
   {
     auto  entity = mtc::api<EntTable::Entity>();
     auto  del_id = uint32_t{};
@@ -152,6 +177,33 @@ namespace dynamic {
     return entity.ptr();
   }
 
+  auto  ContentsIndex::GetKeyBlock( const void* key, size_t length ) const -> mtc::api<IEntities>
+  {
+    auto  pchain = contents.Lookup( { (const char*)key, length } );
+
+    return pchain != nullptr && pchain->pfirst.load() != nullptr ?
+      new Entities( pchain, this ) : nullptr;
+  }
+
+  auto  ContentsIndex::GetKeyStats( const void* key, size_t length ) const -> BlockInfo
+  {
+    auto  pchain = contents.Lookup( { (const char*)key, length } );
+
+    if ( pchain != nullptr )
+      return { pchain->bkType, pchain->ncount };
+    return { uint32_t(-1), 0 };
+  }
+
+  auto  ContentsIndex::GetIterator( EntityId id ) -> mtc::api<IIterator>
+  {
+    return new Iterator( entities.GetIterator( id ), this );
+  }
+
+  auto  ContentsIndex::GetIterator( uint32_t ix ) -> mtc::api<IIterator>
+  {
+    return new Iterator( entities.GetIterator( ix ), this );
+  }
+
   auto  ContentsIndex::Commit() -> mtc::api<IStorage::ISerialized>
   {
     if ( pStorage == nullptr )
@@ -172,23 +224,6 @@ namespace dynamic {
     return pStorage->Commit();
   }
 
-  auto  ContentsIndex::GetKeyBlock( const void* key, size_t length ) const -> mtc::api<IEntities>
-  {
-    auto  pchain = contents.Lookup( { (const char*)key, length } );
-
-    return pchain != nullptr && pchain->pfirst.load() != nullptr ?
-      new Entities( pchain, this ) : nullptr;
-  }
-
-  auto  ContentsIndex::GetKeyStats( const void* key, size_t length ) const -> BlockInfo
-  {
-    auto  pchain = contents.Lookup( { (const char*)key, length } );
-
-    if ( pchain != nullptr )
-      return { pchain->bkType, pchain->ncount };
-    return { 0, 0 };
-  }
-
   // ContentsIndex::Entities implemenation
 
   auto  ContentsIndex::Entities::Find( uint32_t id ) -> Reference
@@ -204,13 +239,13 @@ namespace dynamic {
 
   // contents implementation
 
-  auto  Contents::SetAllocationLimit( uint32_t maxAllocateBytes ) -> Contents&
-    {  return maxAllocate = maxAllocateBytes, *this;  }
-  auto  Contents::SetMaxEntitiesCount( uint32_t maxEntitiesCount ) -> Contents&
-    {  return maxEntities = maxEntitiesCount, *this;  }
-  auto  Contents::SetOutStorageSink( mtc::api<IStorage::IIndexStore> sink ) -> Contents&
-    {  return storageSink = sink, *this;  }
+  auto  Contents::Set( const Settings& options ) -> Contents&
+    {  return openOptions = options, *this;  }
+
+  auto  Contents::Set( mtc::api<IStorage::IIndexStore> storage ) -> Contents&
+    {  return storageSink = storage, *this;  }
+
   auto  Contents::Create() const -> mtc::api<IContentsIndex>
-    {  return new ContentsIndex( maxEntities, maxAllocate, storageSink );  }
+    {  return new ContentsIndex( openOptions.maxEntities, openOptions.maxAllocate, storageSink );  }
 
 }}}

@@ -8,9 +8,17 @@ namespace palmira {
 namespace index   {
 
   template <class Allocator = std::allocator<char>>
-  class Bitmap: protected std::vector<std::atomic<uint32_t>, Allocator>
+  class Bitmap
   {
-    using vector_type = std::vector<std::atomic<uint32_t>, Allocator>;
+    struct vector_data: public std::vector<std::atomic<uint32_t>, Allocator>
+    {
+      vector_data( size_t count, Allocator alloc ):
+        std::vector<std::atomic<uint32_t>, Allocator>( count, alloc ) {}
+
+      long  refcount = 1;
+    };
+
+    vector_data*  bitmap = nullptr;
 
     enum: size_t
     {
@@ -18,20 +26,79 @@ namespace index   {
       element_bits = element_size * CHAR_BIT
     };
 
+    void  detach();
+
   public:
-    Bitmap( Allocator alloc = Allocator() ):
-      vector_type( alloc ) {}
-    Bitmap( size_t maxSize, Allocator alloc = Allocator() ):
-      vector_type( (maxSize + element_bits - 1) / element_bits, alloc ) {}
-    Bitmap( Bitmap&& bim ):
-      vector_type( std::move( bim ) ) {}
-    Bitmap& operator=( Bitmap&& bim )
-      {  return vector_type::operator=( std::move( bim ) ), *this;  }
+    Bitmap( size_t maxSize, Allocator alloc = Allocator() );
+    Bitmap( const Bitmap& );
+    Bitmap( Bitmap&& );
+   ~Bitmap();
+    Bitmap& operator=( const Bitmap& );
+    Bitmap& operator=( Bitmap&& );
 
   public:
     void  Set( uint32_t );
     bool  Get( uint32_t ) const;
   };
+
+  // Bitmap template implementation
+
+  template <class Allocator>
+  Bitmap<Allocator>::Bitmap( size_t maxSize, Allocator alloc )
+  {
+    bitmap = new( typename std::allocator_traits<Allocator>::rebind_alloc<vector_data>( alloc ).allocate( 1 ) )
+      vector_data( (maxSize + element_bits - 1) / element_bits, alloc );
+  }
+
+  template <class Allocator>
+  Bitmap<Allocator>::Bitmap( const Bitmap& bim )
+  {
+    if ( (bitmap = bim.bitmap) != nullptr )
+      ++bitmap->refcount;
+  }
+
+  template <class Allocator>
+  Bitmap<Allocator>::Bitmap( Bitmap&& bim ):
+    bitmap( bim.bitmap )
+  {
+    bim.bitmap = nullptr;
+  }
+
+  template <class Allocator>
+  Bitmap<Allocator>::~Bitmap()
+  {
+    detach();
+  }
+
+  template <class Allocator>
+  Bitmap<Allocator>& Bitmap<Allocator>::operator=( const Bitmap& bim )
+  {
+    detach();
+    if ( (bitmap = bim.bitmap) != nullptr )
+      ++bitmap->refcount;
+    return *this;
+  }
+
+  template <class Allocator>
+  Bitmap<Allocator>& Bitmap<Allocator>::operator=( Bitmap&& bim )
+  {
+    detach();
+    if ( (bitmap = bim.bitmap) != nullptr )
+      bim.bitmap = nullptr;
+    return *this;
+  }
+
+  template <class Allocator>
+  void  Bitmap<Allocator>::detach()
+  {
+    if ( bitmap != nullptr && --bitmap->refcount == 0 )
+    {
+      auto  alloc = typename std::allocator_traits<Allocator>::rebind_alloc<vector_data>(
+        bitmap->get_allocator() );
+      bitmap->~vector_data();
+        alloc.deallocate( bitmap, 0 );
+    }
+  }
 
   template <class Allocator>
   void  Bitmap<Allocator>::Set( uint32_t uvalue )
@@ -40,9 +107,9 @@ namespace index   {
     auto  ushift = uvalue % element_bits;
     auto  ddmask = (1 << ushift);
 
-    if ( uindex < vector_type::size() )
+    if ( bitmap != nullptr && uindex < bitmap->size() )
     {
-      auto& item = vector_type::operator[]( uindex );
+      auto& item = bitmap->at( uindex );
 
       for ( auto uval = item.load(); !item.compare_exchange_weak( uval, uval | ddmask ); )
         (void)NULL;
@@ -56,8 +123,9 @@ namespace index   {
     auto  ushift = uvalue % element_bits;
     auto  ddmask = (1 << ushift);
 
-    if ( uindex < vector_type::size() )
-      return (vector_type::operator[]( uindex ).load() & ddmask) != 0;
+    if ( bitmap != nullptr && uindex < bitmap->size() )
+      return (bitmap->at( uindex ).load() & ddmask) != 0;
+
     return false;
   }
 

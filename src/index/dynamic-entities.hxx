@@ -1,6 +1,7 @@
 # if !defined( __palmira_src_index_dynamic_entities_hxx__ )
 # define __palmira_src_index_dynamic_entities_hxx__
 # include "../../api/contents-index.hxx"
+# include "../../api/exceptions.hxx"
 # include "../tools/primes.hxx"
 # include <mtc/ptrpatch.h>
 # include <mtc/wcsstr.h>
@@ -15,9 +16,6 @@ namespace palmira {
 namespace index   {
 namespace dynamic {
 
-  class index_overflow: public std::runtime_error {  using runtime_error::runtime_error;  };
-  class count_overflow: public index_overflow {  using index_overflow::index_overflow;  };
-
   template <class Allocator = std::allocator<char>>
   class EntityTable
   {
@@ -30,14 +28,16 @@ namespace dynamic {
 
       using string = std::basic_string<char, std::char_traits<char>, Allocator>;
 
-      implement_lifetime_stub
-
     public:
       Entity( Allocator );
-      Entity( std::string_view, uint32_t, Allocator );
+      Entity( uint32_t ix, Allocator );
+      Entity( std::string_view, uint32_t, mtc::Iface*, Allocator );
 
-    public:
-      auto  SetOwnerPtr( mtc::api<Iface> p ) -> Entity*;
+    public:     // from mtc::Iface
+      long  Attach() override
+        {  return owner_ptr != nullptr ? owner_ptr->Attach() : 1;  }
+      long  Detach() override
+        {  return owner_ptr != nullptr ? owner_ptr->Detach() : 0;  }
 
     public:     // overridables from IEntity
       auto  GetId() const -> Attribute override
@@ -66,12 +66,13 @@ namespace dynamic {
       string                attribute;            // document attributes
       uint32_t              index;                // order of creation, default 0
 
-      mtc::api<Iface>       owner_ptr;
+      mtc::Iface*           owner_ptr;
       std::atomic<Entity*>  collision = nullptr;  // relocation in the hash table
+
     };
 
   public:
-    EntityTable( uint32_t size_limit, Allocator alloc = Allocator() );
+    EntityTable( uint32_t size_limit, mtc::Iface* owner, Allocator alloc = Allocator() );
    ~EntityTable();
 
     auto  GetMaxEntities() const -> size_t      {  return entStore.size();  }
@@ -102,7 +103,7 @@ namespace dynamic {
    *  Set new entity with new object id, replace if exists.
    *  Returns api and stores replaced id.
    *
-   *  Throws count_overflow if more than accepted count of documents.
+   *  Throws index_overflow if more than accepted count of documents.
    */
     auto  SetEntity( std::string_view, uint32_t* = nullptr ) -> mtc::api<Entity>;
 
@@ -145,6 +146,8 @@ namespace dynamic {
     AtomicEntity   ptrStore;
     StrHashTable   entTable;
 
+    mtc::Iface*    ptrOwner = nullptr;
+
   };
 
   template <class Allocator>
@@ -184,10 +187,17 @@ namespace dynamic {
     index( 0 )  {}
 
   template <class Allocator>
-  EntityTable<Allocator>::Entity::Entity( std::string_view id, uint32_t ix, Allocator mm ):
+  EntityTable<Allocator>::Entity::Entity( uint32_t ix, Allocator mm ):
+    id( mm ),
+    attribute( mm ),
+    index( ix )  {}
+
+  template <class Allocator>
+  EntityTable<Allocator>::Entity::Entity( std::string_view id, uint32_t ix, mtc::Iface* op, Allocator mm ):
     id( id, mm ),
     attribute( mm ),
-    index( ix ) {}
+    index( ix ),
+    owner_ptr( op ) {}
 
   template <class Allocator>
   template <class O>
@@ -201,13 +211,14 @@ namespace dynamic {
   // EntityTable implementation
 
   template <class Allocator>
-  EntityTable<Allocator>::EntityTable( uint32_t size_limit, Allocator alloc ):
+  EntityTable<Allocator>::EntityTable( uint32_t size_limit, mtc::Iface* owner, Allocator alloc ):
     entStore( size_limit, alloc ),
     ptrStore( &getEntity( 1 ) ),
-    entTable( UpperPrime( size_limit ), alloc )
+    entTable( UpperPrime( size_limit ), alloc ),
+    ptrOwner( owner )
   {
     new( entStore.data() )
-      Entity( "", uint32_t(-1), alloc );
+      Entity( "", uint32_t(-1), nullptr, alloc );
   }
 
   template <class Allocator>
@@ -277,12 +288,12 @@ namespace dynamic {
     for ( ;; )
     {
       if ( entptr >= &getEntity( 0 ) + entStore.size() )
-        throw count_overflow( mtc::strprintf( "index size achieved limit of %d documents", entStore.size() ) );
+        throw index_overflow( mtc::strprintf( "index size achieved limit of %d documents", entStore.size() ) );
 
       if ( !ptrStore.compare_exchange_weak( entptr, entptr + 1 ) )
         continue;
 
-      new( entptr ) Entity( id, entptr - &getEntity( 0 ), entTable.get_allocator() );
+      new( entptr ) Entity( id, entptr - &getEntity( 0 ), ptrOwner, entTable.get_allocator() );
         break;
     }
 
@@ -389,7 +400,8 @@ namespace dynamic {
   template <class O>
   O*  EntityTable<Allocator>::Serialize( O* o ) const
   {
-    std::vector<const Entity*>  sorted;
+    auto  sorted = std::vector<const Entity*>();
+    auto  entDEL = Entity( -1, entTable.get_allocator() );
 
     if ( (o = Entity( entTable.get_allocator() ).Serialize( o )) == nullptr )
       return nullptr;
@@ -397,14 +409,16 @@ namespace dynamic {
     sorted.reserve( ptrStore.load() - &getEntity( 1 ) );
 
     for ( auto ptr = &getEntity( 1 ), end = ptrStore.load(); ptr !=  end; ++ptr )
-      if ( ptr->index != (uint32_t)-1 )
-        sorted.emplace_back( ptr );
+      sorted.emplace_back( ptr );
 
     std::sort( sorted.begin(), sorted.end(), []( const Entity* lhs, const Entity* rhs )
       {  return lhs->id < rhs->id; } );
 
     for ( auto& p: sorted )
-      o = p->Serialize( o );
+    {
+      if ( p->index != uint32_t(-1) ) o = p->Serialize( o );
+        else o = entDEL.Serialize( o );
+    }
 
     return o;
   }
