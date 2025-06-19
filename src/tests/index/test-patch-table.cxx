@@ -17,10 +17,10 @@ TestItEasy::RegisterFunc  patch_table( []()
         {
           SECTION( "* integer keys" )
           {
-            REQUIRE_NOTHROW( patch_table.Delete( 111 ) );
-            REQUIRE_NOTHROW( patch_table.Delete( 333 ) );
-            REQUIRE_NOTHROW( patch_table.Delete( 777 ) );
-            REQUIRE_NOTHROW( patch_table.Delete( 999 ) );
+            REQUIRE_NOTHROW( patch_table.Delete( "111", 111 ) );
+            REQUIRE_NOTHROW( patch_table.Delete( "333", 333 ) );
+            REQUIRE_NOTHROW( patch_table.Delete( "777", 777 ) );
+            REQUIRE_NOTHROW( patch_table.Delete( "999", 999 ) );
 
             if ( REQUIRE( patch_table.Search( 111 ) != nullptr ) )
               REQUIRE( patch_table.Search( 111 )->GetLen() == size_t(-1) );
@@ -38,9 +38,7 @@ TestItEasy::RegisterFunc  patch_table( []()
           }
           SECTION( "* string_view keys" )
           {
-            auto  aaa = std::string( "aaa" );
-
-            REQUIRE_NOTHROW( patch_table.Delete( aaa ) );
+            REQUIRE_NOTHROW( patch_table.Delete( "aaa", 0xa ) );
 
             if ( REQUIRE_NOTHROW( patch_table.Search( "aaa" ) ) )
               if ( REQUIRE( patch_table.Search( "aaa" ) != nullptr ) )
@@ -52,13 +50,13 @@ TestItEasy::RegisterFunc  patch_table( []()
         }
         SECTION( "Update() patch records allocate patch data" )
         {
-          if ( REQUIRE_NOTHROW( patch_table.Update( 0, { "abc" } ) ) )
+          if ( REQUIRE_NOTHROW( patch_table.Update( "ccc", 0, { "abc" } ) ) )
             if ( REQUIRE( patch_table.Search( 0 ) != nullptr ) )
               REQUIRE( patch_table.Search( 0 )->GetLen() == 3 );
 
           SECTION( "it overrides old patch data" )
           {
-            if ( REQUIRE_NOTHROW( patch_table.Update( 0, { "def" } ) ) )
+            if ( REQUIRE_NOTHROW( patch_table.Update( "ccc", 0, { "def" } ) ) )
               if ( REQUIRE( patch_table.Search( 0 ) != nullptr ) )
                 if ( REQUIRE( patch_table.Search( 0 )->GetPtr() != nullptr ) )
                 {
@@ -68,14 +66,14 @@ TestItEasy::RegisterFunc  patch_table( []()
           }
           SECTION( "and does not override Delete() patches" )
           {
-            if ( REQUIRE_NOTHROW( patch_table.Update( 111, { "abc" } ) ) )
+            if ( REQUIRE_NOTHROW( patch_table.Update( "111", 111, { "abc" } ) ) )
               if ( REQUIRE( patch_table.Search( 111 ) != nullptr ) )
                 REQUIRE( patch_table.Search( 111 )->GetLen() == size_t(-1) );
           }
         }
         SECTION( "Delete() patch records override patch data" )
         {
-          if ( REQUIRE_NOTHROW( patch_table.Delete( 0 ) ) )
+          if ( REQUIRE_NOTHROW( patch_table.Delete( "ccc", 0 ) ) )
             if ( REQUIRE( patch_table.Search( 0 ) != nullptr ) )
               REQUIRE( patch_table.Search( 0 )->GetLen() == size_t(-1) );
         }
@@ -85,19 +83,21 @@ TestItEasy::RegisterFunc  patch_table( []()
         auto  arena = mtc::Arena();
         auto  patch = arena.Create<PatchTable<mtc::Arena::allocator<char>>>( 303 );
 
-        REQUIRE_NOTHROW( patch->Delete( 0 ) );
+        REQUIRE_NOTHROW( patch->Delete( "aaa", 0 ) );
         if ( REQUIRE_NOTHROW( patch->Search( 0 ) ) )
           if ( REQUIRE( patch->Search( 0 ) != nullptr ) )
             REQUIRE( patch->Search( 0 )->GetLen() == size_t(-1) );
 
-        REQUIRE_NOTHROW( patch->Update( "aaa", "updated" ) );
-        if ( REQUIRE_NOTHROW( patch->Search( "aaa" ) ) )
-          if ( REQUIRE( patch->Search( "aaa" ) != nullptr ) )
-          {
-            REQUIRE( patch->Search( "aaa" )->GetPtr() != nullptr );
-            REQUIRE( patch->Search( "aaa" )->GetLen() == 7 );
-            REQUIRE( std::string_view( patch->Search( "aaa" )->GetPtr(), 7 ) == "updated" );
-          }
+        REQUIRE_NOTHROW( patch->Update( "bbb", 1, "updated" ) );
+
+        REQUIRE_NOTHROW( patch->Search( "bbb" ) );
+
+        if ( REQUIRE( patch->Search( "bbb" ) != nullptr ) )
+        {
+          REQUIRE( patch->Search( "bbb" )->GetPtr() != nullptr );
+          REQUIRE( patch->Search( "bbb" )->GetLen() == 7 );
+          REQUIRE( std::string_view( patch->Search( "bbb" )->GetPtr(), 7 ) == "updated" );
+        }
       }
     }
   } );

@@ -42,7 +42,7 @@ TestItEasy::RegisterFunc  dynamic_entities( []()
           }
           SECTION( "with id, it creates a new document record" )
           {
-            REQUIRE_NOTHROW( entity = entity_table->SetEntity( ENTITY_ID_PREFIX "aaa", &deldoc ) );
+            REQUIRE_NOTHROW( entity = entity_table->SetEntity( ENTITY_ID_PREFIX "aaa", {}, &deldoc ) );
               REQUIRE( entity != nullptr );
               REQUIRE( entity->GetId() == ENTITY_ID_PREFIX "aaa" );
               REQUIRE( entity->GetIndex() == 1 );
@@ -50,7 +50,7 @@ TestItEasy::RegisterFunc  dynamic_entities( []()
           }
           SECTION( "if overriden, it removes existing document and stores new version" )
           {
-            REQUIRE_NOTHROW( entity = entity_table->SetEntity( ENTITY_ID_PREFIX "aaa", &deldoc ) );
+            REQUIRE_NOTHROW( entity = entity_table->SetEntity( ENTITY_ID_PREFIX "aaa", {}, &deldoc ) );
               REQUIRE( entity != nullptr );
               REQUIRE( entity->GetId() == ENTITY_ID_PREFIX "aaa" );
               REQUIRE( entity->GetIndex() == 2 );
@@ -62,7 +62,7 @@ TestItEasy::RegisterFunc  dynamic_entities( []()
             {
               auto  entkey = mtc::strprintf( ENTITY_ID_PREFIX "%c%c%c", 'a' + i, 'a' + i, 'a' + i );
 
-              REQUIRE_NOTHROW( entity = entity_table->SetEntity( entkey, &deldoc ) );
+              REQUIRE_NOTHROW( entity = entity_table->SetEntity( entkey, {}, &deldoc ) );
                 REQUIRE( entity != nullptr );
                 REQUIRE( entity->GetId() == entkey );
                 REQUIRE( entity->GetIndex() == 1 + i );

@@ -145,7 +145,52 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
           REQUIRE_EXCEPTION( contents->Commit(), std::logic_error );
         }
       }
-      SECTION( "dynamic::contents index may be created with entity count limitation" )
+      SECTION( "dynamic::contents may hold extras for entities" )
+      {
+        REQUIRE_NOTHROW( contents = index::dynamic::Contents().Create() );
+
+        if ( REQUIRE( contents != nullptr ) )
+        {
+          SECTION( "extras may be attached do entity on SetEntity()" )
+          {
+            if ( REQUIRE_NOTHROW( contents->SetEntity( "attached", nullptr, { "aaa", 3 } ) ) )
+            {
+              if ( REQUIRE_NOTHROW( entity = contents->GetEntity( "attached" ) ) && REQUIRE( entity != nullptr ) )
+              {
+                if ( REQUIRE( entity->GetExtra() != nullptr ) )
+                {
+                  REQUIRE( entity->GetExtra()->GetLen() == 3 );
+                  REQUIRE( std::string_view( entity->GetExtra()->GetPtr(), 3 ) == "aaa" );
+                }
+              }
+            }
+          }
+          SECTION( "extras may be changed" )
+          {
+            if ( REQUIRE_NOTHROW( entity = contents->SetExtras( "attached", { "bbbb", 4 } ) ) )
+            {
+              if ( REQUIRE( entity != nullptr ) )
+              {
+                auto  extras = mtc::api<const mtc::IByteBuffer>();
+
+                REQUIRE_NOTHROW( extras = entity->GetExtra() );
+
+                if ( REQUIRE( extras != nullptr ) )
+                {
+                  REQUIRE( entity->GetExtra()->GetLen() == 4 );
+                  REQUIRE( std::string_view( entity->GetExtra()->GetPtr(), 4 ) == "bbbb" );
+                }
+              }
+            }
+          }
+          SECTION( "setting extras on non-existing documents result nullptr" )
+          {
+            if ( REQUIRE_NOTHROW( entity = contents->SetExtras( "non-existing", { "bbbb", 4 } ) ) )
+              REQUIRE( entity == nullptr );
+          }
+        }
+      }
+      SECTION( "dynamic::contents may be created with entity count limitation" )
       {
         REQUIRE_NOTHROW( contents = index::dynamic::Contents()
           .Set( index::dynamic::Settings()

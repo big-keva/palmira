@@ -209,39 +209,91 @@ TestItEasy::RegisterFunc  static_contents( []()
               }
             }
           }
-          SECTION( "entity may be deleted" )
+          SECTION( "entities extras may be changed" )
+          {
+            auto  extras = mtc::api<const mtc::IByteBuffer>();
+
+            REQUIRE_NOTHROW( entity = contents->SetExtras( "ccc", { "cccc", 4 } ) );
+
+            if ( REQUIRE( entity != nullptr ) )
+            {
+              REQUIRE_NOTHROW( extras = entity->GetExtra() );
+
+              if ( REQUIRE( extras != nullptr ) )
+              {
+                REQUIRE( extras->GetLen() == 4 );
+                REQUIRE( std::string_view( extras->GetPtr(), 4 ) == "cccc" );
+              }
+            }
+
+            SECTION( "after setting, extras are changed permanent" )
+            {
+              entity = contents->GetEntity( "ccc" );
+
+              if ( REQUIRE( entity != nullptr ) )
+              {
+                REQUIRE_NOTHROW( extras = entity->GetExtra() );
+
+                if ( REQUIRE( extras != nullptr ) )
+                {
+                  REQUIRE( extras->GetLen() == 4 );
+                  REQUIRE( std::string_view( extras->GetPtr(), 4 ) == "cccc" );
+                }
+              }
+            }
+            SECTION( "access by iterator also is affected by changing extras" )
+            {
+              auto  it = mtc::api<palmira::IContentsIndex::IIterator>();
+
+              REQUIRE_NOTHROW( it = contents->GetIterator( "ccc" ) );
+              if ( REQUIRE( it != nullptr ) )
+              {
+                REQUIRE_NOTHROW( entity = it->Curr() );
+                if ( REQUIRE( entity != nullptr ) )
+                {
+                  REQUIRE_NOTHROW( extras = entity->GetExtra() );
+                  if ( REQUIRE( extras != nullptr ) )
+                  {
+                    REQUIRE( extras->GetLen() == 4 );
+                    REQUIRE( std::string_view( extras->GetPtr(), 4 ) == "cccc" );
+                  }
+                }
+              }
+            }
+          }
+          SECTION( "entites may be deleted" )
           {
             bool  deleted;
 
-            if ( REQUIRE_NOTHROW( deleted = contents->DelEntity( "aaa" ) ) )
+            if ( REQUIRE_NOTHROW( deleted = contents->DelEntity( "ccc" ) ) )
               REQUIRE( deleted == true );
 
             SECTION( "after deletion entity may not be found" )
             {
               SECTION( "- by id" )
               {
-                if ( REQUIRE_NOTHROW( contents->GetEntity( "aaa" ) ) )
-                  REQUIRE( contents->GetEntity( "aaa" ) == nullptr );
+                if ( REQUIRE_NOTHROW( contents->GetEntity( "ccc" ) ) )
+                  REQUIRE( contents->GetEntity( "ccc" ) == nullptr );
               }
               SECTION( "- by index" )
               {
-                if ( REQUIRE_NOTHROW( contents->GetEntity( 1 ) ) )
-                  REQUIRE( contents->GetEntity( 1 ) == nullptr );
+                if ( REQUIRE_NOTHROW( contents->GetEntity( 3 ) ) )
+                  REQUIRE( contents->GetEntity( 3 ) == nullptr );
               }
               SECTION( "- by contents" )
               {
                 palmira::IContentsIndex::IEntities::Reference entRef;
 
-                REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "aaa", 3 ) );
+                REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "eee", 3 ) );
                 REQUIRE( entities != nullptr );
 
-                if ( REQUIRE_NOTHROW( entRef = entities->Find( 1 ) ) )
+                if ( REQUIRE_NOTHROW( entRef = entities->Find( 3 ) ) )
                   REQUIRE( entRef.uEntity == uint32_t(-1) );
               }
             }
             SECTION( "second deletion of deleted object returns false" )
             {
-              REQUIRE( contents->DelEntity( "aaa" ) == false );
+              REQUIRE( contents->DelEntity( "ccc" ) == false );
             }
           }
         }

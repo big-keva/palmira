@@ -12,7 +12,7 @@ auto  CreateEntityTable( std::initializer_list<std::pair<std::string, std::strin
   palmira::index::dynamic::EntityTable<>  dynamicEntities( 100, nullptr );
 
   for ( auto& next: entities )
-    dynamicEntities.SetEntity( next.first );
+    dynamicEntities.SetEntity( next.first, { next.second.data(), next.second.size() } );
 
   std::vector<char> serialBuffer( 0x100 );
 
@@ -67,6 +67,19 @@ TestItEasy::RegisterFunc  static_entities( []()
           }
           if ( REQUIRE_NOTHROW( entities.GetEntity( "q" ) ) )
             REQUIRE( entities.GetEntity( "q" ) == nullptr );
+        }
+        SECTION( "entity extras may be accessed" )
+        {
+          if ( REQUIRE_NOTHROW( entities.GetEntity( "aaa" ) ) && REQUIRE( entities.GetEntity( "aaa" ) != nullptr ) )
+          {
+            auto  extra = mtc::api<const mtc::IByteBuffer>();
+
+            if ( REQUIRE_NOTHROW( extra = entities.GetEntity( "aaa" )->GetExtra() ) && REQUIRE( extra != nullptr ) )
+            {
+              REQUIRE( extra->GetLen() == 10 );
+              REQUIRE( std::string_view( extra->GetPtr(), extra->GetLen() ) == "metadata 1" );
+            }
+          }
         }
       }
       SECTION( "entities table may be created with custom allocator also" )

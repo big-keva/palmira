@@ -53,9 +53,10 @@ class MockEntity: public IEntity
 {
   implement_lifetime_stub
 
-  auto  GetId() const -> Attribute override {  return { "dynamicId" };  }
+  auto  GetId() const -> EntityId override {  return { "dynamicId" };  }
   auto  GetIndex() const -> uint32_t override {  return 3;  }
-  auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> override  {  return {};  }
+  auto  GetExtra() const -> mtc::api<const mtc::IByteBuffer> override  {  return {};  }
+  auto  GetVersion() const -> uint64_t override {  return 0; }
 };
 
 class MockCommitable: public IContentsIndex
@@ -78,7 +79,9 @@ public:
     {  return ix == 3 ? &entity : nullptr;  }
   bool  DelEntity( EntityId )
     {  throw std::logic_error( "invalid call" );  }
-  auto  SetEntity( EntityId, mtc::api<const IContents>, mtc::api<const mtc::IByteBuffer> ) -> mtc::api<const IEntity>
+  auto  SetEntity( EntityId, mtc::api<const IContents>, const Span& ) -> mtc::api<const IEntity> override
+    {  throw std::logic_error( "invalid call" );  }
+  auto  SetExtras( EntityId, const Span& ) -> mtc::api<const IEntity> override
     {  throw std::logic_error( "invalid call" );  }
   auto  GetMaxIndex() const -> uint32_t   {  return 1000;  }
   auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities>

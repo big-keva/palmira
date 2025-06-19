@@ -42,9 +42,10 @@ class MockDynamic final: public IContentsIndex
     implement_lifetime_control
 
   protected:
-    auto  GetId() const -> Attribute override {  return { id };  }
+    auto  GetId() const -> EntityId override {  return { id };  }
     auto  GetIndex() const -> uint32_t override {  return index;  }
-    auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> override  {  return nullptr;  }
+    auto  GetExtra() const -> mtc::api<const mtc::IByteBuffer> override  {  return nullptr;  }
+    auto  GetVersion() const -> uint64_t override  {  return 0;  }
 
   public:
     MockEntity( const std::string& entId, uint32_t uindex ):
@@ -58,7 +59,9 @@ public:
     {  return new MockEntity( mtc::strprintf( "%u", ix ), ix );  }
   bool  DelEntity( EntityId ) override
     {  return false;  }
-  auto  SetEntity( EntityId id, mtc::api<const IContents>, mtc::api<const mtc::IByteBuffer> ) -> mtc::api<const IEntity> override
+  auto  SetEntity( EntityId id, mtc::api<const IContents>, const Span& ) -> mtc::api<const IEntity> override
+    {  return new MockEntity( std::string( id ), 1 );  }
+  auto  SetExtras( EntityId id, const Span& ) -> mtc::api<const IEntity> override
     {  return new MockEntity( std::string( id ), 1 );  }
   auto  GetMaxIndex() const -> uint32_t override
     {  return 1;  }

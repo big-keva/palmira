@@ -41,7 +41,7 @@ auto  CreateDynamicIndex( const mtc::zmap& ix ) -> mtc::api<IContentsIndex>
     .Create();
 
   for ( auto& next: ix )
-    pindex->SetEntity( next.first.to_charstr(), KeyValues( *next.second.get_zmap() ).ptr(), nullptr );
+    pindex->SetEntity( next.first.to_charstr(), KeyValues( *next.second.get_zmap() ).ptr() );
 
   return pindex;
 }
