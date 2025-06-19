@@ -6,24 +6,24 @@
 
 namespace palmira
 {
-  using EntityId = std::string_view;
+  class EntityId: public std::string_view, protected mtc::api<const mtc::Iface>
+  {
+    using std::string_view::string_view;
+
+  public:
+    EntityId( const EntityId& ) = default;
+    EntityId( const std::string_view& s, api i = nullptr ): std::string_view( s ), api( i ) {}
+  };
 
   struct IEntity;             // common object properties
   struct IContents;           // indexable entity properties interface
 
   struct IEntity: public mtc::Iface
   {
-    struct Attribute;
-
-    virtual auto  GetId() const -> Attribute = 0;
+    virtual auto  GetId() const -> EntityId = 0;
     virtual auto  GetIndex() const -> uint32_t = 0;
-    virtual auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> = 0;
-  };
-
-  struct IEntity::Attribute: public std::string_view, protected mtc::api<const Iface>
-  {
-    Attribute( const Attribute& ) = default;
-    Attribute( const std::string_view& s, api i = nullptr ): std::string_view( s ), api( i ) {}
+    virtual auto  GetExtra() const -> mtc::api<const mtc::IByteBuffer> = 0;
+    virtual auto  GetVersion() const -> uint64_t = 0;
   };
 
   struct IStorage: public mtc::Iface
@@ -108,11 +108,17 @@ namespace palmira
     * Insert object with id to the index, sets dynamic untyped attributes
     * and indexable properties
     */
-    virtual auto  SetEntity( EntityId id,
-      mtc::api<const IContents>         index = nullptr,
-      mtc::api<const mtc::IByteBuffer>  attrs = nullptr ) -> mtc::api<const IEntity> = 0;
+    virtual auto  SetEntity( EntityId,
+      mtc::api<const IContents> = {}, const Span& = {} ) -> mtc::api<const IEntity> = 0;
 
    /*
+    * SetExtras()
+    *
+    * Changes the value of extras block for the entity identified by id
+    */
+    virtual auto  SetExtras( EntityId, const Span& ) -> mtc::api<const IEntity> = 0;
+
+    /*
     * Index statistics and service information
     */
     virtual auto  GetMaxIndex() const -> uint32_t = 0;
