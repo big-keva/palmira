@@ -83,6 +83,17 @@ namespace index {
     return deleted;
   }
 
+  auto  IndexLayers::setExtras( EntityId id, const Span& xtras ) -> mtc::api<const IEntity>
+  {
+    auto  entity = mtc::api<const IEntity>();
+
+    for ( auto& next: layers )
+      if ( (entity = next.pIndex->SetExtras( id, xtras )) != nullptr )
+        return entity;
+
+    return {};
+  }
+
   auto  IndexLayers::getMaxIndex() const -> uint32_t
   {
     return layers.size() != 0 ? layers.back().uUpper : 0;

@@ -13,7 +13,7 @@ namespace index {
     Override( mtc::api<const IEntity> );
 
     auto  Index( uint32_t ix ) -> mtc::api<const IEntity>;
-    auto  Attributes( const mtc::api<const mtc::IByteBuffer>& ) -> mtc::api<const IEntity>;
+    auto  Extras( const mtc::api<const mtc::IByteBuffer>& ) -> mtc::api<const IEntity>;
 
   };
 

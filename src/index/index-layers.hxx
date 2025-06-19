@@ -30,6 +30,7 @@ namespace index {
     auto  getEntity( EntityId ) const -> mtc::api<const IEntity>;
     auto  getEntity( uint32_t ) const -> mtc::api<const IEntity>;
     bool  delEntity( EntityId id );
+    auto  setExtras( EntityId, const Span& ) -> mtc::api<const IEntity>;
 
     auto  getMaxIndex() const -> uint32_t;
     auto  getKeyBlock( const void*, size_t, const mtc::Iface* = nullptr ) const -> mtc::api<IContentsIndex::IEntities>;

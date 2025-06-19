@@ -1,4 +1,5 @@
 # include "../api/static-contents.hxx"
+# include "override-entities.hxx"
 # include "static-entities.hxx"
 # include "dynamic-bitmap.hxx"
 # include "patch-table.hxx"
@@ -34,9 +35,8 @@ namespace static_ {
     auto  GetEntity( EntityId id ) const -> mtc::api<const IEntity> override;
     auto  GetEntity( uint32_t id ) const -> mtc::api<const IEntity> override;
     bool  DelEntity( EntityId ) override;
-    auto  SetEntity( EntityId,
-      mtc::api<const IContents>   props = nullptr,
-      mtc::api<const IByteBuffer> attrs = nullptr ) -> mtc::api<const IEntity> override;
+    auto  SetEntity( EntityId, mtc::api<const IContents>, const Span& ) -> mtc::api<const IEntity> override;
+    auto  SetExtras( EntityId, const Span& ) -> mtc::api<const IEntity> override;
 
     auto  GetMaxIndex() const -> uint32_t override
       {  return entities.GetEntityCount();  }
@@ -145,7 +145,19 @@ namespace static_ {
   {
     auto  entity = entities.GetEntity( id );
 
-    return entity != nullptr && !shadowed.Get( entity->index ) ? entity.ptr() : nullptr;
+    if ( entity != nullptr && !shadowed.Get( entity->index ) )
+    {
+      auto  ppatch = patchTab.Search( { id.data(), id.size() } );
+
+      if ( ppatch == nullptr )
+        return entity.ptr();
+
+      if ( ppatch->GetLen() == size_t(-1) )
+        return nullptr;
+
+      return Override( entity.ptr() ).Extras( ppatch );
+    }
+    return nullptr;
   }
 
   auto  ContentsIndex::GetEntity( uint32_t id ) const -> mtc::api<const IEntity>
@@ -172,10 +184,23 @@ namespace static_ {
     return false;
   }
 
-  auto  ContentsIndex::SetEntity( EntityId,
-    mtc::api<const IContents>, mtc::api<const mtc::IByteBuffer> ) -> mtc::api<const IEntity>
+  auto  ContentsIndex::SetEntity( EntityId, mtc::api<const IContents>, const Span& ) -> mtc::api<const IEntity>
   {
     throw std::logic_error( "static_::ContentsIndex::SetEntity( ) must not be called" );
+  }
+
+  auto  ContentsIndex::SetExtras( EntityId id, const Span& xtras ) -> mtc::api<const IEntity>
+  {
+    auto  getdoc = entities.GetEntity( id );
+
+    if ( getdoc != nullptr && !shadowed.Get( getdoc->index ) )
+    {
+      auto  ppatch = patchTab.Update( { id.data(), id.size() }, getdoc->index, xtras );
+
+      return ppatch == nullptr || ppatch->GetLen() != size_t(-1) ?
+        Override( getdoc.ptr() ).Extras( ppatch ) : getdoc.ptr();
+    }
+    return nullptr;
   }
 
   auto  ContentsIndex::GetKeyBlock( const void* key, size_t size ) const -> mtc::api<IEntities>
@@ -245,8 +270,7 @@ namespace static_ {
 
   bool  ContentsIndex::delEntity( EntityId id, uint32_t index )
   {
-    patchTab.Delete( { id.data(), id.size() } );
-    patchTab.Delete( index );
+    patchTab.Delete( { id.data(), id.size() }, index );
     shadowed.Set( index );
     return true;
   }
@@ -312,7 +336,11 @@ namespace static_ {
   {
     for ( auto ent = iterator.Curr(); ent != nullptr; ent = iterator.Next() )
       if ( !contents->shadowed.Get( ent->GetIndex() ) )
-        return ent;
+      {
+        auto  patch = contents->patchTab.Search( ent->GetIndex() );
+
+        return patch != nullptr ? Override( ent ).Extras( patch ) : ent;
+      }
 
     return nullptr;
   }

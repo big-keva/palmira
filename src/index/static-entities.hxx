@@ -58,12 +58,14 @@ namespace static_ {
         {  return owner_ptr != nullptr ? owner_ptr->Detach() : 0;  }
 
     // overridables from IEntity
-      auto  GetId() const -> Attribute override
+      auto  GetId() const -> EntityId override
         {  return { entity_id, owner_ptr };  }
       auto  GetIndex() const -> uint32_t override
         {  return index;  }
-      auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> override
-        {  return new Region( attribute.data(), attribute.size(), owner_ptr );  }
+      auto  GetExtra() const -> mtc::api<const mtc::IByteBuffer> override
+        {  return new Region( extras.data(), extras.size(), owner_ptr );  }
+      auto  GetVersion() const -> uint64_t override
+        {  return 0;  }
 
       bool  ValidIndex() const noexcept {  return index != 0 && index != uint32_t(-1);  }
 
@@ -74,9 +76,10 @@ namespace static_ {
     public:
       mtc::Iface*       owner_ptr = nullptr;
       Entity*           collision = nullptr;
-      uint32_t          index = 0;            // order of creation, default 0
       std::string_view  entity_id;
-      std::string_view  attribute;
+      Span              extras;
+      uint32_t          index = 0;            // order of creation, default 0
+      uint64_t          version = 0;
 
     };
 
@@ -150,8 +153,10 @@ namespace static_ {
     unsigned  cch;
 
   // get index and id length; set entity id
-    if ( (src = ::FetchFrom( ::FetchFrom( src, index ), cch )) == nullptr )
-      return nullptr;
+    if ( (src = ::FetchFrom( ::FetchFrom( ::FetchFrom( src,
+      index ),
+      version ), cch )) == nullptr )
+    return nullptr;
 
     src = (entity_id = { src, cch }).data() + cch;
 
@@ -159,7 +164,7 @@ namespace static_ {
     if ( (src = ::FetchFrom( src, cch )) == nullptr )
       return nullptr;
 
-    return src = (attribute = { src, cch }).data() + cch;
+    return src = (extras = { src, cch }).data() + cch;
   }
 
   // EntityTable implementation

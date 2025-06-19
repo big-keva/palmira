@@ -27,46 +27,51 @@ namespace dynamic {
       friend class EntityTable;
 
       using string = std::basic_string<char, std::char_traits<char>, Allocator>;
+      using extras = std::vector<char, Allocator>;
 
     public:
-      Entity( Allocator );
-      Entity( uint32_t ix, Allocator );
-      Entity( std::string_view, uint32_t, mtc::Iface*, Allocator );
+      Entity( Allocator mm ): Entity( mm, 0U ) {}
+      Entity( Allocator mm, uint32_t ix ): Entity( mm, {}, ix, 0, {}, nullptr ) {}
+      Entity( Allocator mm, const EntityId& id, uint32_t ix, uint64_t ver, const Span& xtra, mtc::Iface* pw );
 
     public:     // from mtc::Iface
       long  Attach() override
-        {  return owner_ptr != nullptr ? owner_ptr->Attach() : 1;  }
+        {  return ownerPtr != nullptr ? ownerPtr->Attach() : 1;  }
       long  Detach() override
-        {  return owner_ptr != nullptr ? owner_ptr->Detach() : 0;  }
+        {  return ownerPtr != nullptr ? ownerPtr->Detach() : 0;  }
 
     public:     // overridables from IEntity
-      auto  GetId() const -> Attribute override
-        {  return { id, owner_ptr };  }
+      auto  GetId() const -> EntityId override
+        {  return { id, ownerPtr };  }
       auto  GetIndex() const -> uint32_t override
         {  return index;  }
-      auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> override
+      auto  GetExtra() const -> mtc::api<const mtc::IByteBuffer> override
         {  return this;  }
+      auto  GetVersion() const -> uint64_t override
+        {  return version;  }
 
     protected:  // overridables from IByteBuffer
       auto  GetPtr() const noexcept -> const char* override
-        {  return attribute.data();  }
+        {  return extra.data();  }
       auto  GetLen() const noexcept -> size_t override
-        {  return attribute.size();  }
+        {  return extra.size();  }
       int   SetBuf( const void*, size_t ) override
         {  throw std::logic_error( "not implemented" );  }
       int   SetLen( size_t ) override
         {  throw std::logic_error( "not implemented" );  }
 
+    public:     // customization
     public:     // serialization
       template <class O>
       O*  Serialize( O* ) const;
 
     protected:
       string                id;                   // public entity id
-      string                attribute;            // document attributes
+      extras                extra;                // document attributes
       uint32_t              index;                // order of creation, default 0
+      uint64_t              version;
 
-      mtc::Iface*           owner_ptr;
+      mtc::Iface*           ownerPtr;
       std::atomic<Entity*>  collision = nullptr;  // relocation in the hash table
 
     };
@@ -105,7 +110,8 @@ namespace dynamic {
    *
    *  Throws index_overflow if more than accepted count of documents.
    */
-    auto  SetEntity( std::string_view, uint32_t* = nullptr ) -> mtc::api<Entity>;
+    auto  SetEntity( std::string_view, const Span& = {}, uint32_t* = nullptr ) -> mtc::api<Entity>;
+    auto  SetExtras( std::string_view, const Span& = {} ) -> mtc::api<Entity>;
 
   public:      // iterator access
     auto  GetIterator( uint32_t ) const -> Iterator;
@@ -181,23 +187,14 @@ namespace dynamic {
   // EntityTable::Entiry implementation
 
   template <class Allocator>
-  EntityTable<Allocator>::Entity::Entity( Allocator mm ):
-    id( mm ),
-    attribute( mm ),
-    index( 0 )  {}
-
-  template <class Allocator>
-  EntityTable<Allocator>::Entity::Entity( uint32_t ix, Allocator mm ):
-    id( mm ),
-    attribute( mm ),
-    index( ix )  {}
-
-  template <class Allocator>
-  EntityTable<Allocator>::Entity::Entity( std::string_view id, uint32_t ix, mtc::Iface* op, Allocator mm ):
+  EntityTable<Allocator>::Entity::Entity( Allocator mm, const EntityId& id, uint32_t ix,
+      uint64_t ver, const Span& xtra, mtc::Iface* op ):
     id( id, mm ),
-    attribute( mm ),
+    extra( xtra.data(), xtra.data() + xtra.size(), mm ),
     index( ix ),
-    owner_ptr( op ) {}
+    version( ver ),
+    ownerPtr( op )
+  {}
 
   template <class Allocator>
   template <class O>
@@ -205,7 +202,8 @@ namespace dynamic {
   {
     return ::Serialize(
            ::Serialize(
-           ::Serialize( o, index ), id ), attribute );
+           ::Serialize(
+           ::Serialize( o, index ), version ), id ), extra );
   }
 
   // EntityTable implementation
@@ -218,7 +216,7 @@ namespace dynamic {
     ptrOwner( owner )
   {
     new( entStore.data() )
-      Entity( "", uint32_t(-1), nullptr, alloc );
+      Entity( alloc, uint32_t(-1) );
   }
 
   template <class Allocator>
@@ -227,7 +225,6 @@ namespace dynamic {
     for ( auto beg = &getEntity( 0 ), end = ptrStore.load(); beg != end; ++beg )
       beg->~Entity();
   }
-
 
  /*
   *  EntityTable::DelEntity( string_view id )
@@ -269,7 +266,7 @@ namespace dynamic {
   }
 
   template <class Allocator>
-  auto  EntityTable<Allocator>::SetEntity( std::string_view id, uint32_t* deleted ) -> mtc::api<Entity>
+  auto  EntityTable<Allocator>::SetEntity( std::string_view id, const Span& xtras, uint32_t* deleted ) -> mtc::api<Entity>
   {
     auto  hindex = std::hash<decltype(id)>{}( id ) % entTable.size();
     auto* hentry = &entTable[hindex];
@@ -293,14 +290,14 @@ namespace dynamic {
       if ( !ptrStore.compare_exchange_weak( entptr, entptr + 1 ) )
         continue;
 
-      new( entptr ) Entity( id, entptr - &getEntity( 0 ), ptrOwner, entTable.get_allocator() );
+      new( entptr ) Entity( entTable.get_allocator(), id, entptr - &getEntity( 0 ), 0, xtras, ptrOwner );
         break;
     }
 
   // Ok, the entity is allocated and no changes made to document set and relocation table;
   // ensure the element may be created with docid == -1 meaning it is 'deleted'
   //
-  // Now block the hash table entry from modifications outside and create record to document
+  // Now block the hash table entry from modifications outside and create reference to document
     while ( !hentry->compare_exchange_weak( hvalue, mtc::ptr::dirty( hvalue ) ) )
       hvalue = mtc::ptr::clean( hvalue );
 
@@ -332,6 +329,43 @@ namespace dynamic {
     entTable[hindex].store( entptr );
 
     return entptr;
+  }
+
+  template <class Allocator>
+  auto  EntityTable<Allocator>::SetExtras( std::string_view id, const Span& xtras ) -> mtc::api<Entity>
+  {
+    auto  hindex = std::hash<decltype(id)>{}( id ) % entTable.size();
+    auto& hentry = entTable[hindex];
+    auto  hvalue = mtc::ptr::clean( hentry.load() );
+
+    if ( id.empty() )
+      throw std::invalid_argument( "id is empty" );
+
+  // Now block the hash table entry from modifications outside
+    while ( !hentry.compare_exchange_weak( hvalue, mtc::ptr::dirty( hvalue ) ) )
+      hvalue = mtc::ptr::clean( hvalue );
+
+  // search existing entity with specified id
+    while ( hvalue != nullptr && hvalue->id != id )
+      hvalue = mtc::ptr::clean( hvalue->collision.load() );
+
+  // check if not found
+    if ( hvalue == nullptr )
+      return hentry.store( mtc::ptr::clean( hentry.load() ) ), nullptr;
+
+  // set up the entity data
+    try
+    {
+      hvalue->extra.resize( xtras.size() );
+        memcpy( hvalue->extra.data(), xtras.data(), xtras.size() );
+
+      return hentry.store( mtc::ptr::clean( hentry.load() ) ), hvalue;
+    }
+    catch ( ... )
+    {
+      hentry.store( mtc::ptr::clean( hentry.load() ) );
+      throw;
+    }
   }
 
   /*
@@ -401,7 +435,7 @@ namespace dynamic {
   O*  EntityTable<Allocator>::Serialize( O* o ) const
   {
     auto  sorted = std::vector<const Entity*>();
-    auto  entDEL = Entity( -1, entTable.get_allocator() );
+    auto  entDEL = Entity( entTable.get_allocator(), uint32_t(-1) );
 
     if ( (o = Entity( entTable.get_allocator() ).Serialize( o )) == nullptr )
       return nullptr;

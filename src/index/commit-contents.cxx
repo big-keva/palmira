@@ -34,10 +34,11 @@ namespace commit  {
     auto  GetEntity( EntityId ) const -> mtc::api<const IEntity> override;
     auto  GetEntity( uint32_t ) const -> mtc::api<const IEntity> override;
 
-    bool  DelEntity( EntityId id ) override;
-    auto  SetEntity( EntityId id,
-      mtc::api<const IContents>         index = nullptr,
-      mtc::api<const mtc::IByteBuffer>  attrs = nullptr ) -> mtc::api<const IEntity> override;
+    bool  DelEntity( EntityId ) override;
+    auto  SetEntity( EntityId, mtc::api<const IContents>,
+      const Span& ) -> mtc::api<const IEntity> override;
+    auto  SetExtras( EntityId,
+      const Span& ) -> mtc::api<const IEntity> override;
 
     auto  GetMaxIndex() const -> uint32_t override;
     auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override;
@@ -160,7 +161,7 @@ namespace commit  {
       if ( ppatch->GetLen() == size_t(-1) )
         return nullptr;
 
-      return Override( entity ).Attributes( ppatch );
+      return Override( entity ).Extras( ppatch );
     }
     return output->GetEntity( id );
   }
@@ -183,7 +184,7 @@ namespace commit  {
       if ( ppatch->GetLen() == size_t(-1) )
         return nullptr;
 
-      return Override( entity ).Attributes( ppatch );
+      return Override( entity ).Extras( ppatch );
     }
     return output->GetEntity( ix );
   }
@@ -205,8 +206,7 @@ namespace commit  {
 
       if ( (ppatch = hpatch.Search( { id.data(), id.size() } )) == nullptr || ppatch->GetLen() != size_t(-1) )
       {
-        hpatch.Delete( { id.data(), id.size() } );
-        hpatch.Delete( entity->GetIndex() );
+        hpatch.Delete( { id.data(), id.size() }, entity->GetIndex() );
         banset.Set( entity->GetIndex() );
         return true;
       }
@@ -215,10 +215,33 @@ namespace commit  {
     return output->DelEntity( id );
   }
 
-  auto  ContentsIndex::SetEntity( EntityId, mtc::api<const IContents>, mtc::api<const mtc::IByteBuffer> )
-    -> mtc::api<const IEntity>
+  auto  ContentsIndex::SetEntity( EntityId, mtc::api<const IContents>, const Span& ) -> mtc::api<const IEntity>
   {
     throw std::logic_error( "commit::SetEntity(...) must not be called" );
+  }
+
+  auto  ContentsIndex::SetExtras( EntityId id, const Span& xtra ) -> mtc::api<const IEntity>
+  {
+    auto  shlock = mtc::make_shared_lock( swLock );
+
+    if ( except != nullptr )
+      std::rethrow_exception( except );
+
+    if ( output == nullptr )
+    {
+      auto  entity = source->GetEntity( id );
+      auto  ppatch = mtc::api<const mtc::IByteBuffer>{};
+
+      if ( entity == nullptr )
+        return nullptr;
+
+      if ( (ppatch = hpatch.Search( { id.data(), id.size() } )) != nullptr && ppatch->GetLen() == size_t(-1) )
+        return nullptr;
+
+      return hpatch.Update( { id.data(), id.size() }, entity->GetIndex(), xtra )->GetLen() != size_t(-1) ?
+        GetEntity( id ) : nullptr;
+    }
+    return output->SetExtras( id, xtra );
   }
 
   auto  ContentsIndex::GetMaxIndex() const -> uint32_t

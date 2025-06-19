@@ -31,9 +31,10 @@ namespace dynamic {
     auto  GetEntity( uint32_t ) const -> mtc::api<const IEntity> override;
 
     bool  DelEntity( EntityId ) override;
-    auto  SetEntity( EntityId,
-      mtc::api<const IContents>         props = nullptr,
-      mtc::api<const mtc::IByteBuffer>  attrs = nullptr ) -> mtc::api<const IEntity> override;
+    auto  SetEntity( EntityId, mtc::api<const IContents>,
+      const Span& ) -> mtc::api<const IEntity> override;
+    auto  SetExtras( EntityId,
+      const Span& ) -> mtc::api<const IEntity> override;
 
     auto  GetMaxIndex() const -> uint32_t override  {  return entities.GetEntityCount();  }
     auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override;
@@ -153,8 +154,7 @@ namespace dynamic {
   }
 
   auto  ContentsIndex::SetEntity( EntityId id,
-    mtc::api<const IContents>         props,
-    mtc::api<const mtc::IByteBuffer>  /*attrs*/ ) -> mtc::api<const IEntity>
+    mtc::api<const IContents> keys, const Span& extras ) -> mtc::api<const IEntity>
   {
     auto  entity = mtc::api<EntTable::Entity>();
     auto  del_id = uint32_t{};
@@ -164,17 +164,22 @@ namespace dynamic {
       throw index_overflow( "dynamic index memory overflow" );
 
   // create the entity
-    entity = entities.SetEntity( id, &del_id );
+    entity = entities.SetEntity( id, extras, &del_id );
 
   // check if any entities deleted
     if ( del_id != uint32_t(-1) )
       shadowed.Set( del_id );
 
   // process contents indexing
-    if ( props != nullptr )
-      props->Enumerate( KeyValue( contents, entity->GetIndex() ).ptr() );
+    if ( keys != nullptr )
+      keys->Enumerate( KeyValue( contents, entity->GetIndex() ).ptr() );
 
     return entity.ptr();
+  }
+
+  auto  ContentsIndex::SetExtras( EntityId id, const Span& extras ) -> mtc::api<const IEntity>
+  {
+    return entities.SetExtras( id, extras ).ptr();
   }
 
   auto  ContentsIndex::GetKeyBlock( const void* key, size_t length ) const -> mtc::api<IEntities>

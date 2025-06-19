@@ -31,10 +31,10 @@ namespace layered {
     auto  GetEntity( EntityId ) const -> mtc::api<const IEntity> override;
     auto  GetEntity( uint32_t ) const -> mtc::api<const IEntity> override;
 
-    bool  DelEntity( EntityId id ) override;
-    auto  SetEntity( EntityId id,
-      mtc::api<const IContents>         index = nullptr,
-      mtc::api<const mtc::IByteBuffer>  attrs = nullptr ) -> mtc::api<const IEntity> override;
+    bool  DelEntity( EntityId ) override;
+    auto  SetEntity( EntityId,
+      mtc::api<const IContents>, const Span& ) -> mtc::api<const IEntity> override;
+    auto  SetExtras( EntityId, const Span& ) -> mtc::api<const IEntity> override;
 
     auto  GetMaxIndex() const -> uint32_t override;
     auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override;
@@ -142,8 +142,7 @@ namespace layered {
   }
 
   auto  ContentsIndex::SetEntity( EntityId id,
-    mtc::api<const IContents>         index,
-    mtc::api<const mtc::IByteBuffer>  attrs ) -> mtc::api<const IEntity>
+    mtc::api<const IContents> contents, const Span& extras ) -> mtc::api<const IEntity>
   {
     if ( layers.empty() )
       throw std::logic_error( "index flakes are not initialized" );
@@ -157,8 +156,7 @@ namespace layered {
     // try Set the entity to the last index in the chain
       try
       {
-        return layers.back().Override( pindex->SetEntity(
-          id, index, attrs ) );
+        return layers.back().Override( pindex->SetEntity( id, contents, extras ) );
       }
 
     // on dynamic index overflow, rotate the last index by creating new one in a new flakes,
@@ -192,6 +190,12 @@ namespace layered {
         }
       }
     }
+  }
+
+  auto  ContentsIndex::SetExtras( EntityId id, const Span& extras ) -> mtc::api<const IEntity>
+  {
+    auto  shlock = mtc::make_shared_lock( ixlock );
+    return setExtras( id, extras );
   }
 
   auto  ContentsIndex::Commit() -> mtc::api<IStorage::ISerialized>

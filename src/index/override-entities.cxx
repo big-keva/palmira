@@ -18,9 +18,10 @@ namespace index   {
       oindex( ix ) {}
 
   protected:
-    auto  GetId() const -> Attribute override {  return entity->GetId();  }
+    auto  GetId() const -> EntityId override {  return entity->GetId();  }
     auto  GetIndex() const -> uint32_t override {  return oindex;  }
-    auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> override {  return entity->GetAttributes();  }
+    auto  GetExtra() const -> mtc::api<const mtc::IByteBuffer> override {  return entity->GetExtra();  }
+    auto  GetVersion() const -> uint64_t override {  return entity->GetVersion();  }
 
   };
 
@@ -37,9 +38,10 @@ namespace index   {
       aprops( bb ) {}
 
   protected:
-    auto  GetId() const -> Attribute override {  return entity->GetId();  }
+    auto  GetId() const -> EntityId override {  return entity->GetId();  }
     auto  GetIndex() const -> uint32_t override {  return entity->GetIndex();  }
-    auto  GetAttributes() const -> mtc::api<const mtc::IByteBuffer> override {  return aprops;  }
+    auto  GetExtra() const -> mtc::api<const mtc::IByteBuffer> override {  return aprops;  }
+    auto  GetVersion() const -> uint64_t override {  return entity->GetVersion();  }
 
   };
 
@@ -53,7 +55,7 @@ namespace index   {
     return new override_index( entity, ix );
   }
 
-  auto  Override::Attributes( const mtc::api<const mtc::IByteBuffer>& bb ) -> mtc::api<const IEntity>
+  auto  Override::Extras( const mtc::api<const mtc::IByteBuffer>& bb ) -> mtc::api<const IEntity>
   {
     return new override_attributes( entity, bb );
   }

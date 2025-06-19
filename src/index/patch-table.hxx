@@ -29,16 +29,10 @@ namespace index   {
    ~PatchTable();
 
   public:
-    auto  Update( const Span& id, const Span& md ) -> mtc::api<const mtc::IByteBuffer>
-      {  return Modify( id, PatchVal::Create( md, hashTable.get_allocator() ) );  }
-    void  Delete( const Span& id )
-      {  return (void)Modify( id, PatchVal::Create( PatchVal::deleted, hashTable.get_allocator() ) );  }
-    auto  Search( const Span& ) -> mtc::api<const mtc::IByteBuffer>;
-    auto  Update( uint32_t ix, const Span& md ) -> mtc::api<const mtc::IByteBuffer>
-      {  return Update( MakeId( ix ), md );  }
-    void  Delete( uint32_t ix )
-      {  return Delete( MakeId( ix ) );  }
-    auto  Search( uint32_t ix ) -> mtc::api<const mtc::IByteBuffer>
+    auto  Update( const Span& id, uint32_t ix, const Span& md ) -> mtc::api<const mtc::IByteBuffer>;
+    void  Delete( const Span& id, uint32_t ix );
+    auto  Search( const Span& ) const -> mtc::api<const mtc::IByteBuffer>;
+    auto  Search( uint32_t ix ) const -> mtc::api<const mtc::IByteBuffer>
       {  return Search( MakeId( ix ) );  }
 
     void  Commit( mtc::api<IStorage::ISerialized> );
@@ -301,7 +295,25 @@ namespace index   {
   }
 
   template <class Allocator>
-  auto  PatchTable<Allocator>::Search( const Span& key ) -> mtc::api<const mtc::IByteBuffer>
+  auto  PatchTable<Allocator>::Update( const Span& id, uint32_t ix, const Span& md ) -> mtc::api<const mtc::IByteBuffer>
+  {
+    auto  value = PatchVal::Create( md, hashTable.get_allocator() );
+      Modify( id, value );
+      Modify( MakeId( ix ), value );
+    return value;
+  }
+
+  template <class Allocator>
+  void  PatchTable<Allocator>::Delete( const Span& id, uint32_t ix )
+  {
+    auto  value = PatchVal::Create( PatchVal::deleted, hashTable.get_allocator() );
+      Modify( id,           value );
+      Modify( MakeId( ix ), value );
+    return (void)value;
+  }
+
+  template <class Allocator>
+  auto  PatchTable<Allocator>::Search( const Span& key ) const -> mtc::api<const mtc::IByteBuffer>
   {
     auto& rentry = hashTable[HashId( key ) % hashTable.size()];
     auto  pentry = mtc::ptr::clean( rentry.load() );
