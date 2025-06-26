@@ -1,4 +1,4 @@
-# include "indices/static-contents.hpp"
+# include "indexes/static-contents.hpp"
 # include "override-entities.hxx"
 # include "static-entities.hxx"
 # include "dynamic-bitmap.hxx"

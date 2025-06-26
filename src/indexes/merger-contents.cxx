@@ -1,6 +1,6 @@
 # include "merger-contents.hxx"
 # include "contents-index-fusion.hxx"
-# include "indices/static-contents.hpp"
+# include "indexes/static-contents.hpp"
 # include "override-entities.hxx"
 # include "index-layers.hxx"
 # include "patch-table.hxx"

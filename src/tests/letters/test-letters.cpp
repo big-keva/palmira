@@ -1,34 +1,12 @@
-# include "../../letters/letters.hpp"
+# include "texts/DOM-text.hpp"
+# include "texts/DOM-sink.hpp"
 # include <moonycode/codes.h>
 # include <mtc/serialize.h>
 # include <mtc/json.h>
 
-namespace palmira {
-namespace letters {
-namespace view_as {
-
-  using FnSink = std::function<void(const char*, size_t)>;
-
-  auto  Tags( std::function<void(const char*, size_t)> ) -> mtc::api<IText>;
-  auto  Json( std::function<void(const char*, size_t)> ) -> mtc::api<IText>;
-
-  template <class O>
-  auto  MakeSerialSink( O* o ) -> FnSink
-  {
-    return [o]( const char* str, size_t len ) mutable
-      {
-        if ( (o = ::Serialize( o, str, len )) == nullptr )
-          throw std::runtime_error( "serialization failed" );
-      };
-  }
-
-}}}
-
-using namespace palmira::letters;
-
 int  main()
 {
-  auto  text = palmira::letters::Document<std::allocator<char>>( std::allocator<char>() );
+  auto  text = palmira::texts::Document<std::allocator<char>>( std::allocator<char>() );
     text.Attach();
 
   text.AddString( 0U, "aaa" );
@@ -56,15 +34,17 @@ int  main()
     text.AddString( codepages::codepage_utf8, "last text line" );
   }
 
-  auto  tagged = view_as::Json( palmira::letters::view_as::MakeSerialSink( stdout ) );
+  auto  tagged = palmira::texts::dump_as::Json( palmira::texts::dump_as::MakeSink( stdout ) );
   text.Serialize( tagged.ptr() );
 }
 
 // tags implementation
 
 namespace palmira {
-namespace letters {
-namespace view_as {
+namespace texts {
+namespace dump_as {
+
+  using FnSink = std::function<void(const char*, size_t)>;
 
   class TagsTag final: public IText
   {

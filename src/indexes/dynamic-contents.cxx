@@ -1,4 +1,4 @@
-# include "indices/dynamic-contents.hpp"
+# include "indexes/dynamic-contents.hpp"
 # include "dynamic-entities.hxx"
 # include "dynamic-chains.hxx"
 # include <mtc/arena.hpp>

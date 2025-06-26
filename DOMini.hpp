@@ -1,11 +1,10 @@
-# if !defined( __palmira_api_DOMini_hpp__ )
-# define __palmira_api_DOMini_hpp__
+# if !defined( __palmira_DOMini_hpp__ )
+# define __palmira_DOMini_hpp__
 # include <mtc/interfaces.h>
 # include <mtc/wcsstr.h>
 # include <string>
 
 namespace palmira {
-namespace letters {
 
   struct IText: public mtc::Iface
   {
@@ -31,6 +30,6 @@ namespace letters {
 
   };
 
-}}
+}
 
-# endif // !__palmira_api_DOMini_hpp__
+# endif // !__palmira_DOMini_hpp__
