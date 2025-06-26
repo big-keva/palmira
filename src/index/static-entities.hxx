@@ -1,6 +1,6 @@
 # if !defined( __palmira_src_index_static_entities_hxx__ )
 # define __palmira_src_index_static_entities_hxx__
-# include "../../api/contents-index.hxx"
+# include "contents-index.hpp"
 # include "../tools/primes.hxx"
 # include <mtc/ptrpatch.h>
 # include <functional>

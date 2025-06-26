@@ -1,4 +1,4 @@
-# include "../../api/contents-index.hxx"
+# include "span.hpp"
 
 namespace palmira {
 

@@ -1,31 +1,34 @@
+# include "merger-contents.hxx"
+# include "contents-index-fusion.hxx"
 # include "indices/static-contents.hpp"
-# include "commit-contents.hxx"
 # include "override-entities.hxx"
-# include "dynamic-bitmap.hxx"
-# include "notify-events.hxx"
+# include "index-layers.hxx"
 # include "patch-table.hxx"
 # include <mtc/recursive_shared_mutex.hpp>
 # include <condition_variable>
+# include <shared_mutex>
 # include <stdexcept>
 # include <thread>
-#include <mtc/json.h>
 
 namespace palmira {
 namespace index   {
-namespace commit  {
+namespace fusion  {
 
-  class ContentsIndex final: public IContentsIndex
+  class ContentsIndex final: protected IndexLayers,	public IContentsIndex
   {
     using ISerialized = IStorage::ISerialized;
 
     implement_lifetime_control
 
   public:
-    ContentsIndex( mtc::api<IContentsIndex>, Notify::Func );
+    ContentsIndex(
+      const std::vector<mtc::api<IContentsIndex>>&  ixset,
+      ContentsMerger&&                              merge,
+      Notify::Func                                  event );
    ~ContentsIndex();
 
   public:
-    auto  StartCommit() -> mtc::api<IContentsIndex>;
+    auto  StartMerger() -> mtc::api<IContentsIndex>;
 
   public:     // overridables
     auto  GetEntity( EntityId ) const -> mtc::api<const IEntity> override;
@@ -54,13 +57,13 @@ namespace commit  {
     void  Stash( EntityId ) override  {}
 
   protected:
-    void  CommitThreadFunc();
+    void  MergerThreadFunc();
 
   protected:
     mutable std::shared_mutex     swLock;   // switch mutex
-    mtc::api<IContentsIndex>      source;
     mtc::api<IContentsIndex>      output;
     mtc::api<ISerialized>         serial;
+    ContentsMerger                merger;
     Notify::Func                  notify;
 
     std::mutex                    s_lock;   // notification
@@ -69,48 +72,55 @@ namespace commit  {
     Bitmap<>                      banset;
     mutable PatchTable<>          hpatch;
 
-    std::thread                   commit;
+    std::thread                   thread;
     std::exception_ptr            except;
 
   };
 
   // ContentsIndex implementation
 
-  ContentsIndex::ContentsIndex( mtc::api<IContentsIndex> src, Notify::Func fnu ):
-    source( src ),
-    notify( fnu ),
-    banset( source->GetMaxIndex() + 1 ),
-    hpatch( std::max( 1000U, (source->GetMaxIndex() + 1) / 3 ) ) {}
+  ContentsIndex::ContentsIndex(
+    const std::vector<mtc::api<IContentsIndex>>&  ixset,
+    ContentsMerger&&                              merge,
+    Notify::Func                                  event ): IndexLayers( ixset ),
+      merger( std::move( merge ) ),
+      notify( event ),
+      banset( getMaxIndex() + 1 ),
+      hpatch( UpperPrime( std::min( 1000U, getMaxIndex() ) ) ) {}
 
   ContentsIndex::~ContentsIndex()
   {
-    if ( commit.joinable() )
-      commit.join();
+    if ( thread.joinable() )
+      thread.join();
   }
 
-  auto  ContentsIndex::StartCommit() -> mtc::api<IContentsIndex>
+  auto  ContentsIndex::StartMerger() -> mtc::api<IContentsIndex>
   {
-    commit = std::thread( &ContentsIndex::CommitThreadFunc, this );
+    thread = std::thread( &ContentsIndex::MergerThreadFunc, this );
     return this;
   }
 
-  void  ContentsIndex::CommitThreadFunc()
+  void  ContentsIndex::MergerThreadFunc()
   {
-    pthread_setname_np( pthread_self(), "commit::Flush()" );
+    ContentsMerger  merger;
 
-  // first commit index to the storage
+    pthread_setname_np( pthread_self(), "merger::Thread" );
+
+    for ( auto& next: layers )
+      merger.Add( next.pIndex );
+
+  // first merge index to the storage
   // then try open the new static index from the storage
     try
     {
-      auto  target = source->Commit();    // serialize the dynamic index itself
+      auto  target = merger();      // store to ISerialized
       auto  exlock = mtc::make_unique_lock( swLock );
 
     // serialize accumulated changes, dispose old index and open new static
       hpatch.Commit( serial = target );
-        source = nullptr;
       output = static_::Contents().Create( serial = target );
 
-    // notify commit finished
+    // notify merger finished
       s_wait.notify_all();
 
     // notify serialize finished
@@ -135,7 +145,7 @@ namespace commit  {
 
     if ( output == nullptr )
     {
-      auto  entity = source->GetEntity( id );
+      auto  entity = getEntity( id );
       auto  ppatch = mtc::api<const mtc::IByteBuffer>{};
 
       if ( entity == nullptr || (ppatch = hpatch.Search( { id.data(), id.size() } )) == nullptr )
@@ -158,7 +168,7 @@ namespace commit  {
 
     if ( output == nullptr )
     {
-      auto  entity = source->GetEntity( ix );
+      auto  entity = getEntity( ix );
       auto  ppatch = mtc::api<const mtc::IByteBuffer>{};
 
       if ( entity == nullptr || (ppatch = hpatch.Search( ix )) == nullptr )
@@ -181,7 +191,7 @@ namespace commit  {
 
     if ( output == nullptr )
     {
-      auto  entity = source->GetEntity( id );
+      auto  entity = getEntity( id );
       auto  ppatch = mtc::api<const mtc::IByteBuffer>{};
 
       if ( entity == nullptr )
@@ -200,7 +210,7 @@ namespace commit  {
 
   auto  ContentsIndex::SetEntity( EntityId, mtc::api<const IContents>, const Span& ) -> mtc::api<const IEntity>
   {
-    throw std::logic_error( "commit::SetEntity(...) must not be called" );
+    throw std::logic_error( "merger::SetEntity(...) must not be called" );
   }
 
   auto  ContentsIndex::SetExtras( EntityId id, const Span& xtra ) -> mtc::api<const IEntity>
@@ -212,7 +222,7 @@ namespace commit  {
 
     if ( output == nullptr )
     {
-      auto  entity = source->GetEntity( id );
+      auto  entity = getEntity( id );
       auto  ppatch = mtc::api<const mtc::IByteBuffer>{};
 
       if ( entity == nullptr )
@@ -234,7 +244,7 @@ namespace commit  {
     if ( except != nullptr )
       std::rethrow_exception( except );
 
-    return output != nullptr ? output->GetMaxIndex() : source->GetMaxIndex();
+    return output != nullptr ? output->GetMaxIndex() : getMaxIndex();
   }
 
   auto  ContentsIndex::GetKeyBlock( const Span& key ) const -> mtc::api<IEntities>
@@ -248,7 +258,7 @@ namespace commit  {
     if ( output != nullptr )
       return output->GetKeyBlock( key );
 
-    if ( (pblock = source->GetKeyBlock( key )) == nullptr )
+    if ( (pblock = getKeyBlock( key )) == nullptr )
       return nullptr;
 
     return new Override::Entities( pblock, banset, this );
@@ -261,7 +271,7 @@ namespace commit  {
     if ( except != nullptr )
       std::rethrow_exception( except );
 
-    return (output != nullptr ? output : source)->GetKeyStats( key );
+    return output != nullptr ? output->GetKeyStats( key ) : getKeyStats( key );
   }
 
   auto  ContentsIndex::Commit() -> mtc::api<IStorage::ISerialized>
@@ -273,9 +283,9 @@ namespace commit  {
 
   auto  ContentsIndex::Reduce() -> mtc::api<IContentsIndex>
   {
-  // wait until the commit completes
-    if ( commit.joinable() )
-      commit.join();
+  // wait until the merger completes
+    if ( thread.joinable() )
+      thread.join();
 
     if ( except != nullptr )
       std::rethrow_exception( except );
@@ -283,11 +293,55 @@ namespace commit  {
     return output;
   }
 
-  // Commit implementation
+  // Contents implementation
 
-  auto  Contents::Create( mtc::api<IContentsIndex> src, Notify::Func nfn ) -> mtc::api<IContentsIndex>
+  auto  Contents::Add( const mtc::api<IContentsIndex> i ) -> Contents&
   {
-    return (new ContentsIndex( src, nfn ))->StartCommit();
+    indexVector.push_back( i );  return *this;
+  }
+
+  auto  Contents::Set( Notify::Func fn ) -> Contents&
+  {
+    notifyEvent = fn;  return *this;
+  }
+
+  auto  Contents::Set( std::function<bool()> fCanContinue ) -> Contents&
+  {
+    canContinue = fCanContinue;  return *this;
+  }
+
+  auto  Contents::Set( mtc::api<IStorage::IIndexStore> px ) -> Contents&
+  {
+    outputStore = px;  return *this;
+  }
+
+  auto  Contents::Set( const mtc::api<IContentsIndex>* pp, size_t cc ) -> Contents&
+  {
+    indexVector.clear();
+    indexVector.insert( indexVector.end(), pp, pp + cc );  return *this;
+  }
+
+  auto  Contents::Set( const std::vector<mtc::api<IContentsIndex>>& rv ) -> Contents&
+  {
+    return Set( rv.data(), rv.size() );
+  }
+
+  auto  Contents::Set( const std::initializer_list<mtc::api<IContentsIndex>>& il ) -> Contents&
+  {
+    indexVector.clear();
+
+    for ( auto& index: il )
+      Add( index );
+
+    return *this;
+  }
+
+  auto  Contents::Create() -> mtc::api<IContentsIndex>
+  {
+    return (new ContentsIndex( indexVector, std::move( ContentsMerger()
+      .Set( indexVector )
+      .Set( canContinue )
+      .Set( outputStore ) ), notifyEvent ))->StartMerger();
   }
 
 }}}

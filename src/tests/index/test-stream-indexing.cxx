@@ -1,5 +1,5 @@
-# include "../../../api/layered-contents.hxx"
-# include "../../../api/storage-filesystem.hxx"
+# include "indices/layered-contents.hpp"
+# include "storage/posix-fs.hpp"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>
 # include <thread>
@@ -36,7 +36,7 @@ TestItEasy::RegisterFunc  stream_indexing( []()
   {
     TEST_CASE( "index/stream-indexing" )
     {
-      auto  storage = storage::posixFS::Open( "/tmp/k2" );
+      auto  storage = storage::posixFS::Open( storage::posixFS::StoragePolicies::Open( "/tmp/k2" ) );
       auto  layered = index::layered::Contents()
         .Set( storage )
         .Set( index::dynamic::Settings()
@@ -46,7 +46,6 @@ TestItEasy::RegisterFunc  stream_indexing( []()
 
       SECTION( "indexing a set of entities generates a set of indices" )
       {
-        /*
         std::vector<std::thread>  threads;
 
         for ( int i = 0; i < 10; ++i )
@@ -56,12 +55,11 @@ TestItEasy::RegisterFunc  stream_indexing( []()
             {
               auto  contents = CreateContents();
 
-              layered->SetEntity( mtc::strprintf( "ent%u", entId ), &contents );
+              layered->SetEntity( std::string_view( mtc::strprintf( "ent%u", entId ) ), &contents );
             }
           }, i ) );
         for ( auto& th: threads )
           th.join();
-        */
       }
     }
   } );

@@ -1,14 +1,13 @@
-# include "../../api/span.hxx"
+# include "contents-index.hpp"
+# include "span.hpp"
 # include "../tools/primes.hxx"
 # include <mtc/ptrpatch.h>
 # include <string_view>
 # include <cstring>
 # include <vector>
 # include <atomic>
-#include <stdexcept>
-#include <mtc/serialize.h>
-
-#include "../../api/contents-index.hxx"
+# include <stdexcept>
+# include <mtc/serialize.h>
 
 namespace palmira {
 namespace index   {

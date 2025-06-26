@@ -1,10 +1,11 @@
-# include "../../../api/dynamic-contents.hxx"
+# include "indices/dynamic-contents.hpp"
+# include "indices/static-contents.hpp"
 # include "../../index/dynamic-entities.hxx"
-# include "../../../api/storage-filesystem.hxx"
+# include "storage/posix-fs.hpp"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>
 
-#include "../../../api/static-contents.hxx"
+using namespace palmira;
 
 class KeyValues: public palmira::IContents, protected mtc::zmap
 {
@@ -39,7 +40,7 @@ TestItEasy::RegisterFunc  static_contents( []()
         auto  serialized = mtc::api<palmira::IStorage::ISerialized>();
 
         REQUIRE_NOTHROW( contents = palmira::index::dynamic::Contents()
-          .Set( palmira::storage::posixFS::CreateSink( "/tmp/k2" ) ).Create() );
+          .Set( palmira::storage::posixFS::CreateSink( storage::posixFS::StoragePolicies::Open( "/tmp/k2" ) ) ).Create() );
         REQUIRE_NOTHROW( contents->SetEntity( "aaa", KeyValues( {
             { "aaa", 1161 },
             { "bbb", 1262 },
@@ -90,11 +91,11 @@ TestItEasy::RegisterFunc  static_contents( []()
           }
           SECTION( "entities are iterable" )
           {
-            auto  it = mtc::api<palmira::IContentsIndex::IIterator>();
+            auto  it = mtc::api<IContentsIndex::IEntityIterator>();
 
             SECTION( "* by id" )
             {
-              if ( REQUIRE_NOTHROW( it = contents->GetIterator( "" ) ) && REQUIRE( it != nullptr ) )
+              if ( REQUIRE_NOTHROW( it = contents->GetEntityIterator( "" ) ) && REQUIRE( it != nullptr ) )
               {
                 if ( REQUIRE_NOTHROW( entity = it->Curr() ) && REQUIRE( entity != nullptr ) )
                   REQUIRE( entity->GetId() == "aaa" );
@@ -105,7 +106,7 @@ TestItEasy::RegisterFunc  static_contents( []()
 
                 SECTION( "- it may be positioned to some entity on create" )
                 {
-                  if ( REQUIRE_NOTHROW( it = contents->GetIterator( "b" ) ) && REQUIRE( it != nullptr ) )
+                  if ( REQUIRE_NOTHROW( it = contents->GetEntityIterator( "b" ) ) && REQUIRE( it != nullptr ) )
                     if ( REQUIRE_NOTHROW( entity = it->Curr() ) && REQUIRE( entity != nullptr ) )
                       REQUIRE( entity->GetId() == "ccc" );
                 }
@@ -113,7 +114,7 @@ TestItEasy::RegisterFunc  static_contents( []()
             }
             SECTION( "* by index" )
             {
-              if ( REQUIRE_NOTHROW( it = contents->GetIterator( 0U ) ) && REQUIRE( it != nullptr ) )
+              if ( REQUIRE_NOTHROW( it = contents->GetEntityIterator( 0U ) ) && REQUIRE( it != nullptr ) )
               {
                 if ( REQUIRE_NOTHROW( entity = it->Curr() ) && REQUIRE( entity != nullptr ) )
                   REQUIRE( entity->GetIndex() == 1 );
@@ -126,24 +127,24 @@ TestItEasy::RegisterFunc  static_contents( []()
           }
           SECTION( "key statistics is available" )
           {
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "aaa", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "aaa", 3 ).nCount == 1 );
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "bbb", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "bbb", 3 ).nCount == 1 );
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ccc", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "ccc", 3 ).nCount == 2 );
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ddd", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "ddd", 3 ).nCount == 1 );
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "eee", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "eee", 3 ).nCount == 1 );
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "fff", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "fff", 3 ).nCount == 0 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "aaa" ) ) )
+              REQUIRE( contents->GetKeyStats( "aaa" ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "bbb" ) ) )
+              REQUIRE( contents->GetKeyStats( "bbb" ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ccc" ) ) )
+              REQUIRE( contents->GetKeyStats( "ccc" ).nCount == 2 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ddd" ) ) )
+              REQUIRE( contents->GetKeyStats( "ddd" ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "eee" ) ) )
+              REQUIRE( contents->GetKeyStats( "eee" ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "fff" ) ) )
+              REQUIRE( contents->GetKeyStats( "fff" ).nCount == 0 );
           }
           SECTION( "key blocks are available" )
           {
             palmira::IContentsIndex::IEntities::Reference entRef;
 
-            if ( REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "aaa", 3 ) ) && REQUIRE( entities != nullptr ) )
+            if ( REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "aaa" ) ) && REQUIRE( entities != nullptr ) )
             {
               if ( REQUIRE_NOTHROW( entRef = entities->Find( 1 ) ) )
               {
@@ -153,16 +154,16 @@ TestItEasy::RegisterFunc  static_contents( []()
               }
             }
 
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "bbb", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "bbb", 3 ).nCount == 1 );
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ccc", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "ccc", 3 ).nCount == 2 );
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ddd", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "ddd", 3 ).nCount == 1 );
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "eee", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "eee", 3 ).nCount == 1 );
-            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "fff", 3 ) ) )
-              REQUIRE( contents->GetKeyStats( "fff", 3 ).nCount == 0 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "bbb" ) ) )
+              REQUIRE( contents->GetKeyStats( "bbb" ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ccc" ) ) )
+              REQUIRE( contents->GetKeyStats( "ccc" ).nCount == 2 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "ddd" ) ) )
+              REQUIRE( contents->GetKeyStats( "ddd" ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "eee" ) ) )
+              REQUIRE( contents->GetKeyStats( "eee" ).nCount == 1 );
+            if ( REQUIRE_NOTHROW( contents->GetKeyStats( "fff" ) ) )
+              REQUIRE( contents->GetKeyStats( "fff" ).nCount == 0 );
           }
           SECTION( "entity may be stashed" )
           {
@@ -180,19 +181,19 @@ TestItEasy::RegisterFunc  static_contents( []()
               }
               SECTION( "for iterators" )
               {
-                auto  it = mtc::api<palmira::IContentsIndex::IIterator>();
+                auto  it = mtc::api<IContentsIndex::IEntityIterator>();
 
                 SECTION( "* by id" )
                 {
-                  if ( REQUIRE_NOTHROW( it = contents->GetIterator( "aaa" ) ) && REQUIRE( it != nullptr ) )
+                  if ( REQUIRE_NOTHROW( it = contents->GetEntityIterator( "aaa" ) ) && REQUIRE( it != nullptr ) )
                     if ( REQUIRE_NOTHROW( entity = it->Curr() ) && REQUIRE( entity != nullptr ) )
                       REQUIRE( entity->GetId() == "ccc" );
                 }
                 SECTION( "* by index" )
                 {
-                  auto  it = mtc::api<palmira::IContentsIndex::IIterator>();
+                  auto  it = mtc::api<IContentsIndex::IEntityIterator>();
 
-                  if ( REQUIRE_NOTHROW( it = contents->GetIterator( 0U ) ) && REQUIRE( it != nullptr ) )
+                  if ( REQUIRE_NOTHROW( it = contents->GetEntityIterator( 0U ) ) && REQUIRE( it != nullptr ) )
                     if ( REQUIRE_NOTHROW( entity = it->Curr() ) && REQUIRE( entity != nullptr ) )
                       REQUIRE( entity->GetIndex() == 3 );
                 }
@@ -201,7 +202,7 @@ TestItEasy::RegisterFunc  static_contents( []()
               {
                 palmira::IContentsIndex::IEntities::Reference entRef;
 
-                REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "ccc", 3 ) );
+                REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "ccc" ) );
                 REQUIRE( entities != nullptr );
 
                 if ( REQUIRE_NOTHROW( entRef = entities->Find( 1 ) ) )
@@ -243,9 +244,9 @@ TestItEasy::RegisterFunc  static_contents( []()
             }
             SECTION( "access by iterator also is affected by changing extras" )
             {
-              auto  it = mtc::api<palmira::IContentsIndex::IIterator>();
+              auto  it = mtc::api<IContentsIndex::IEntityIterator>();
 
-              REQUIRE_NOTHROW( it = contents->GetIterator( "ccc" ) );
+              REQUIRE_NOTHROW( it = contents->GetEntityIterator( "ccc" ) );
               if ( REQUIRE( it != nullptr ) )
               {
                 REQUIRE_NOTHROW( entity = it->Curr() );
@@ -284,7 +285,7 @@ TestItEasy::RegisterFunc  static_contents( []()
               {
                 palmira::IContentsIndex::IEntities::Reference entRef;
 
-                REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "eee", 3 ) );
+                REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "eee" ) );
                 REQUIRE( entities != nullptr );
 
                 if ( REQUIRE_NOTHROW( entRef = entities->Find( 3 ) ) )

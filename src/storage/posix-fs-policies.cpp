@@ -1,4 +1,4 @@
-# include "../../api/storage-filesystem.hxx"
+# include "storage/posix-fs.hpp"
 # include <mtc/wcsstr.h>
 # include <stdexcept>
 # include <vector>
@@ -11,7 +11,12 @@ namespace posixFS {
   {
     using std::vector<Policy>::vector;
 
-    std::atomic_long  referenceCount = 0;
+  public:
+    Impl( bool isInst = false ) {  isInstance = isInst;  }
+
+  public:
+    bool              isInstance;
+    std::atomic_long  referCount = 1;
   };
 
   // Policy implementation
@@ -26,12 +31,6 @@ namespace posixFS {
   }
 
   // StoragePolicies implementation
-
-  StoragePolicies::StoragePolicies( const std::string& generic_path ):
-    StoragePolicies( generic_path.c_str() )  {}
-
-  StoragePolicies::StoragePolicies( const char* generic_path ):
-    StoragePolicies( { { Unit( (status << 1) - 1 ), memory_mapped, generic_path } } )  {}
 
   StoragePolicies::StoragePolicies( std::initializer_list<Policy> policies ):
     StoragePolicies( policies.begin(), policies.end() ) {}
@@ -49,21 +48,21 @@ namespace posixFS {
     impl( policies.impl )
   {
     if ( impl != nullptr )
-      ++impl->referenceCount;
+      ++impl->referCount;
   }
 
   StoragePolicies::~StoragePolicies()
   {
-    if ( impl != nullptr && --impl->referenceCount == 0 )
+    if ( impl != nullptr && --impl->referCount == 0 )
       delete impl;
   }
 
   auto  StoragePolicies::operator=( const StoragePolicies& policies ) -> StoragePolicies&
   {
-    if ( impl != nullptr && --impl->referenceCount == 0 )
+    if ( impl != nullptr && --impl->referCount == 0 )
       delete impl;
     if ( (impl = policies.impl) != nullptr )
-      ++impl->referenceCount;
+      ++impl->referCount;
     return *this;
   }
 
@@ -76,7 +75,7 @@ namespace posixFS {
 
     if ( impl != nullptr )
     {
-      ++(policies.impl = new Impl())->referenceCount;
+      policies.impl = new Impl( true );
 
       for ( auto& policy: *impl )
         policies.impl->push_back( { policy.unit, policy.mode, mtc::strprintf( policy.path.c_str(), stamp ) } );
@@ -90,6 +89,26 @@ namespace posixFS {
     return GetInstance( stamp.c_str() );
   }
 
+  bool StoragePolicies::IsInstance() const
+  {
+    return impl != nullptr ? impl->isInstance : false;
+  }
+
+  auto  StoragePolicies::Open( const std::string& generic_path ) -> StoragePolicies
+  {
+    return StoragePolicies( { { Unit( (status << 1) - 1 ), memory_mapped, generic_path } } );
+  }
+
+  auto  StoragePolicies::OpenInstance( const std::string& instance_path ) -> StoragePolicies
+  {
+    StoragePolicies policies;
+
+    (policies.impl = new Impl( true ))
+      ->push_back( { Unit( (status << 1) - 1 ), memory_mapped, instance_path } );
+
+    return policies;
+  }
+
   auto  StoragePolicies::AddPolicy( const Policy& policy ) -> StoragePolicies&
   {
   // check valid policy path passed
@@ -101,7 +120,7 @@ namespace posixFS {
 
   // TODO: check invalid directory
     if ( impl == nullptr )
-      ++(impl = new Impl())->referenceCount;
+      impl = new Impl();
 
     impl->push_back( { policy.unit, policy.mode, std::string( policy.path ) + ".%s" } );
 

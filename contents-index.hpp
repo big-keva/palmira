@@ -1,6 +1,6 @@
-# if !defined( __palmira_api_contents_index_hxx__ )
-# define __palmira_api_contents_index_hxx__
-# include "span.hxx"
+# if !defined( __palmira_contents_index_hpp__ )
+# define __palmira_contents_index_hpp__
+# include "span.hpp"
 # include <mtc/iStream.h>
 # include <string_view>
 
@@ -76,7 +76,8 @@ namespace palmira
   {
     struct IEntities;
     struct IIndexAPI;
-    struct IIterator;
+    struct IEntityIterator;
+    struct IRecordIterator;
 
    /*
     * entity details block statistics
@@ -127,15 +128,16 @@ namespace palmira
    /*
     * Blocks search api
     */
-    virtual auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> = 0;
-    virtual auto  GetKeyStats( const void*, size_t ) const -> BlockInfo = 0;
+    virtual auto  GetKeyBlock( const Span& ) const -> mtc::api<IEntities> = 0;
+    virtual auto  GetKeyStats( const Span& ) const -> BlockInfo = 0;
 
    /*
     * Iterators
     */
-    virtual auto  GetIterator( EntityId ) -> mtc::api<IIterator> = 0;
-    virtual auto  GetIterator( uint32_t ) -> mtc::api<IIterator> = 0;
+    virtual auto  GetEntityIterator( EntityId ) -> mtc::api<IEntityIterator> = 0;
+    virtual auto  GetEntityIterator( uint32_t ) -> mtc::api<IEntityIterator> = 0;
 
+    virtual auto  GetRecordIterator( const Span& = {} ) -> mtc::api<IRecordIterator> = 0;
    /*
     * Commit()
     *
@@ -184,10 +186,16 @@ namespace palmira
     virtual auto  Type() const -> uint32_t = 0;
   };
 
-  struct IContentsIndex::IIterator: public mtc::Iface
+  struct IContentsIndex::IEntityIterator: public mtc::Iface
   {
     virtual auto  Curr() -> mtc::api<const IEntity> = 0;
     virtual auto  Next() -> mtc::api<const IEntity> = 0;
+  };
+
+  struct IContentsIndex::IRecordIterator: public mtc::Iface
+  {
+    virtual auto  Curr() -> std::string = 0;
+    virtual auto  Next() -> std::string = 0;
   };
 
  /*
@@ -203,4 +211,4 @@ namespace palmira
 
 }
 
-# endif   // __palmira_api_contents_index_hxx__
+# endif   // __palmira_contents_index_hpp__

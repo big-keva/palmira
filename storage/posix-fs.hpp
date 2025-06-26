@@ -1,6 +1,6 @@
-# if !defined( __palmira_api_storage_filesystem_hxx__ )
-# define __palmira_api_storage_filesystem_hxx__
-# include "../api/contents-index.hxx"
+# if !defined( __palmira_storage_posix_fs_hpp__ )
+# define __palmira_storage_posix_fs_hpp__
+# include "contents-index.hpp"
 # include <string_view>
 
 namespace palmira {
@@ -43,8 +43,6 @@ namespace posixFS {
 
   public:
     StoragePolicies() = default;
-    StoragePolicies( const char* );
-    StoragePolicies( const std::string& );
     StoragePolicies( std::initializer_list<Policy> );
     StoragePolicies( const Policy*, size_t );
     template <class It>
@@ -57,6 +55,12 @@ namespace posixFS {
 
     auto  GetInstance( const char* ) const -> StoragePolicies;
     auto  GetInstance( const std::string& ) const -> StoragePolicies;
+
+    bool  IsInstance() const;
+
+  public:
+    static  auto  Open( const std::string& ) -> StoragePolicies;
+    static  auto  OpenInstance( const std::string& ) -> StoragePolicies;
 
   public:
     auto  AddPolicy( const Policy& ) -> StoragePolicies&;
@@ -83,4 +87,4 @@ namespace posixFS {
 
 }}}
 
-# endif   // !__palmira_api_storage_filesystem_hxx__
+# endif   // !__palmira_storage_posix_fs_hpp__

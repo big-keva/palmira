@@ -1,4 +1,4 @@
-# include "../api/static-contents.hxx"
+# include "indices/static-contents.hpp"
 # include "override-entities.hxx"
 # include "static-entities.hxx"
 # include "dynamic-bitmap.hxx"
@@ -17,13 +17,15 @@ namespace static_ {
     using ISerialized = IStorage::ISerialized;
     using IByteBuffer = mtc::IByteBuffer;
     using IFlatStream = mtc::IFlatStream;
-    using KeyContents = mtc::radix::dump<const char>;
     using PatchHolder = PatchTable<Allocator>;
+    using ContentsTable = mtc::radix::dump<const char>;
+    using ContentsIterator = ContentsIndex::ContentsTable::const_iterator;
 
     class EntitiesBase;
     class EntitiesLite;
     class EntitiesRich;
-    class Iterator;
+    class EntityIterator;
+    class RecordIterator;
 
     implement_lifetime_control
 
@@ -41,11 +43,13 @@ namespace static_ {
     auto  GetMaxIndex() const -> uint32_t override
       {  return entities.GetEntityCount();  }
 
-    auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override;
-    auto  GetKeyStats( const void*, size_t ) const -> BlockInfo override;
+    auto  GetKeyBlock( const Span& ) const -> mtc::api<IEntities> override;
+    auto  GetKeyStats( const Span& ) const -> BlockInfo override;
 
-    auto  GetIterator( EntityId ) -> mtc::api<IIterator> override;
-    auto  GetIterator( uint32_t ) -> mtc::api<IIterator> override;
+    auto  GetEntityIterator( EntityId ) -> mtc::api<IEntityIterator> override;
+    auto  GetEntityIterator( uint32_t ) -> mtc::api<IEntityIterator> override;
+
+    auto  GetRecordIterator( const Span& ) -> mtc::api<IRecordIterator> override;
 
     auto  Commit() -> mtc::api<IStorage::ISerialized> override;
     auto  Reduce() -> mtc::api<IContentsIndex> override  {  return this;  }
@@ -61,7 +65,7 @@ namespace static_ {
     mtc::api<const IByteBuffer> tableBuf;
     mtc::api<const IByteBuffer> radixBuf;
     EntityTable                 entities;       // static entities table
-    KeyContents                 contents;       // radix tree view
+    ContentsTable               contents;       // radix tree view
     mtc::api<IFlatStream>       blockBox;
     PatchHolder                 patchTab;
     Bitmap<Allocator>           shadowed;       // deleted documents identifiers
@@ -108,12 +112,12 @@ namespace static_ {
 
   };
 
-  class ContentsIndex::Iterator final: public IIterator
+  class ContentsIndex::EntityIterator final: public IEntityIterator
   {
     implement_lifetime_control
 
   public:
-    Iterator( EntityTable::Iterator&& it, ContentsIndex* pc ):
+    EntityIterator( EntityTable::Iterator&& it, ContentsIndex* pc ):
       contents( pc ),
       iterator( std::move( it ) ) {}
 
@@ -124,6 +128,32 @@ namespace static_ {
   protected:
     mtc::api<ContentsIndex> contents;
     EntityTable::Iterator   iterator;
+
+  };
+
+  class ContentsIndex::RecordIterator final: public IRecordIterator
+  {
+    implement_lifetime_control
+
+  public:
+    RecordIterator( ContentsIndex* pc ):
+      contents( pc ),
+      iterator( pc->contents.begin() ){}
+
+  public:
+    auto  Curr() -> std::string override
+    {
+        return iterator != contents->contents.end() ? iterator->key.to_string() : "";
+    }
+    auto  Next() -> std::string override
+    {
+      return iterator != contents->contents.end() && ++iterator != contents->contents.end() ?
+        iterator->key.to_string() : "";
+    }
+
+  protected:
+    mtc::api<ContentsIndex> contents;
+    ContentsIterator        iterator;
 
   };
 
@@ -155,7 +185,7 @@ namespace static_ {
       if ( ppatch->GetLen() == size_t(-1) )
         return nullptr;
 
-      return Override( entity.ptr() ).Extras( ppatch );
+      return Override::Entity( entity.ptr() ).Extra( ppatch );
     }
     return nullptr;
   }
@@ -198,14 +228,14 @@ namespace static_ {
       auto  ppatch = patchTab.Update( { id.data(), id.size() }, getdoc->index, xtras );
 
       return ppatch == nullptr || ppatch->GetLen() != size_t(-1) ?
-        Override( getdoc.ptr() ).Extras( ppatch ) : getdoc.ptr();
+        Override::Entity( getdoc.ptr() ).Extra( ppatch ) : getdoc.ptr();
     }
     return nullptr;
   }
 
-  auto  ContentsIndex::GetKeyBlock( const void* key, size_t size ) const -> mtc::api<IEntities>
+  auto  ContentsIndex::GetKeyBlock( const Span& key ) const -> mtc::api<IEntities>
   {
-    auto  pfound = contents.Search( { (const char*)key, size } );
+    auto  pfound = contents.Search( { key.data(), key.size() } );
 
     if ( pfound != nullptr )
     {
@@ -231,9 +261,9 @@ namespace static_ {
     return nullptr;
   }
 
-  auto  ContentsIndex::GetKeyStats( const void* key, size_t size ) const -> BlockInfo
+  auto  ContentsIndex::GetKeyStats( const Span& key ) const -> BlockInfo
   {
-    auto  pfound = contents.Search( { (const char*)key, size } );
+    auto  pfound = contents.Search( { key.data(), key.size() } );
 
     if ( pfound != nullptr )
     {
@@ -245,14 +275,19 @@ namespace static_ {
     return { uint32_t(-1), 0 };
   }
 
-  auto  ContentsIndex::GetIterator( EntityId id ) -> mtc::api<IIterator>
+  auto  ContentsIndex::GetEntityIterator( EntityId id ) -> mtc::api<IEntityIterator>
   {
-    return new Iterator( entities.GetIterator( id ), this );
+    return new EntityIterator( entities.GetIterator( id ), this );
   }
 
-  auto  ContentsIndex::GetIterator( uint32_t ix ) -> mtc::api<IIterator>
+  auto  ContentsIndex::GetEntityIterator( uint32_t ix ) -> mtc::api<IEntityIterator>
   {
-    return new Iterator( entities.GetIterator( ix ), this );
+    return new EntityIterator( entities.GetIterator( ix ), this );
+  }
+
+  auto  ContentsIndex::GetRecordIterator( const Span& ) -> mtc::api<IRecordIterator>
+  {
+    return new RecordIterator( this );
   }
 
   auto  ContentsIndex::Commit() -> mtc::api<IStorage::ISerialized>
@@ -330,22 +365,22 @@ namespace static_ {
     return curref = { (uint32_t)-1, { nullptr, 0 } };
   }
 
-  // ContentsIndex::Iterator implementation
+  // ContentsIndex::EntityIterator implementation
 
-  auto  ContentsIndex::Iterator::Curr() -> mtc::api<const IEntity>
+  auto  ContentsIndex::EntityIterator::Curr() -> mtc::api<const IEntity>
   {
     for ( auto ent = iterator.Curr(); ent != nullptr; ent = iterator.Next() )
       if ( !contents->shadowed.Get( ent->GetIndex() ) )
       {
         auto  patch = contents->patchTab.Search( ent->GetIndex() );
 
-        return patch != nullptr ? Override( ent ).Extras( patch ) : ent;
+        return patch != nullptr ? Override::Entity( ent ).Extra( patch ) : ent;
       }
 
     return nullptr;
   }
 
-  auto  ContentsIndex::Iterator::Next() -> mtc::api<const IEntity>
+  auto  ContentsIndex::EntityIterator::Next() -> mtc::api<const IEntity>
   {
     for ( auto ent = iterator.Next(); ent != nullptr; ent = iterator.Next() )
       if ( !contents->shadowed.Get( ent->GetIndex() ) )

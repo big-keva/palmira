@@ -99,13 +99,13 @@ namespace index {
     return layers.size() != 0 ? layers.back().uUpper : 0;
   }
 
-  auto  IndexLayers::getKeyBlock( const void* key, size_t len, const mtc::Iface* pix ) const -> mtc::api<IContentsIndex::IEntities>
+  auto  IndexLayers::getKeyBlock( const Span& key, const mtc::Iface* pix ) const -> mtc::api<IContentsIndex::IEntities>
   {
     mtc::api<Entities>  entities;
 
     for ( auto& next: layers )
     {
-      auto  pblock = next.pIndex->GetKeyBlock( key, len );
+      auto  pblock = next.pIndex->GetKeyBlock( key );
 
       if ( pblock != nullptr )
       {
@@ -118,13 +118,13 @@ namespace index {
     return entities.ptr();
   }
 
-  auto  IndexLayers::getKeyStats( const void* key, size_t len ) const -> IContentsIndex::BlockInfo
+  auto  IndexLayers::getKeyStats( const Span& key ) const -> IContentsIndex::BlockInfo
   {
     IContentsIndex::BlockInfo blockStats = { uint32_t(-1), 0 };
 
     for ( auto& next: layers )
     {
-      auto  cStats = next.pIndex->GetKeyStats( key, len );
+      auto  cStats = next.pIndex->GetKeyStats( key );
 
       if ( blockStats.bkType == uint32_t(-1) )  blockStats = cStats;
         else
@@ -197,7 +197,7 @@ namespace index {
 
   auto  IndexLayers::IndexEntry::Override( mtc::api<const IEntity> entity ) const -> mtc::api<const IEntity>
   {
-    return uLower > 1 ? index::Override( entity ).Index(
+    return uLower > 1 ? index::Override::Entity( entity ).Index(
       entity->GetIndex() + uLower - 1 ) : entity;
   }
 

@@ -1,6 +1,6 @@
-# include "../../../api/dynamic-contents.hxx"
+# include "indices/dynamic-contents.hpp"
+# include "storage/posix-fs.hpp"
 # include "../../index/dynamic-entities.hxx"
-# include "../../../api/storage-filesystem.hxx"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>
 
@@ -70,11 +70,11 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
         }
         SECTION( "entities iterators are available" )
         {
-          auto  it = mtc::api<IContentsIndex::IIterator>();
+          auto  it = mtc::api<IContentsIndex::IEntityIterator>();
 
           SECTION( "* by index" )
           {
-            if ( REQUIRE_NOTHROW( it = contents->GetIterator( 0U ) ) && REQUIRE( it != nullptr ) )
+            if ( REQUIRE_NOTHROW( it = contents->GetEntityIterator( 0U ) ) && REQUIRE( it != nullptr ) )
             {
               if ( REQUIRE( it->Curr() != nullptr ) )
                 REQUIRE( it->Curr()->GetIndex() == 1U );
@@ -84,7 +84,7 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
 
               SECTION( "- iterator may start at specified index" )
               {
-                if ( REQUIRE_NOTHROW( it = contents->GetIterator( 2U ) ) && REQUIRE( it != nullptr ) )
+                if ( REQUIRE_NOTHROW( it = contents->GetEntityIterator( 2U ) ) && REQUIRE( it != nullptr ) )
                 {
                   if ( REQUIRE( it->Curr() != nullptr ) )
                     REQUIRE( it->Curr()->GetIndex() == 3U );
@@ -95,7 +95,7 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
           }
           SECTION( "* by id")
           {
-            if ( REQUIRE_NOTHROW( it = contents->GetIterator( "" ) ) && REQUIRE( it != nullptr ) )
+            if ( REQUIRE_NOTHROW( it = contents->GetEntityIterator( "" ) ) && REQUIRE( it != nullptr ) )
             {
               if ( REQUIRE( it->Curr() != nullptr ) )
                 REQUIRE( it->Curr()->GetId() == "aaa" );
@@ -105,7 +105,7 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
 
               SECTION( "- iterator may start at specified id" )
               {
-                if ( REQUIRE_NOTHROW( it = contents->GetIterator( "bbb" ) ) && REQUIRE( it != nullptr ) )
+                if ( REQUIRE_NOTHROW( it = contents->GetEntityIterator( "bbb" ) ) && REQUIRE( it != nullptr ) )
                 {
                   if ( REQUIRE( it->Curr() != nullptr ) )
                     REQUIRE( it->Curr()->GetId() == "ccc" );
@@ -119,18 +119,18 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
         {
           mtc::api<IContentsIndex::IEntities>  entities;
 
-          if ( REQUIRE_NOTHROW( contents->GetKeyStats( "k0", 2 ) ) )
-            REQUIRE( contents->GetKeyStats( "k0", 2 ).nCount == 0 );
-          if ( REQUIRE_NOTHROW( contents->GetKeyStats( "k1", 2 ) ) )
+          if ( REQUIRE_NOTHROW( contents->GetKeyStats( "k0" ) ) )
+            REQUIRE( contents->GetKeyStats( "k0" ).nCount == 0 );
+          if ( REQUIRE_NOTHROW( contents->GetKeyStats( "k1" ) ) )
           {
-            REQUIRE( contents->GetKeyStats( "k1", 2 ).nCount == 1 );
-            REQUIRE( contents->GetKeyStats( "k2", 2 ).nCount == 2 );
-            REQUIRE( contents->GetKeyStats( "k3", 2 ).nCount == 3 );
-            REQUIRE( contents->GetKeyStats( "k4", 2 ).nCount == 2 );
-            REQUIRE( contents->GetKeyStats( "k5", 2 ).nCount == 1 );
+            REQUIRE( contents->GetKeyStats( { "k1", 2 } ).nCount == 1 );
+            REQUIRE( contents->GetKeyStats( { "k2", 2 } ).nCount == 2 );
+            REQUIRE( contents->GetKeyStats( { "k3", 2 } ).nCount == 3 );
+            REQUIRE( contents->GetKeyStats( { "k4", 2 } ).nCount == 2 );
+            REQUIRE( contents->GetKeyStats( { "k5", 2 } ).nCount == 1 );
           }
 
-          if ( REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "k3", 2 ) ) )
+          if ( REQUIRE_NOTHROW( entities = contents->GetKeyBlock( "k3" ) ) )
             if ( REQUIRE( entities != nullptr ) )
             {
               REQUIRE( entities->Find( 0 ).uEntity == 1U );
@@ -225,7 +225,7 @@ TestItEasy::RegisterFunc  dynamic_contents( []()
       }
       SECTION( "created with storage sink, it saves index as static" )
       {
-        auto  sink = storage::posixFS::CreateSink( "/tmp/k2" );
+        auto  sink = storage::posixFS::CreateSink( storage::posixFS::StoragePolicies::Open( "/tmp/k2" ) );
         auto  well = mtc::api<IStorage::ISerialized>();
 
         REQUIRE_NOTHROW( contents = index::dynamic::Contents()

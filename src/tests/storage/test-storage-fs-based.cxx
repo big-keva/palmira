@@ -1,8 +1,10 @@
-# include "../../../api/storage-filesystem.hxx"
+# include "storage/posix-fs.hpp"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/fileStream.h>
 # include <mtc/directory.h>
 # include <thread>
+
+using namespace palmira;
 
 void  RemoveFiles( const char* path )
 {
@@ -26,7 +28,7 @@ TestItEasy::RegisterFunc  storage_fs( []()
     {
       SECTION( "IStorage::IIndexStore may be created alone" )
       {
-        auto  storageSink = mtc::api<palmira::IStorage::IIndexStore>();
+        auto  storageSink = mtc::api<IStorage::IIndexStore>();
         auto  outStream = mtc::api<mtc::IByteStream>();
 
         SECTION( "it may be created by path with default policies" )
@@ -34,13 +36,16 @@ TestItEasy::RegisterFunc  storage_fs( []()
           RemoveFiles( "/tmp/k2.*" );
 
           SECTION( "being called with empty path, id throws std::invalid_argument" )
-            {  REQUIRE_EXCEPTION( palmira::storage::posixFS::CreateSink( "" ), std::invalid_argument );  }
+            {  REQUIRE_EXCEPTION( storage::posixFS::CreateSink( storage::posixFS::StoragePolicies::Open( "" ) ),
+              std::invalid_argument );  }
           SECTION( "being called with invalid path, id throws mtc::file_error" )
-            {  REQUIRE_EXCEPTION( palmira::storage::posixFS::CreateSink( "/tmp/Palmira/index" ), mtc::file_error );  }
+            {  REQUIRE_EXCEPTION( storage::posixFS::CreateSink( storage::posixFS::StoragePolicies::Open( "/tmp/Palmira/index" ) ),
+              mtc::file_error );  }
           SECTION( "being called with correct dir but without generic-name, id throws std::invalid_argument" )
-            {  REQUIRE_EXCEPTION( palmira::storage::posixFS::CreateSink( "/tmp/" ), std::invalid_argument );  }
+            {  REQUIRE_EXCEPTION( storage::posixFS::CreateSink( storage::posixFS::StoragePolicies::Open( "/tmp/" ) ),
+              std::invalid_argument );  }
           SECTION( "being called with correct path, it creates the storage" )
-            {  REQUIRE_NOTHROW( storageSink = palmira::storage::posixFS::CreateSink( "/tmp/k2" ) );  }
+            {  REQUIRE_NOTHROW( storageSink = storage::posixFS::CreateSink( storage::posixFS::StoragePolicies::Open( "/tmp/k2" ) ) );  }
           SECTION( "storage streams may be accessed..." )
           {
             if ( REQUIRE_NOTHROW( outStream = storageSink->Entities() )
@@ -59,7 +64,7 @@ TestItEasy::RegisterFunc  storage_fs( []()
           {
             RemoveFiles( "/tmp/k2.*" );
 
-            REQUIRE_NOTHROW( storageSink = palmira::storage::posixFS::CreateSink( "/tmp/k2" ) );
+            REQUIRE_NOTHROW( storageSink = storage::posixFS::CreateSink( storage::posixFS::StoragePolicies::Open( "/tmp/k2" ) ) );
             REQUIRE_NOTHROW( outStream = storageSink->Entities() );
             REQUIRE_NOTHROW( storageSink->Commit() );
             REQUIRE_NOTHROW( storageSink = nullptr );

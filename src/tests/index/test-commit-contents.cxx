@@ -1,6 +1,6 @@
-# include "../../../api/dynamic-contents.hxx"
+# include "indices/dynamic-contents.hpp"
+# include "storage/posix-fs.hpp"
 # include "../../index/commit-contents.hxx"
-# include "../../../api/storage-filesystem.hxx"
 # include <mtc/recursive_shared_mutex.hpp>
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>
@@ -84,14 +84,16 @@ public:
   auto  SetExtras( EntityId, const Span& ) -> mtc::api<const IEntity> override
     {  throw std::logic_error( "invalid call" );  }
   auto  GetMaxIndex() const -> uint32_t   {  return 1000;  }
-  auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities>
+  auto  GetKeyBlock( const Span& ) const -> mtc::api<IEntities>
     {  throw std::logic_error( "invalid call" );  }
-  auto  GetKeyStats( const void*, size_t ) const -> BlockInfo
+  auto  GetKeyStats( const Span& ) const -> BlockInfo
     {  return { 0, 5 };  }
-  auto  GetIterator( EntityId ) -> mtc::api<IIterator> override
-    {  throw std::runtime_error("not implemented");  }
-  auto  GetIterator( uint32_t ) -> mtc::api<IIterator> override
-    {  throw std::runtime_error("not implemented");  }
+  auto  GetEntityIterator( EntityId ) -> mtc::api<IEntityIterator> override
+    {  throw std::runtime_error( "not implemented" );  }
+  auto  GetEntityIterator( uint32_t ) -> mtc::api<IEntityIterator> override
+    {  throw std::runtime_error( "not implemented" );  }
+  auto  GetRecordIterator( const Span& ) -> mtc::api<IRecordIterator> override
+    {  throw std::runtime_error( "not implemented" );  }
   auto  Commit() -> mtc::api<IStorage::ISerialized>
     {
       std::this_thread::sleep_for( millis );
@@ -126,7 +128,7 @@ TestItEasy::RegisterFunc  commit_contents( []()
           SECTION( "GetMaxIndex() is forwarded to index being commited" )
             {  REQUIRE( index->GetMaxIndex() == 1000 );  }
           SECTION( "GetKeyStats() is forwarded to index being commited" )
-            {  REQUIRE( index->GetKeyStats( "aaa", 3 ).nCount == 5 );  }
+            {  REQUIRE( index->GetKeyStats( "aaa" ).nCount == 5 );  }
           SECTION( "GetEntity(...) forwards call to commited index before commit is finished" )
           {
             if ( REQUIRE_NOTHROW( index->GetEntity( "aaa" ) ) )

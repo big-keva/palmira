@@ -1,7 +1,6 @@
-# include "../../../api/layered-contents.hxx"
-# include "../../../api/storage-filesystem.hxx"
-# include "../../../api/dynamic-contents.hxx"
-# include "../../../api/static-contents.hxx"
+# include "indices/layered-contents.hpp"
+# include "indices/static-contents.hpp"
+# include "storage/posix-fs.hpp"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>
 
@@ -65,14 +64,16 @@ public:
     {  return new MockEntity( std::string( id ), 1 );  }
   auto  GetMaxIndex() const -> uint32_t override
     {  return 1;  }
-  auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override
+  auto  GetKeyBlock( const Span& ) const -> mtc::api<IEntities> override
     {  return nullptr;  }
-  auto  GetKeyStats( const void*, size_t ) const -> BlockInfo override
+  auto  GetKeyStats( const Span& ) const -> BlockInfo override
     {  return { uint32_t(-1), 0 };  }
-  auto  GetIterator( EntityId ) -> mtc::api<IIterator> override
-    {  throw std::runtime_error("not implemented");  }
-  auto  GetIterator( uint32_t ) -> mtc::api<IIterator> override
-    {  throw std::runtime_error("not implemented");  }
+  auto  GetEntityIterator( EntityId ) -> mtc::api<IEntityIterator> override
+    {  throw std::runtime_error( "not implemented" );  }
+  auto  GetEntityIterator( uint32_t ) -> mtc::api<IEntityIterator> override
+    {  throw std::runtime_error( "not implemented" );  }
+  auto  GetRecordIterator( const Span& ) -> mtc::api<IRecordIterator> override
+    {  throw std::runtime_error( "not implemented" );  }
   auto  Commit() -> mtc::api<IStorage::ISerialized> override
     {  return nullptr;  }
   auto  Reduce() -> mtc::api<IContentsIndex> override
@@ -97,8 +98,8 @@ TestItEasy::RegisterFunc  layered_contents( []()
             REQUIRE( index->DelEntity( "id" ) == false );
             REQUIRE( index->GetEntity( "id" ) == nullptr );
             REQUIRE( index->GetEntity( 1U ) == nullptr );
-            REQUIRE( index->GetKeyStats( "aaa", 3 ).bkType == uint32_t(-1) );
-            REQUIRE( index->GetKeyBlock( "aaa", 3 ) == nullptr );
+            REQUIRE( index->GetKeyStats( "aaa" ).bkType == uint32_t(-1) );
+            REQUIRE( index->GetKeyBlock( "aaa" ) == nullptr );
             REQUIRE( index->GetMaxIndex() == 0 );
             REQUIRE( index->Reduce().ptr() == index.ptr() );
             REQUIRE_EXCEPTION( index->SetEntity( "i1" ), std::logic_error );

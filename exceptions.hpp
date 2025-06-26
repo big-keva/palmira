@@ -1,5 +1,5 @@
-# if !defined( __palmira_api_exceptions_hxx__ )
-# define __palmira_api_exceptions_hxx__
+# if !defined( __palmira_exceptions_hpp__ )
+# define __palmira_exceptions_hpp__
 # include <stdexcept>
 
 namespace palmira {
@@ -8,4 +8,4 @@ namespace palmira {
 
 }
 
-# endif   // __palmira_api_exceptions_hxx__
+# endif   // __palmira_exceptions_hpp__

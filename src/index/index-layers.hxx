@@ -1,6 +1,6 @@
 # if !defined( __palmira_index_index_layers_hpp__ )
 # define __palmira_index_index_layers_hpp__
-# include "../../api/contents-index.hxx"
+# include "contents-index.hpp"
 # include "dynamic-bitmap.hxx"
 
 namespace palmira {
@@ -26,6 +26,8 @@ namespace index {
   public:
     IndexLayers() = default;
     IndexLayers( const mtc::api<IContentsIndex>*, size_t );
+    IndexLayers( const std::vector<mtc::api<IContentsIndex>>& ppi ):
+      IndexLayers( ppi.data(), ppi.size() ) {}
 
     auto  getEntity( EntityId ) const -> mtc::api<const IEntity>;
     auto  getEntity( uint32_t ) const -> mtc::api<const IEntity>;
@@ -33,8 +35,8 @@ namespace index {
     auto  setExtras( EntityId, const Span& ) -> mtc::api<const IEntity>;
 
     auto  getMaxIndex() const -> uint32_t;
-    auto  getKeyBlock( const void*, size_t, const mtc::Iface* = nullptr ) const -> mtc::api<IContentsIndex::IEntities>;
-    auto  getKeyStats( const void*, size_t ) const -> IContentsIndex::BlockInfo;
+    auto  getKeyBlock( const Span&, const mtc::Iface* = nullptr ) const -> mtc::api<IContentsIndex::IEntities>;
+    auto  getKeyStats( const Span& ) const -> IContentsIndex::BlockInfo;
 
     void  addContents( mtc::api<IContentsIndex> pindex );
 

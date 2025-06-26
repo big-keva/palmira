@@ -1,4 +1,4 @@
-# include "../api/dynamic-contents.hxx"
+# include "indices/dynamic-contents.hpp"
 # include "dynamic-entities.hxx"
 # include "dynamic-chains.hxx"
 # include <mtc/arena.hpp>
@@ -37,11 +37,14 @@ namespace dynamic {
       const Span& ) -> mtc::api<const IEntity> override;
 
     auto  GetMaxIndex() const -> uint32_t override  {  return entities.GetEntityCount();  }
-    auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override;
-    auto  GetKeyStats( const void*, size_t ) const -> BlockInfo override;
+    auto  GetKeyBlock( const Span& ) const -> mtc::api<IEntities> override;
+    auto  GetKeyStats( const Span& ) const -> BlockInfo override;
 
-    auto  GetIterator( EntityId ) -> mtc::api<IIterator> override;
-    auto  GetIterator( uint32_t ) -> mtc::api<IIterator> override;
+    auto  GetEntityIterator( EntityId ) -> mtc::api<IEntityIterator> override;
+    auto  GetEntityIterator( uint32_t ) -> mtc::api<IEntityIterator> override;
+
+    auto  GetRecordIterator( const Span& ) -> mtc::api<IRecordIterator> override
+      {  throw std::runtime_error( "not implemented" );  }
 
     auto  Commit() -> mtc::api<IStorage::ISerialized> override;
     auto  Reduce() -> mtc::api<IContentsIndex> override  {  return this;  }
@@ -106,7 +109,7 @@ namespace dynamic {
 
   };
 
-  class ContentsIndex::Iterator final: public IIterator
+  class ContentsIndex::Iterator final: public IEntityIterator
   {
     implement_lifetime_control
 
@@ -182,29 +185,29 @@ namespace dynamic {
     return entities.SetExtras( id, extras ).ptr();
   }
 
-  auto  ContentsIndex::GetKeyBlock( const void* key, size_t length ) const -> mtc::api<IEntities>
+  auto  ContentsIndex::GetKeyBlock( const Span& key ) const -> mtc::api<IEntities>
   {
-    auto  pchain = contents.Lookup( { (const char*)key, length } );
+    auto  pchain = contents.Lookup( { key.data(), key.size() } );
 
     return pchain != nullptr && pchain->pfirst.load() != nullptr ?
       new Entities( pchain, this ) : nullptr;
   }
 
-  auto  ContentsIndex::GetKeyStats( const void* key, size_t length ) const -> BlockInfo
+  auto  ContentsIndex::GetKeyStats( const Span& key ) const -> BlockInfo
   {
-    auto  pchain = contents.Lookup( { (const char*)key, length } );
+    auto  pchain = contents.Lookup( { key.data(), key.size() } );
 
     if ( pchain != nullptr )
       return { pchain->bkType, pchain->ncount };
     return { uint32_t(-1), 0 };
   }
 
-  auto  ContentsIndex::GetIterator( EntityId id ) -> mtc::api<IIterator>
+  auto  ContentsIndex::GetEntityIterator( EntityId id ) -> mtc::api<IEntityIterator>
   {
     return new Iterator( entities.GetIterator( id ), this );
   }
 
-  auto  ContentsIndex::GetIterator( uint32_t ix ) -> mtc::api<IIterator>
+  auto  ContentsIndex::GetEntityIterator( uint32_t ix ) -> mtc::api<IEntityIterator>
   {
     return new Iterator( entities.GetIterator( ix ), this );
   }

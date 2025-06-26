@@ -1,7 +1,7 @@
 # if !defined( __palmira_src_index_dynamic_entities_hxx__ )
 # define __palmira_src_index_dynamic_entities_hxx__
-# include "../../api/contents-index.hxx"
-# include "../../api/exceptions.hxx"
+# include "contents-index.hpp"
+# include "exceptions.hpp"
 # include "../tools/primes.hxx"
 # include <mtc/ptrpatch.h>
 # include <mtc/wcsstr.h>

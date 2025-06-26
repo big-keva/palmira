@@ -1,8 +1,9 @@
-# include "../../api/layered-contents.hxx"
-# include "../../api/static-contents.hxx"
-# include "../../api/dynamic-contents.hxx"
-# include "../../api/exceptions.hxx"
+# include "indices/layered-contents.hpp"
+# include "indices/static-contents.hpp"
+# include "indices/dynamic-contents.hpp"
+# include "exceptions.hpp"
 # include "commit-contents.hxx"
+# include "merger-contents.hxx"
 # include "index-layers.hxx"
 # include <mtc/recursive_shared_mutex.hpp>
 # include <shared_mutex>
@@ -25,7 +26,6 @@ namespace layered {
     ContentsIndex( const mtc::api<IStorage>&, const dynamic::Settings& );
 
     auto  StartMonitor( const std::chrono::seconds& mergeMonitorDelay ) -> ContentsIndex*;
-    void  MergeMonitor( const std::chrono::seconds& );
 
   public:
     auto  GetEntity( EntityId ) const -> mtc::api<const IEntity> override;
@@ -37,16 +37,26 @@ namespace layered {
     auto  SetExtras( EntityId, const Span& ) -> mtc::api<const IEntity> override;
 
     auto  GetMaxIndex() const -> uint32_t override;
-    auto  GetKeyBlock( const void*, size_t ) const -> mtc::api<IEntities> override;
-    auto  GetKeyStats( const void*, size_t ) const -> BlockInfo override;
+    auto  GetKeyBlock( const Span& ) const -> mtc::api<IEntities> override;
+    auto  GetKeyStats( const Span& ) const -> BlockInfo override;
 
-    auto  GetIterator( EntityId ) -> mtc::api<IIterator> override {  throw std::runtime_error("not implemented");  }
-    auto  GetIterator( uint32_t ) -> mtc::api<IIterator> override {  throw std::runtime_error("not implemented");  }
+    auto  GetEntityIterator( EntityId ) -> mtc::api<IEntityIterator> override
+      {  throw std::runtime_error( "not implemented" );  }
+    auto  GetEntityIterator( uint32_t ) -> mtc::api<IEntityIterator> override
+      {  throw std::runtime_error( "not implemented" );  }
+    auto  GetRecordIterator( const Span& ) -> mtc::api<IRecordIterator> override
+      {  throw std::runtime_error( "not implemented" );  }
 
     auto  Commit() -> mtc::api<IStorage::ISerialized> override;
     auto  Reduce() -> mtc::api<IContentsIndex> override {  return this;  }
 
     void  Stash( EntityId ) override  {}
+
+  protected:
+    using LayersIterator = decltype(layers)::iterator;
+
+    void  MergeMonitor( const std::chrono::seconds& );
+    auto  selectLimits() -> std::pair<LayersIterator, LayersIterator>;
 
   protected:
     using EventRec = std::pair<void*, Notify::Event>;
@@ -209,16 +219,16 @@ namespace layered {
     return getMaxIndex();
   }
 
-  auto  ContentsIndex::GetKeyBlock( const void* key, size_t len ) const -> mtc::api<IEntities>
+  auto  ContentsIndex::GetKeyBlock( const Span& key ) const -> mtc::api<IEntities>
   {
     auto  shlock = mtc::make_shared_lock( ixlock );
-    return getKeyBlock( key, len, this );
+    return getKeyBlock( key, this );
   }
 
-  auto  ContentsIndex::GetKeyStats( const void* key, size_t len ) const -> BlockInfo
+  auto  ContentsIndex::GetKeyStats( const Span& key ) const -> BlockInfo
   {
     auto  shlock = mtc::make_shared_lock( ixlock );
-    return getKeyStats( key, len );
+    return getKeyStats( key );
   }
 
   void  ContentsIndex::MergeMonitor( const std::chrono::seconds& startDelay )
@@ -251,11 +261,24 @@ namespace layered {
 
           switch ( event.second )
           {
-          // On OK, replace the index in the entry to it's reduced version
+          // On OK, replace the index in the entry to it's reduced version,
+          // resort the indices in the size-decreasing order, and renumber
             case Notify::Event::OK:
+            {
+              uint32_t uLower = 1;
+
               pfound->pIndex = pfound->pIndex->Reduce();
               pfound->backup.clear();
+
+              std::sort( layers.begin(), layers.end() - 1, []( const IndexEntry& a, const IndexEntry& b )
+                {  return a.pIndex->GetMaxIndex() > b.pIndex->GetMaxIndex();  } );
+
+              for ( auto& index: layers )
+                uLower = (index.uUpper = (index.uLower = uLower) + index.pIndex->GetMaxIndex() - 1) + 1;
+
+              layers.back().uUpper = uint32_t(-1);
               break;
+            }
 
           // On Empty, simple remove the existing index because its processing
           // result is empty
@@ -284,7 +307,39 @@ namespace layered {
     // try select indices to be merged
       if ( canRun )
       {
+        auto  shlock = mtc::make_shared_lock( ixlock );
+        auto  exlock = mtc::make_unique_lock( ixlock, std::defer_lock );
+        auto  limits = selectLimits();
 
+      // select the limits, check and select again the limits for merger
+        if ( limits.first != limits.second )
+        {
+          shlock.unlock();  exlock.lock();
+
+          if ( (limits = selectLimits()).first != limits.second )
+          {
+            auto  xMaker = fusion::Contents()
+              .Set( [this]( void* to, Notify::Event event )
+                {
+                  mtc::interlocked( mtc::make_unique_lock( evMutex ), [&]()
+                    {  evQueue.emplace_back( to, event );  } );
+                  evEvent.notify_one();
+                } )
+//              .Set( canContinue )
+              .Set( istore->CreateStore() );
+
+            for ( auto p =  limits.first; p != limits.second; ++p )
+            {
+              xMaker.Add( p->pIndex );
+              limits.first->backup.push_back( IndexEntry{ p->uLower, p->pIndex } );
+            }
+
+            limits.first->uUpper = limits.first->backup.back().uUpper;
+            limits.first->pIndex = xMaker.Create();
+
+            layers.erase( limits.first + 1, layers.end() );
+          }
+        }
       }
     }
   }

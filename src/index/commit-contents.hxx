@@ -1,6 +1,7 @@
-# include "../../api/contents-index.hxx"
+# if !defined( __palmira_src_index_commit_contents_hxx__ )
+# define __palmira_src_index_commit_contents_hxx__
+# include "contents-index.hpp"
 # include "notify-events.hxx"
-# include <functional>
 
 namespace palmira {
 namespace index   {
@@ -12,3 +13,5 @@ namespace commit {
   };
 
 }}}
+
+# endif // !__palmira_src_index_commit_contents_hxx__

@@ -1,9 +1,8 @@
-# if !defined( __palmira_api_span_hxx__ )
-# define __palmira_api_span_hxx__
+# if !defined( __palmira_span_hpp__ )
+# define __palmira_span_hpp__
 # include <mtc/iBuffer.h>
 # include <string_view>
 # include <vector>
-# include <atomic>
 
 namespace palmira
 {
@@ -32,4 +31,4 @@ namespace palmira
 
 }
 
-# endif   // __palmira_api_span_hxx__
+# endif   // __palmira_span_hpp__

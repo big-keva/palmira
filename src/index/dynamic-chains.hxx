@@ -1,6 +1,6 @@
 # if !defined( __palmira_src_index_dynamic_chains_hxx__ )
 # define __palmira_src_index_dynamic_chains_hxx__
-# include "../../api/contents-index.hxx"
+# include "contents-index.hpp"
 # include "dynamic-chains-ringbuffer.hxx"
 # include "dynamic-bitmap.hxx"
 # include <mtc/recursive_shared_mutex.hpp>
@@ -375,6 +375,8 @@ namespace dynamic {
   {
     std::mutex  waitex;
     auto        locker = mtc::make_unique_lock( waitex );
+
+    pthread_setname_np( pthread_self(), "KeysIndexer" );
 
     for ( runThread = true; runThread; )
     {

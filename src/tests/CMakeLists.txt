@@ -1,4 +1,4 @@
-link_libraries(palmira-index palmira-tools mtc)
+link_libraries(palmira-index palmira-tools mtc moonycode)
 
 add_executable(test-palmira-index
         storage/test-storage-fs-based.cxx
@@ -22,3 +22,6 @@ add_executable(test-palmira-index
         index/test-stream-indexing.cxx
 
 	test-main.cxx)
+
+add_executable(test-palmira-letters
+	letters/test-letters.cpp)

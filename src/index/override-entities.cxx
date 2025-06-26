@@ -45,19 +45,48 @@ namespace index   {
 
   };
 
-  // Override implementation
+  // Override::Entity implementation
 
-  Override::Override( mtc::api<const IEntity> p ):
-    entity( p ) {}
-
-  auto  Override::Index( uint32_t ix ) -> mtc::api<const IEntity>
+  auto  Override::Entity::Index( uint32_t ix ) -> mtc::api<const IEntity>
   {
     return new override_index( entity, ix );
   }
 
-  auto  Override::Extras( const mtc::api<const mtc::IByteBuffer>& bb ) -> mtc::api<const IEntity>
+  auto  Override::Entity::Extra( const mtc::api<const mtc::IByteBuffer>& bb ) -> mtc::api<const IEntity>
   {
     return new override_attributes( entity, bb );
+  }
+
+  // Override::Entities implementation
+
+  Override::Entities::Entities(
+    mtc::api<IContentsIndex::IEntities> ients,
+    const Bitmap<std::allocator<char>>& stash,
+    const mtc::Iface*                   owner ):
+      entities( ients ),
+      suppress( stash ),
+      lifetime( owner )
+  {
+  }
+
+  auto  Override::Entities::Find( uint32_t tofind ) -> Reference
+  {
+    auto  getRefer = entities->Find( tofind );
+
+    while ( getRefer.uEntity != uint32_t(-1) && suppress.Get( getRefer.uEntity ) )
+      getRefer = entities->Find( getRefer.uEntity + 1 );
+
+    return getRefer;
+  }
+
+  auto  Override::Entities::Size() const -> uint32_t
+  {
+    return entities->Size();
+  }
+
+  auto  Override::Entities::Type() const -> uint32_t
+  {
+    return entities->Type();
   }
 
 }}

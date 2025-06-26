@@ -1,7 +1,7 @@
 # include "../../index/index-layers.hxx"
-# include "../../../api/storage-filesystem.hxx"
-# include "../../../api/dynamic-contents.hxx"
-# include "../../../api/static-contents.hxx"
+# include "storage/posix-fs.hpp"
+# include "indices/dynamic-contents.hpp"
+# include "indices/static-contents.hpp"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>
 
@@ -32,7 +32,7 @@ public:
 
 auto  CreateDynamicIndex( const mtc::zmap& ix ) -> mtc::api<IContentsIndex>
 {
-  auto  pstore = palmira::storage::posixFS::CreateSink( "/tmp/k2" );
+  auto  pstore = palmira::storage::posixFS::CreateSink( storage::posixFS::StoragePolicies::Open( "/tmp/k2" ) );
   auto  pindex = palmira::index::dynamic::Contents()
     .Set( palmira::index::dynamic::Settings()
       .SetMaxEntities( 1024 )
@@ -67,8 +67,8 @@ TestItEasy::RegisterFunc  index_layers( []()
           REQUIRE( flakes.delEntity( "aaa" ) == false );
           REQUIRE( flakes.getEntity( "aaa" ) == nullptr );
           REQUIRE( flakes.getEntity( 1U ) == nullptr );
-          REQUIRE( flakes.getKeyBlock( "aaa", 3 ) == nullptr );
-          REQUIRE( flakes.getKeyStats( "aaa", 3 ).nCount == 0 );
+          REQUIRE( flakes.getKeyBlock( "aaa" ) == nullptr );
+          REQUIRE( flakes.getKeyStats( "aaa" ).nCount == 0 );
         }
         SECTION( "begin initialized, it lists objects" )
         {
@@ -127,7 +127,7 @@ TestItEasy::RegisterFunc  index_layers( []()
 
               SECTION( "contents blocks may be loaded" )
               {
-                if ( REQUIRE_NOTHROW( entities = flakes.getKeyBlock( "ddd", 3 ) ) )
+                if ( REQUIRE_NOTHROW( entities = flakes.getKeyBlock( "ddd" ) ) )
                 {
                   SECTION( "entities references may be found sequentally" )
                   {
@@ -164,7 +164,7 @@ TestItEasy::RegisterFunc  index_layers( []()
                 auto  entities = mtc::api<IContentsIndex::IEntities>();
                 auto  entref = IContentsIndex::IEntities::Reference{};
 
-                if ( REQUIRE_NOTHROW( entities = flakes.getKeyBlock( "ddd", 3 ) ) )
+                if ( REQUIRE_NOTHROW( entities = flakes.getKeyBlock( "ddd" ) ) )
                   if ( REQUIRE( entities != nullptr ) )
                   {
                     REQUIRE( (entref = entities->Find( 1 )).uEntity == 3 );

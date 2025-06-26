@@ -1,4 +1,4 @@
-# include "../../api/storage-filesystem.hxx"
+# include "storage/posix-fs.hpp"
 # include <mtc/fileStream.h>
 # include <mtc/wcsstr.h>
 # include <functional>
@@ -98,7 +98,7 @@ namespace posixFS {
   }
 
   template <class It> static
-  bool  CaptureFiles( It unitBeg, It unitEnd, const char* stump, const StoragePolicies& policies )
+  bool  CaptureFiles( It unitBeg, It unitEnd, const char* stump, const StoragePolicies& policies, bool forced )
   {
     auto  policy = policies.GetPolicy( *unitBeg );
     int   nerror;
@@ -106,7 +106,7 @@ namespace posixFS {
     if ( policy != nullptr )
     {
       auto  unitPath = policy->GetFilePath( *unitBeg, stump );
-      auto  f_handle = open( unitPath.c_str(), O_CREAT + O_RDWR + O_EXCL, 0644 );
+      auto  f_handle = open( unitPath.c_str(), O_CREAT + O_RDWR + (forced ? 0 : O_EXCL), 0644 );
 
     // check if open error or file already exists
       if ( f_handle < 0 )
@@ -124,7 +124,7 @@ namespace posixFS {
         return true;
 
     // try create the other files
-      if ( CaptureFiles( unitBeg, unitEnd, stump, policies ) )
+      if ( CaptureFiles( unitBeg, unitEnd, stump, policies, forced ) )
         return true;
 
       return remove( unitPath.c_str() ), false;
@@ -134,7 +134,7 @@ namespace posixFS {
   }
 
   static
-  auto  CaptureIndex( const std::initializer_list<Unit> units, const StoragePolicies& policies ) -> std::string
+  auto  CaptureIndex( const std::initializer_list<Unit> units, const StoragePolicies& policies, bool forced ) -> std::string
   {
     for ( ; ; std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) ) )
     {
@@ -144,7 +144,7 @@ namespace posixFS {
 
       sprintf( st, "%lu", tm );
 
-      if ( !CaptureFiles( units.begin(), units.end(), st, policies ) )
+      if ( !CaptureFiles( units.begin(), units.end(), st, policies, forced ) )
         continue;
 
       return st;
@@ -154,7 +154,7 @@ namespace posixFS {
   auto  CreateSink( const StoragePolicies& policies ) -> mtc::api<IStorage::IIndexStore>
   {
     auto  units = std::initializer_list<Unit>{ entities, contents, blocks };
-    auto  stamp = CaptureIndex( units, policies );
+    auto  stamp = CaptureIndex( units, policies, policies.IsInstance() );
     Sink  aSink( policies.GetInstance( stamp ) );
 
   // OK, the list of files is captured; create the sink

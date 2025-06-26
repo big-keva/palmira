@@ -1,7 +1,7 @@
-# if !defined( __palmira_api_index_layered_contents_hxx__ )
-# define __palmira_api_index_layered_contents_hxx__
-# include "contents-index.hxx"
-# include "dynamic-contents.hxx"
+# if !defined( __palmira_indices_layered_contents_hpp__ )
+# define __palmira_indices_layered_contents_hpp__
+# include "contents-index.hpp"
+# include "dynamic-contents.hpp"
 # include <functional>
 
 namespace palmira {
@@ -28,4 +28,4 @@ namespace layered {
 
 }}}
 
-# endif   // !__palmira_api_index_layered_contents_hxx__
+# endif   // !__palmira_indices_layered_contents_hpp__
