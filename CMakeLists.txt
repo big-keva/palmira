@@ -19,3 +19,5 @@ add_link_options(-fsanitize=address)
 add_subdirectory(third-party/moonycode)
 add_subdirectory(third-party/mtc)
 add_subdirectory(src)
+
+add_subdirectory(tests)

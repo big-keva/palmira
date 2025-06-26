@@ -24,6 +24,5 @@ add_library(palmira-index
 # add_library(palmira-letters
 #         letters/letters.cpp)
 
-add_subdirectory(tests)
 add_subdirectory(utils)
 	
