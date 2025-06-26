@@ -12,8 +12,6 @@ namespace palmira {
 namespace index {
 namespace layered {
 
-  const size_t align_layers_count = 4;
-
   class ContentsIndex final: protected IndexLayers, public IContentsIndex
   {
     std::atomic<size_t> referenceCount = 0;

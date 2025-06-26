@@ -7,19 +7,19 @@ add_library(palmira-index
 	storage/posix-fs-serial.cpp
 	storage/posix-fs-storage.cpp
 
-        index/contents-index.cxx
-	index/override-entities.cxx
+        indexes/contents-index.cxx
+	indexes/override-entities.cxx
 
-	index/dynamic-contents.cxx
-	index/static-contents.cxx
-	index/commit-contents.cxx
-	index/merger-contents.cxx
+	indexes/dynamic-contents.cxx
+	indexes/static-contents.cxx
+	indexes/commit-contents.cxx
+	indexes/merger-contents.cxx
 
-        index/index-layers.cxx
+        indexes/index-layers.cxx
 
-        index/contents-index-fusion.cxx
+        indexes/contents-index-fusion.cxx
                 
-	index/layered-contents.cxx)
+	indexes/layered-contents.cxx)
 
 # add_library(palmira-letters
 #         letters/letters.cpp)
