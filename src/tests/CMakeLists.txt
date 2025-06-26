@@ -3,23 +3,23 @@ link_libraries(palmira-index palmira-tools mtc moonycode)
 add_executable(test-palmira-index
         storage/test-storage-fs-based.cxx
 
-	index/test-dynamic-chains-ringbuffer.cxx
-	index/test-dynamic-entities.cxx
-	index/test-dynamic-chains.cxx
-	index/test-dynamic-contents.cxx
+	indexes/test-dynamic-chains-ringbuffer.cxx
+	indexes/test-dynamic-entities.cxx
+	indexes/test-dynamic-chains.cxx
+	indexes/test-dynamic-contents.cxx
 
-	index/test-static-entities.cxx
-	index/test-static-contents.cxx
+	indexes/test-static-entities.cxx
+	indexes/test-static-contents.cxx
 
-	index/test-patch-table.cxx
+	indexes/test-patch-table.cxx
 
-	index/test-commit-contents.cxx
+	indexes/test-commit-contents.cxx
 
-        index/test-index-layers.cxx
+        indexes/test-index-layers.cxx
 
-        index/test-layered-contents.cxx
+        indexes/test-layered-contents.cxx
 
-        index/test-stream-indexing.cxx
+        indexes/test-stream-indexing.cxx
 
 	test-main.cxx)
 
