@@ -1,4 +1,4 @@
-# include "texts/DOM-sink.hpp"
+# include "texts/DOM-dump.hpp"
 # include <moonycode/codes.h>
 
 namespace palmira {

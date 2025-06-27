@@ -1,4 +1,4 @@
-# include "texts/DOM-sink.hpp"
+# include "texts/DOM-dump.hpp"
 # include <moonycode/codes.h>
 
 // tags implementation
@@ -107,11 +107,11 @@ namespace dump_as {
           case '\"':  fWrite( "\\\"", 2 );  break;
           case '\\':  fWrite( "\\\\", 2 );  break;
           case '/':   fWrite( "\\/",  2 );  break;
-          case '\b':  fWrite( "\\\b", 2 );  break;
-          case '\f':  fWrite( "\\\f", 2 );  break;
-          case '\n':  fWrite( "\\\n", 2 );  break;
-          case '\r':  fWrite( "\\\r", 2 );  break;
-          case '\t':  fWrite( "\\\t", 2 );  break;
+          case '\b':  fWrite( "\\b", 2 );  break;
+          case '\f':  fWrite( "\\f", 2 );  break;
+          case '\n':  fWrite( "\\n", 2 );  break;
+          case '\r':  fWrite( "\\r", 2 );  break;
+          case '\t':  fWrite( "\\t", 2 );  break;
           default: throw std::logic_error( "invalid escape sequence" );
         }
       }
