@@ -1,6 +1,6 @@
-# include "../src/index/contents-index-fusion.hxx"
-# include "../api/storage-filesystem.hxx"
-# include "../api/static-contents.hxx"
+# include "../src/indexes/contents-index-fusion.hxx"
+# include "indexes/static-contents.hpp"
+# include "storage/posix-fs.hpp"
 # include <vector>
 # include <string>
 

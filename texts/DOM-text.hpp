@@ -10,8 +10,8 @@
 namespace palmira {
 namespace texts {
 
-  template <class Allocator>
-  class Document final: public IText
+  template <class Allocator = std::allocator<char>>
+  class BaseDocument final: public IText
   {
     class line;
     class span;
@@ -26,7 +26,7 @@ namespace texts {
 
     class Markup;
 
-    implement_lifetime_control
+    implement_lifetime_stub
 
   public:
     auto  AddTextTag( const char*, size_t = -1 ) -> mtc::api<IText> override;
@@ -34,7 +34,7 @@ namespace texts {
     void  AddWideStr( const widechar*, size_t = -1 ) override;
 
   public:
-    Document( Allocator allocator ):
+    BaseDocument( Allocator allocator = Allocator() ):
       lines( allocator ),
       spans( allocator )  {}
 
@@ -57,8 +57,10 @@ namespace texts {
 
   };
 
+  using Document = BaseDocument<>;
+
   template <class Allocator>
-  class Document<Allocator>::line
+  class BaseDocument<Allocator>::line
   {
     using strspace = typename std::aligned_storage<std::max(sizeof(charstr), sizeof(widestr)),
       alignof(charstr)>::type;
@@ -85,7 +87,7 @@ namespace texts {
   };
 
   template <class Allocator>
-  class Document<Allocator>::span
+  class BaseDocument<Allocator>::span
   {
   public:
     span( uint32_t l, uint32_t u, charstr&& s ):
@@ -100,11 +102,15 @@ namespace texts {
   };
 
   template <class Allocator>
-  class Document<Allocator>::Markup final: public IText
+  class BaseDocument<Allocator>::Markup final: public IText
   {
-    friend class Document<Allocator>;
+    friend class BaseDocument<Allocator>;
 
-    implement_lifetime_control
+    std::atomic_long  refCount = 0;
+
+  public:
+    long  Attach() override {  return ++refCount;  }
+    long  Detach() override;
 
   protected:
     auto  AddTextTag( const char*, size_t ) -> mtc::api<IText> override;
@@ -115,21 +121,21 @@ namespace texts {
     void  Close();
 
   public:
-    Markup( Document*, const char* tag, size_t length );
+    Markup( BaseDocument*, const char* tag, size_t length );
     Markup( Markup*, const char* tag, size_t length );
    ~Markup();
 
   protected:
-    mtc::api<Document>  docptr;
-    mtc::api<Markup>    nested;
-    size_t              tagBeg;
+    mtc::api<BaseDocument>  docptr;
+    mtc::api<Markup>        nested;
+    size_t                  tagBeg;
 
   };
 
   // Document implementation
 
   template <class Allocator>
-  auto  Document<Allocator>::AddTextTag( const char* tag, size_t len ) -> mtc::api<IText>
+  auto  BaseDocument<Allocator>::AddTextTag( const char* tag, size_t len ) -> mtc::api<IText>
   {
     if ( len == size_t(-1) )
       for ( ++len; tag[len] != 0; ++len ) (void)NULL;
@@ -142,7 +148,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  void  Document<Allocator>::AddCharStr( unsigned codepage, const char* str, size_t len )
+  void  BaseDocument<Allocator>::AddCharStr( unsigned codepage, const char* str, size_t len )
   {
     if ( len == size_t(-1) )
       for ( ++len; str[len] != 0; ++len ) (void)NULL;
@@ -155,7 +161,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  void  Document<Allocator>::AddWideStr( const widechar* str, size_t len )
+  void  BaseDocument<Allocator>::AddWideStr( const widechar* str, size_t len )
   {
     if ( len == size_t(-1) )
       for ( ++len; str[len] != 0; ++len ) (void)NULL;
@@ -168,7 +174,17 @@ namespace texts {
   }
 
   template <class Allocator>
-  auto  Document<Allocator>::Serialize( IText* text ) const -> IText*
+  void    BaseDocument<Allocator>::clear()
+  {
+    if ( pspan != nullptr )
+      {  pspan->Close();  pspan = nullptr;  }
+    lines.clear();
+    spans.clear();
+    chars = 0;
+  }
+
+  template <class Allocator>
+  auto  BaseDocument<Allocator>::Serialize( IText* text ) const -> IText*
   {
     auto  lineIt = lines.begin();
     auto  spanIt = spans.begin();
@@ -209,7 +225,7 @@ namespace texts {
   // Document::line template implementation
 
   template <class Allocator>
-  Document<Allocator>::line::line( Allocator alloc, unsigned encoding, const char* str, size_t len )
+  BaseDocument<Allocator>::line::line( Allocator alloc, unsigned encoding, const char* str, size_t len )
   {
     if ( encoding == 0x80000000 )
       throw std::invalid_argument( "invalid encoding" );
@@ -219,7 +235,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  Document<Allocator>::line::line( Allocator alloc, const widechar* str, size_t len )
+  BaseDocument<Allocator>::line::line( Allocator alloc, const widechar* str, size_t len )
   {
     if ( len == size_t(-1) )
       for ( ++len; str[len] != 0; ++len ) (void)NULL;
@@ -228,7 +244,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  Document<Allocator>::line::line( const line& l ): encode( l.encode )
+  BaseDocument<Allocator>::line::line( const line& l ): encode( l.encode )
   {
     if ( encode == 0x80000000 ) new( &string ) widestr( *(const widestr*)&l.string );
       else
@@ -236,7 +252,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  Document<Allocator>::line::line( line&& l ): encode( l.encode )
+  BaseDocument<Allocator>::line::line( line&& l ): encode( l.encode )
   {
     if ( encode == 0x80000000 ) new( &string ) widestr( std::move( *(widestr*)&l.string ) );
       else
@@ -244,7 +260,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  Document<Allocator>::line::~line()
+  BaseDocument<Allocator>::line::~line()
   {
     if ( encode == 0x80000000 ) ((widestr*)&string)->~widestr();
       else
@@ -252,7 +268,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  auto  Document<Allocator>::line::GetCharStr() const -> const charstr&
+  auto  BaseDocument<Allocator>::line::GetCharStr() const -> const charstr&
   {
     if ( encode == 0x80000000 )
       throw std::logic_error( "invalid encoding" );
@@ -260,7 +276,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  auto  Document<Allocator>::line::GetCharStr() -> charstr&
+  auto  BaseDocument<Allocator>::line::GetCharStr() -> charstr&
   {
     if ( encode == 0x80000000 )
       throw std::logic_error( "invalid encoding" );
@@ -268,7 +284,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  auto  Document<Allocator>::line::GetWideStr() const -> const widestr&
+  auto  BaseDocument<Allocator>::line::GetWideStr() const -> const widestr&
   {
     if ( encode != 0x80000000 )
       throw std::logic_error( "invalid encoding" );
@@ -276,7 +292,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  auto  Document<Allocator>::line::GetWideStr() -> widestr&
+  auto  BaseDocument<Allocator>::line::GetWideStr() -> widestr&
   {
     if ( encode != 0x80000000 )
       throw std::logic_error( "invalid encoding" );
@@ -284,7 +300,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  auto  Document<Allocator>::line::GetTextLen() const -> uint32_t
+  auto  BaseDocument<Allocator>::line::GetTextLen() const -> uint32_t
   {
     if ( encode == 0x80000000 )
       return ((widestr*)&string)->length();
@@ -298,7 +314,7 @@ namespace texts {
   // Document::Markup template implementation
 
   template <class Allocator>
-  Document<Allocator>::Markup::Markup( Document* owner, const char* tag, size_t len ):
+  BaseDocument<Allocator>::Markup::Markup( BaseDocument* owner, const char* tag, size_t len ):
     docptr( owner ),
     tagBeg( owner->spans.size() )
   {
@@ -309,7 +325,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  Document<Allocator>::Markup::Markup( Markup* owner, const char* tag, size_t len ):
+  BaseDocument<Allocator>::Markup::Markup( Markup* owner, const char* tag, size_t len ):
     docptr( owner->docptr ),
     tagBeg( docptr->spans.size() )
   {
@@ -320,13 +336,28 @@ namespace texts {
   }
 
   template <class Allocator>
-  Document<Allocator>::Markup::~Markup()
+  BaseDocument<Allocator>::Markup::~Markup()
   {
     Close();
   }
 
   template <class Allocator>
-  auto  Document<Allocator>::Markup::AddTextTag( const char* tag, size_t len ) -> mtc::api<IText>
+  long  BaseDocument<Allocator>::Markup::Detach()
+  {
+    auto  rcount = --refCount;
+
+    if ( rcount == 0 )
+    {
+      auto  memman = rebind<Markup>( docptr->lines.get_allocator() );
+
+      this->~Markup();
+      memman.deallocate( this, 0 );
+    }
+    return rcount;
+  }
+
+  template <class Allocator>
+  auto  BaseDocument<Allocator>::Markup::AddTextTag( const char* tag, size_t len ) -> mtc::api<IText>
   {
     Markup* last;
 
@@ -341,7 +372,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  void  Document<Allocator>::Markup::AddCharStr( unsigned encoding, const char* str, size_t len )
+  void  BaseDocument<Allocator>::Markup::AddCharStr( unsigned encoding, const char* str, size_t len )
   {
     Markup* last;
 
@@ -360,7 +391,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  void  Document<Allocator>::Markup::AddWideStr( const widechar* str, size_t len )
+  void  BaseDocument<Allocator>::Markup::AddWideStr( const widechar* str, size_t len )
   {
     Markup*  last;
 
@@ -379,7 +410,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  auto  Document<Allocator>::Markup::LastMarkup( Markup* onPath ) -> Markup*
+  auto  BaseDocument<Allocator>::Markup::LastMarkup( Markup* onPath ) -> Markup*
   {
     auto  markup = docptr->pspan;
 
@@ -395,7 +426,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  void  Document<Allocator>::Markup::Close()
+  void  BaseDocument<Allocator>::Markup::Close()
   {
     if ( nested != nullptr )
       {  nested->Close();  nested = nullptr;  }

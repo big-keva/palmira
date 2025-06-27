@@ -21,8 +21,9 @@ add_library(palmira-index
                 
 	indexes/layered-contents.cxx)
 
-# add_library(palmira-letters
-#         letters/letters.cpp)
+add_library(palmira-texts
+        texts/dump-as-json.cpp
+	texts/dump-as-tags.cpp
+        texts/load-as-json.cpp)
 
 add_subdirectory(utils)
-	
