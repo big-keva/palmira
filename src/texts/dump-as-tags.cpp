@@ -17,11 +17,11 @@ namespace dump_as {
     implement_lifetime_control
 
   public:
-    TagsTag( FnSink f, unsigned c, unsigned u, const std::string& t = {} ):
+    TagsTag( FnSink f, unsigned c, unsigned u, std::string&& t = {} ):
       fWrite( f ),
       encode( c ),
       uShift( u ),
-      tagStr( t )
+      tagStr( std::move( t ) )
     {
       if ( !tagStr.empty() )
       {
@@ -47,6 +47,10 @@ namespace dump_as {
     }
     auto  AddTextTag( const char* tag, size_t len ) -> mtc::api<IText> override
     {
+      if ( len == size_t(-1) )
+        for ( len = 0; tag != nullptr && tag[len] != 0; ++len )
+          (void)NULL;
+
       return new TagsTag( fWrite, encode, uShift + 1, std::string( tag, len ) );
     }
     void  AddCharStr( unsigned codepage, const char* str, size_t len ) override

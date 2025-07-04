@@ -15,7 +15,7 @@ namespace dump_as {
   auto  Json( std::function<void(const char*, size_t)> ) -> mtc::api<IText>;
 
   template <class O>
-  auto  MakeSink( O* o ) -> std::function<void(const char*, size_t)>
+  auto  MakeOutput( O* o ) -> std::function<void(const char*, size_t)>
   {
     return [output = std::make_shared<O*>( o )]( const char* str, size_t len ) mutable
       {

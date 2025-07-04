@@ -1,5 +1,4 @@
 # include "texts/DOM-load.hpp"
-# include <mtc/arena.hpp>
 # include <mtc/json.h>
 
 namespace palmira {
@@ -16,12 +15,12 @@ namespace load_as {
       {  return reader();  }
   };
 
-  void  loadString( mtc::api<IText> doc, mtc::json::parse::reader& src );
-  void  loadVector( mtc::api<IText> doc, mtc::json::parse::reader& src );
-  void  loadStruct( mtc::api<IText> doc, mtc::json::parse::reader& src );
-  void  loadRecord( mtc::api<IText> doc, mtc::json::parse::reader& src );
+  void  jsonString( mtc::api<IText> doc, mtc::json::parse::reader& src );
+  void  jsonVector( mtc::api<IText> doc, mtc::json::parse::reader& src );
+  void  jsonStruct( mtc::api<IText> doc, mtc::json::parse::reader& src );
+  void  jsonRecord( mtc::api<IText> doc, mtc::json::parse::reader& src );
 
-  auto  loadString( mtc::json::parse::reader& src ) -> std::string
+  auto  jsonString( mtc::json::parse::reader& src ) -> std::string
   {
     char  buf[1024];
     char* ptr = buf;
@@ -78,12 +77,12 @@ namespace load_as {
     }
   }
 
-  void  loadString( mtc::api<IText> doc, mtc::json::parse::reader& src )
+  void  jsonString( mtc::api<IText> doc, mtc::json::parse::reader& src )
   {
-    doc->AddString( codepages::codepage_utf8, loadString( src ) );
+    doc->AddString( jsonString( src ), codepages::codepage_utf8 );
   }
 
-  void  loadVector( mtc::api<IText> doc, mtc::json::parse::reader& src )
+  void  jsonVector( mtc::api<IText> doc, mtc::json::parse::reader& src )
   {
     char  chr;
 
@@ -94,8 +93,8 @@ namespace load_as {
     {
       switch ( chr )
       {
-        case '\"':  loadString( doc, src.putback( chr ) );  break;
-        case '{':   loadStruct( doc, src.putback( chr ) );  break;
+        case '\"':  jsonString( doc, src.putback( chr ) );  break;
+        case '{':   jsonStruct( doc, src.putback( chr ) );  break;
         default:    throw ParseError( mtc::strprintf( "expected character '%c'", chr ) );
       }
       if ( (chr = src.nospace()) != ',' )
@@ -103,7 +102,7 @@ namespace load_as {
     }
   }
 
-  void  loadStruct( mtc::api<IText> doc, mtc::json::parse::reader& src )
+  void  jsonStruct( mtc::api<IText> doc, mtc::json::parse::reader& src )
   {
     char  chr;
 
@@ -114,11 +113,11 @@ namespace load_as {
     {
       if ( chr == '\"' )
       {
-        auto  key = loadString( src.putback( chr ) );
+        auto  key = jsonString( src.putback( chr ) );
         auto  tag = doc->AddTextTag( key.c_str(), key.length() );
 
         if ( src.nospace() == ':' )
-          loadRecord( tag, src );
+          jsonRecord( tag, src );
         else throw ParseError( "':' expected" );
 
         if ( (chr = src.nospace()) != '}' )
@@ -128,31 +127,31 @@ namespace load_as {
     }
   }
 
-  void  loadRecord( mtc::api<IText> doc, mtc::json::parse::reader& src )
+  void  jsonRecord( mtc::api<IText> doc, mtc::json::parse::reader& src )
   {
     auto  chr = src.nospace();
 
     switch ( chr )
     {
-      case '"': return loadString( doc, src.putback( chr ) );
-      case '[': return loadVector( doc, src.putback( chr ) );
-      case '{': return loadStruct( doc, src.putback( chr ) );
+      case '"': return jsonString( doc, src.putback( chr ) );
+      case '[': return jsonVector( doc, src.putback( chr ) );
+      case '{': return jsonStruct( doc, src.putback( chr ) );
       default:  throw ParseError( mtc::strprintf( "expected character '%c'", chr ) );
     }
   }
 
-  void  loadVector( mtc::api<IText> doc, mtc::json::parse::stream& src )
+  void  jsonVector( mtc::api<IText> doc, mtc::json::parse::stream& src )
   {
     auto  reader = mtc::json::parse::reader( src );
 
-    return loadVector( doc, reader );
+    return jsonVector( doc, reader );
   }
 
   void  Json( mtc::api<IText> doc, std::function<char()> src )
   {
     FnStream  stm( src );
 
-    return loadVector( doc, stm );
+    return jsonVector( doc, stm );
   }
 
 }}}

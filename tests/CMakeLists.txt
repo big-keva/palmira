@@ -12,16 +12,16 @@ add_executable(test-palmira-index
 	indexes/test-static-contents.cpp
 
 	indexes/test-patch-table.cpp
-
 	indexes/test-commit-contents.cpp
-
         indexes/test-index-layers.cpp
-
         indexes/test-layered-contents.cpp
-
         indexes/test-stream-indexing.cpp
+
+	texts/test-letters.cpp
 
 	test-main.cpp)
 
 add_executable(test-palmira-texts
-	texts/test-letters.cpp)
+	texts/test-letters.cpp
+
+	test-main.cpp)
