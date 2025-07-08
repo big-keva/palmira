@@ -115,7 +115,7 @@ namespace texts {
   };
 
   template <class Allocator>
-  class BaseDocument<Allocator>::UtfTxt: public IText
+  class BaseDocument<Allocator>::UtfTxt final: public IText
   {
     implement_lifetime_control
 
