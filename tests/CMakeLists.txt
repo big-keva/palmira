@@ -25,3 +25,14 @@ add_executable(test-palmira-texts
 	texts/test-letters.cpp
 
 	test-main.cpp)
+
+add_executable(test-palmira-query
+	query/test-key.cpp
+
+	test-main.cpp)
+
+add_executable(test-palmira-hunspell
+	texts/test-hunspell.cpp)
+
+target_link_libraries(test-palmira-hunspell
+	hunspell)
