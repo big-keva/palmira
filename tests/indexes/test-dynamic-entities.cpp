@@ -1,4 +1,4 @@
-# include "../src/index/dynamic-entities.hxx"
+# include "src/indexes/dynamic-entities.hxx"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/arena.hpp>
 # include <thread>

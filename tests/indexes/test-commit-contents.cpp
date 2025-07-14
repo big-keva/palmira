@@ -1,6 +1,6 @@
-# include "indices/dynamic-contents.hpp"
+# include "indexes/dynamic-contents.hpp"
 # include "storage/posix-fs.hpp"
-# include "../../index/commit-contents.hxx"
+# include "src/indexes/commit-contents.hxx"
 # include <mtc/recursive_shared_mutex.hpp>
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>

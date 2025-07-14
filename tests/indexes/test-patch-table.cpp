@@ -1,4 +1,4 @@
-# include "../src/index/patch-table.hxx"
+# include "../src/indexes/patch-table.hxx"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/arena.hpp>
 # include <thread>

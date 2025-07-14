@@ -1,5 +1,5 @@
-# include "indices/layered-contents.hpp"
-# include "indices/static-contents.hpp"
+# include "indexes/layered-contents.hpp"
+# include "indexes/static-contents.hpp"
 # include "storage/posix-fs.hpp"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>
@@ -17,14 +17,14 @@ public:
   auto  ptr() const -> const IContents*
   {  return this;  }
 
-  void  Enumerate( IContentsIndex::IIndexAPI* to ) const override
+  void  Enum( IContentsIndex::IIndexAPI* to ) const override
   {
     for ( auto keyvalue: *this )
     {
       auto  val = keyvalue.second.to_string();
 
       to->Insert( { (const char*)keyvalue.first.data(), keyvalue.first.size() },
-        { val.data(), val.size() } );
+        { val.data(), val.size() }, unsigned(-1) );
     }
   }
 };

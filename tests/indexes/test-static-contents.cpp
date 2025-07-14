@@ -1,6 +1,6 @@
-# include "indices/dynamic-contents.hpp"
-# include "indices/static-contents.hpp"
-# include "../../index/dynamic-entities.hxx"
+# include "indexes/dynamic-contents.hpp"
+# include "indexes/static-contents.hpp"
+# include "src/indexes/dynamic-entities.hxx"
 # include "storage/posix-fs.hpp"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>
@@ -18,14 +18,14 @@ public:
   auto  ptr() const -> const palmira::IContents*
     {  return this;  }
 
-  void  Enumerate( palmira::IContentsIndex::IIndexAPI* to ) const override
+  void  Enum( palmira::IContentsIndex::IIndexAPI* to ) const override
     {
       for ( auto keyvalue: *this )
       {
         auto  val = keyvalue.second.to_string();
 
         to->Insert( { (const char*)keyvalue.first.data(), keyvalue.first.size() },
-          { val.data(), val.size() } );
+          { val.data(), val.size() }, unsigned(-1) );
       }
     }
 };

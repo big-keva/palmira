@@ -1,4 +1,4 @@
-# include "indices/layered-contents.hpp"
+# include "indexes/layered-contents.hpp"
 # include "storage/posix-fs.hpp"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/zmap.h>
@@ -12,7 +12,7 @@ class Contents: public IContents, protected std::vector<std::pair<std::string, s
 
   friend Contents CreateContents();
 
-  void  Enumerate( IContentsIndex::IIndexAPI* index ) const override
+  void  Enum( IContentsIndex::IIndexAPI* index ) const override
   {
     for ( auto& next: *this )
       index->Insert( next.first, next.second, 1 );

@@ -1,11 +1,11 @@
-# include "../src/index/static-entities.hxx"
+# include "src/indexes/static-entities.hxx"
 # include <mtc/test-it-easy.hpp>
 # include <mtc/byteBuffer.h>
 # include <mtc/arena.hpp>
 # include <mtc/zmap.h>
 # include <thread>
 
-#include "../../index/dynamic-entities.hxx"
+#include "src/indexes/dynamic-entities.hxx"
 
 auto  CreateEntityTable( std::initializer_list<std::pair<std::string, std::string>> entities ) -> std::vector<char>
 {
