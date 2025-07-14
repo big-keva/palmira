@@ -1,6 +1,6 @@
 # if !defined( __palmira_texts_DOM_load_hpp__ )
 # define __palmira_texts_DOM_load_hpp__
-# include "DOMini.hpp"
+# include "text-api.hpp"
 # include <moonycode/codes.h>
 # include <mtc/serialize.h>
 # include <functional>

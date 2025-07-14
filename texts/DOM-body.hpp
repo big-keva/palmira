@@ -1,29 +1,17 @@
 # if !defined( __palmira_texts_DOM_body_hpp__ )
 # define __palmira_texts_DOM_body_hpp__
-# include "DOM-text.hpp"
+# include "text-api.hpp"
 
 namespace palmira {
 namespace texts {
 
-  struct TextToken
-  {
-    enum: unsigned
-    {
-      lt_space = 1,
-      is_punct = 2
-    };
-
-    unsigned        uFlags;
-    const widechar* pwsstr;
-    uint32_t        offset;
-    uint32_t        length;
-  };
-
   template <class Allocator>
-  class Body
+  class BaseBody
   {
   public:
-   ~Body();
+    BaseBody( Allocator = Allocator() );
+    BaseBody( BaseBody&& );
+   ~BaseBody();
 
   public:
     auto  GetMarkup() const -> const std::vector<MarkupTag, Allocator>&  {  return markup;  }
@@ -42,10 +30,26 @@ namespace texts {
 
   };
 
-  // Body template implementation
+  using Body = BaseBody<std::allocator<char>>;
+
+  // BaseBody template implementation
 
   template <class Allocator>
-  Body<Allocator>::~Body()
+  BaseBody<Allocator>::BaseBody( Allocator a ):
+    markup( a ),
+    tokens( a ),
+    bufbox( a )
+  {}
+
+  template <class Allocator>
+  BaseBody<Allocator>::BaseBody( BaseBody&& b ):
+    markup( std::move( b.markup ) ),
+    tokens( std::move( b.tokens ) ),
+    bufbox( std::move( b.bufbox ) )
+  {}
+
+  template <class Allocator>
+  BaseBody<Allocator>::~BaseBody()
   {
     auto  deallocator = typename std::allocator_traits<Allocator>::template rebind_alloc<widechar>(
       bufbox.get_allocator() );
@@ -55,7 +59,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  auto  Body<Allocator>::AddBuffer( const widechar* pws, size_t len ) -> const widechar*
+  auto  BaseBody<Allocator>::AddBuffer( const widechar* pws, size_t len ) -> const widechar*
   {
     auto  palloc = typename std::allocator_traits<Allocator>::template rebind_alloc<widechar>(
       bufbox.get_allocator() ).allocate( len );
@@ -67,7 +71,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  auto  Body<Allocator>::Serialize( IText* text ) -> IText*
+  auto  BaseBody<Allocator>::Serialize( IText* text ) -> IText*
   {
     auto  lineIt = tokens.begin();
     auto  markIt = markup.begin();

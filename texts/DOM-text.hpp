@@ -1,6 +1,6 @@
 # if !defined( __palmira_DOM_text_hpp__ )
 # define __palmira_DOM_text_hpp__
-# include "DOMini.hpp"
+# include "text-api.hpp"
 # include <moonycode/codes.h>
 # include <mtc/wcsstr.h>
 # include <functional>
@@ -51,8 +51,8 @@ namespace texts {
 
   public:
     auto  AddTextTag( const char*, size_t = -1 ) -> mtc::api<IText> override;
-    void  AddCharStr( unsigned, const char*, size_t = -1 ) override;
-    void  AddWideStr( const widechar*, size_t = -1 ) override;
+    void  AddCharStr( const char*, size_t, unsigned ) override;
+    void  AddWideStr( const widechar*, size_t ) override;
 
   public:
     BaseDocument( Allocator allocator = Allocator() ):
@@ -96,7 +96,7 @@ namespace texts {
 
   protected:
     auto  AddTextTag( const char*, size_t ) -> mtc::api<IText> override;
-    void  AddCharStr( unsigned, const char*, size_t ) override;
+    void  AddCharStr( const char*, size_t, unsigned ) override;
     void  AddWideStr( const widechar*, size_t ) override;
 
     auto  LastMarkup( Markup* ) -> Markup*;
@@ -126,7 +126,7 @@ namespace texts {
 
     auto  AddTextTag( const char* tag, size_t len ) -> mtc::api<IText> override
       {  return new UtfTxt( output->AddTextTag( tag, len ), encode );  }
-    void  AddCharStr( unsigned enc, const char* str, size_t len ) override
+    void  AddCharStr( const char* str, size_t len, unsigned enc ) override
       {  output->AddString( codepages::mbcstowide( enc != 0 ? enc : encode, str, len ) );  }
     void  AddWideStr( const widechar* str, size_t len ) override
       {  return output->AddWideStr( str, len );  }
@@ -149,7 +149,7 @@ namespace texts {
     fnFill = [&]( mtc::api<IText> to, const std::initializer_list<Item>& it )
       {
         for ( auto& next: it )
-          if ( next.str != nullptr )  to->AddCharStr( codepages::codepage_utf8, next.str );
+          if ( next.str != nullptr )  to->AddCharStr( next.str, -1, codepages::codepage_utf8 );
             else  fnFill( to->AddMarkup( next.tag ), *next.arr );
       };
 
@@ -176,7 +176,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  void  BaseDocument<Allocator>::AddCharStr( unsigned codepage, const char* str, size_t len )
+  void  BaseDocument<Allocator>::AddCharStr( const char* str, size_t len, unsigned codepage )
   {
     char* pstr;
 
@@ -189,7 +189,7 @@ namespace texts {
     mtc::w_strncpy( pstr = rebind<char>( lines.get_allocator() ).allocate( len + 1 ),
       str, len )[len] = 0;
 
-    lines.push_back( { codepage, len, (const void*)pstr } );
+    lines.push_back( { (const void*)pstr, len, codepage } );
       chars += len;
   }
 
@@ -207,7 +207,7 @@ namespace texts {
     mtc::w_strncpy( pstr = rebind<widechar>( lines.get_allocator() ).allocate( len + 1 ),
       str, len )[len] = 0;
 
-    lines.push_back( { unsigned(-1), len, (const void*)pstr } );
+    lines.push_back( { (const void*)pstr, len, unsigned(-1) } );
       chars += len;
   }
 
@@ -342,7 +342,7 @@ namespace texts {
   }
 
   template <class Allocator>
-  void  BaseDocument<Allocator>::Markup::AddCharStr( unsigned encoding, const char* str, size_t len )
+  void  BaseDocument<Allocator>::Markup::AddCharStr( const char* str, size_t len, unsigned encoding )
   {
     Markup* last;
     char*   pstr;
@@ -359,7 +359,7 @@ namespace texts {
     mtc::w_strncpy( pstr = rebind<char>( docptr->lines.get_allocator() ).allocate( len + 1 ),
       str, len )[len] = 0;
 
-    docptr->lines.push_back( { encoding, len, pstr } );
+    docptr->lines.push_back( { pstr, len, encoding } );
       docptr->chars += len;
   }
 
@@ -381,7 +381,7 @@ namespace texts {
     mtc::w_strncpy( pstr = rebind<widechar>( docptr->lines.get_allocator() ).allocate( len + 1 ),
       str, len )[len] = 0;
 
-    docptr->lines.push_back( { unsigned(-1), len, pstr } );
+    docptr->lines.push_back( { pstr, len, unsigned(-1) } );
       docptr->chars += len;
   }
 
