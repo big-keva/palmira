@@ -1,107 +1,11 @@
-# if !defined( __palmira_query_key_hpp__ )
-# define __palmira_query_key_hpp__
-# include <mtc/serialize.h>
-# include <mtc/wcsstr.h>
-# include <stdexcept>
-# include <cstdint>
+# include "context/index-keys.hpp"
 
 namespace palmira {
 namespace query {
 
-  template <class Allocator>
-  class basic_key
-  {
-    enum: unsigned
-    {
-      is_string = 1,
-      has_class = 2
-    };
-    struct memkey
-    {
-      int       rcount;
-      Allocator malloc;
-    };
+  // Key implementation
 
-    char  keybuf[sizeof(char*) * 3];
-    char* keyptr;
-
-    template <class A>
-    using wide_string = std::basic_string<widechar, std::char_traits<widechar>, A>;
-
-    template <class I>
-    static  int   valuelen( I );
-    static  char* writeint( char*, uint16_t );
-    static  char* writeint( char*, uint32_t );
-    static  char* writeint( char*, uint64_t );
-    static  auto  loadfrom( const char*, uint32_t& ) -> const char*;
-
-  public:
-    basic_key();
-    basic_key( basic_key&& );
-    basic_key( const basic_key& );
-    basic_key( unsigned, uint32_t );
-    basic_key( unsigned, uint64_t );
-    basic_key( unsigned, uint32_t, const widechar*, size_t, Allocator = Allocator() );
-    basic_key( unsigned, const widechar*, size_t, Allocator = Allocator() );
-  template <class OtherAllocator>
-    basic_key( unsigned, uint32_t, const wide_string<OtherAllocator>&, Allocator = Allocator() );
-  template <class OtherAllocator>
-    basic_key( unsigned, const wide_string<OtherAllocator>&, Allocator = Allocator() );
-   ~basic_key();
-
-    basic_key& operator=( basic_key&& );
-    basic_key& operator=( const basic_key& );
-
-  public:
-    void  clear();
-
-    auto  data() const -> const char*
-    {
-      if ( keyptr != nullptr )
-        return ::SkipToEnd( (const char*)keyptr, (unsigned*)nullptr );
-      return nullptr;
-    }
-    auto  size() const -> size_t
-    {
-      unsigned  cchkey;
-
-      if ( keyptr != nullptr )
-        return ::FetchFrom( (const char*)keyptr, cchkey ), cchkey;
-      return 0;
-    }
-
-    bool  has_int() const;
-    bool  has_str() const;
-    bool  has_cls() const;
-
-    auto  get_idl() const -> unsigned;
-    auto  get_int() const -> uint64_t;
-    auto  get_cls() const -> uint32_t;
-    auto  get_str( widechar*, size_t ) const -> const widechar*;
-    auto  get_len() const -> size_t;
-
-  };
-
-  using key = basic_key<std::allocator<char>>;
-
-  // basic_key template implementation
-
-  template <class Allocator>
-  template <class U>
-  int   basic_key<Allocator>::valuelen( U u )
-  {
-    return u <= 0x0000007f ? 1 :
-           u <= 0x000007ff ? 2 :
-           u <= 0x0000ffff ? 3 :
-           u <= 0x001fffff ? 4 :
-           u <= 0x03ffffff ? 5 :
-           u <= 0x7fffffff ? 6 :
-           u <= 0x0fffffffff ? 7 :
-           u <= 0x03ffffffffff ? 8 : (throw std::invalid_argument( "value too big to be presented as utf-8" ), 0);
-  }
-
-  template <class Allocator>
-  char* basic_key<Allocator>::writeint( char* p, uint16_t n )
+  char* Key::writeint( char* p, uint16_t n )
   {
     if ( (n & ~0x007f) == 0 )
     {
@@ -122,8 +26,7 @@ namespace query {
     return p;
   }
 
-  template <class Allocator>
-  char* basic_key<Allocator>::writeint( char* p, uint32_t n )
+  char* Key::writeint( char* p, uint32_t n )
   {
     if ( (n & ~0x0000ffff) == 0 )
       return writeint( p, (uint16_t)n );
@@ -166,8 +69,7 @@ namespace query {
     return p;
   }
 
-  template <class Allocator>
-  char* basic_key<Allocator>::writeint( char* p, uint64_t n )
+  char* Key::writeint( char* p, uint64_t n )
   {
     if ( (n & ~uint64_t(0x0ffffffff)) == 0 )
       return writeint( p, (uint32_t)n );
@@ -198,8 +100,7 @@ namespace query {
     return p;
   }
 
-  template <class Allocator>
-  auto  basic_key<Allocator>::loadfrom( const char* p, uint32_t& v ) -> const char*
+  auto  Key::loadfrom( const char* p, uint32_t& v ) -> const char*
   {
     uint8_t   ctlchr = (uint8_t)*p++;
 
@@ -267,34 +168,30 @@ namespace query {
     return nullptr;
   }
 
-  template <class Allocator>
-  basic_key<Allocator>::basic_key(): keyptr( nullptr )
+  Key::Key(): keyptr( nullptr )
   {
   }
 
-  template <class Allocator>
-  basic_key<Allocator>::basic_key( basic_key&& key )
+  Key::Key( Key&& key )
   {
     if ( (keyptr = key.keyptr) != nullptr )
     {
       if ( keyptr == key.keybuf )
         keyptr = (char*)memcpy( keybuf, key.keybuf, sizeof(keybuf) );
-      key.keybuf = nullptr;
+      key.keyptr = nullptr;
     }
   }
 
-  template <class Allocator>
-  basic_key<Allocator>::basic_key( const basic_key& key )
+  Key::Key( const Key& key )
   {
     if ( (keyptr = key.keyptr) != nullptr )
     {
-      if ( keyptr != key.keybuf ) ++(-1 + (memkey*)keyptr)->rcount;
+      if ( keyptr != key.keybuf ) ++(-1 + (OnHeapKey*)keyptr)->rcount;
         else keyptr = (char*)memcpy( keybuf, key.keybuf, sizeof(keybuf) );
     }
   }
 
-  template <class Allocator>
-  basic_key<Allocator>::basic_key( unsigned idl, uint32_t lex )
+  Key::Key( unsigned idl, uint32_t lex )
   {
     auto  keylen = valuelen( idl << 2 ) + valuelen( lex );
     auto  keyout = keyptr = keybuf;
@@ -302,8 +199,7 @@ namespace query {
     writeint( writeint( ::Serialize( keyout, keylen ), idl << 2 ), lex );
   }
 
-  template <class Allocator>
-  basic_key<Allocator>::basic_key( unsigned idl, uint64_t lex )
+  Key::Key( unsigned idl, uint64_t lex )
   {
     auto  keylen = valuelen( idl << 2 ) + valuelen( lex );
     auto  keyout = keyptr = keybuf;
@@ -311,88 +207,12 @@ namespace query {
     writeint( writeint( ::Serialize( keyout, keylen ), idl << 2 ), lex );
   }
 
-  template <class Allocator>
-  basic_key<Allocator>::basic_key( unsigned idl, uint32_t cls, const widechar* str, size_t len, Allocator mem )
-  {
-    auto    keylen = valuelen( (idl << 2) | is_string | has_class ) + valuelen( cls ) + valuelen( 0 );
-    size_t  nalloc;
-    char*   outptr = keyptr = keybuf;
-
-    if ( str == nullptr || len == 0 )
-      throw std::invalid_argument( "key string is empty" );
-
-    if ( len == size_t(-1) )
-      for ( len = 0; str[len] != 0; ++len ) (void)NULL;
-
-    for ( auto s = str; s != str + len; ++s )
-      keylen += valuelen( *s );
-
-    if ( (nalloc = ::GetBufLen( keylen ) + keylen) > sizeof(keybuf) )
-    {
-      auto  malloc = typename std::allocator_traits<Allocator>::template rebind_alloc<memkey>( mem );
-      auto  nitems = (nalloc + sizeof(memkey) * 2 - 1) / sizeof(memkey);
-      auto  memptr = malloc.allocate( nitems );
-
-      outptr = keyptr = (char*)(1 + memptr);
-        memptr->rcount = 1;
-    }
-
-    for ( outptr = writeint( ::Serialize( outptr, keylen ), (idl << 2)  | is_string | has_class ); len-- != 0; ++str )
-      outptr = writeint( outptr, *str );
-
-    writeint( writeint( outptr, uint16_t(0) ), cls );
-  }
-
-  template <class Allocator>
-  basic_key<Allocator>::basic_key( unsigned idl, const widechar* str, size_t len, Allocator mem )
-  {
-    auto    keylen = valuelen( (idl << 2) | is_string ) + valuelen( 0 );
-    size_t  nalloc;
-    char*   outptr = keyptr = keybuf;
-
-    if ( str == nullptr || len == 0 )
-      throw std::invalid_argument( "key string is empty" );
-
-    if ( len == size_t(-1) )
-      for ( len = 0; str[len] != 0; ++len ) (void)NULL;
-
-    for ( auto s = str; s != str + len; ++s )
-      keylen += valuelen( *s );
-
-    if ( (nalloc = ::GetBufLen( keylen ) + keylen) > sizeof(keybuf) )
-    {
-      auto  malloc = typename std::allocator_traits<Allocator>::template rebind_alloc<memkey>( mem );
-      auto  nitems = (nalloc + sizeof(memkey) * 2 - 1) / sizeof(memkey);
-      auto  memptr = malloc.allocate( nitems );
-
-      outptr = keyptr = (char*)(1 + memptr);
-      memptr->rcount = 1;
-    }
-
-    for ( outptr = writeint( ::Serialize( outptr, keylen ), (idl << 2) | is_string ); len-- != 0; ++str )
-      outptr = writeint( outptr, *str );
-
-    writeint( outptr, uint16_t(0) );
-  }
-
-  template <class Allocator>
-  template <class OtherAllocator>
-  basic_key<Allocator>::basic_key( unsigned idl, uint32_t cls, const wide_string<OtherAllocator>& str, Allocator mem ):
-    basic_key( idl, cls, str.data(), str.size(), mem ) {}
-
-  template <class Allocator>
-  template <class OtherAllocator>
-  basic_key<Allocator>::basic_key( unsigned idl, const wide_string<OtherAllocator>& str, Allocator mem ):
-    basic_key( idl, str.data(), str.size(), mem ) {}
-
-  template <class Allocator>
-  basic_key<Allocator>::~basic_key()
+  Key::~Key()
   {
     clear();
   }
 
-  template <class Allocator>
-  auto  basic_key<Allocator>::operator=( basic_key&& key ) -> basic_key<Allocator>&
+  auto  Key::operator=( Key&& key ) noexcept -> Key&
   {
     clear();
 
@@ -405,38 +225,49 @@ namespace query {
     return *this;
   }
 
-  template <class Allocator>
-  auto  basic_key<Allocator>::operator=( const basic_key& key ) -> basic_key<Allocator>&
+  auto  Key::operator=( const Key& key ) -> Key&
   {
     clear();
 
     if ( (keyptr = key.keyptr) != nullptr )
     {
-      if ( keyptr == key.keybuf ) ++(-1 + (memkey*)keyptr)->rcount;
+      if ( keyptr == key.keybuf ) ++(-1 + (OnHeapKey*)keyptr)->rcount;
         else keyptr = (char*)memcpy( keybuf, key.keybuf, sizeof(keybuf) );
     }
     return *this;
   }
 
-  template <class Allocator>
-  void  basic_key<Allocator>::clear()
+  int   Key::compare( const Key& key ) const
+  {
+    if ( keyptr != key.keyptr )
+    {
+      auto  src = (const uint8_t*)data();
+      auto  cmp = (const uint8_t*)key.data();
+      auto  end = src + std::min( size(), key.size() );
+      int   res;
+
+      while ( src != end && (res = *src - *cmp) == 0 )
+        ++src, ++cmp;
+
+      return res != 0 ? res : size() - key.size();
+    }
+    return 0;
+
+  }
+
+  void  Key::clear()
   {
     if ( keyptr != nullptr && keyptr != keybuf )
     {
-      auto  ptrmem = ((memkey*)keyptr) - 1;
+      auto  memkey = ((OnHeapKey*)keyptr) - 1;
 
-      if ( --ptrmem->rcount == 0 )
-      {
-        auto  malloc = typename std::allocator_traits<Allocator>::template rebind_alloc<memkey>(
-          ptrmem->malloc );
-        malloc.deallocate( ptrmem, 0 );
-      }
+      if ( --memkey->rcount == 0 )
+        memkey->freeFn( memkey );
     }
     keyptr = nullptr;
   }
 
-  template <class Allocator>
-  bool  basic_key<Allocator>::has_int() const
+  bool  Key::has_int() const
   {
     uint32_t  idl;
 
@@ -448,8 +279,7 @@ namespace query {
     return false;
   }
 
-  template <class Allocator>
-  bool  basic_key<Allocator>::has_str() const
+  bool  Key::has_str() const
   {
     uint32_t  idl;
 
@@ -461,8 +291,7 @@ namespace query {
     return false;
   }
 
-  template <class Allocator>
-  bool  basic_key<Allocator>::has_cls() const
+  bool  Key::has_cls() const
   {
     uint32_t  idl;
 
@@ -474,8 +303,7 @@ namespace query {
     return false;
   }
 
-  template <class Allocator>
-  auto  basic_key<Allocator>::get_idl() const -> unsigned
+  auto  Key::get_idl() const -> unsigned
   {
     uint32_t  idl;
 
@@ -486,8 +314,7 @@ namespace query {
     return unsigned(-1);
   }
 
-  template <class Allocator>
-  auto  basic_key<Allocator>::get_int() const -> uint64_t
+  auto  Key::get_int() const -> uint64_t
   {
     uint32_t    idl;
     uint32_t    lex;
@@ -501,8 +328,7 @@ namespace query {
     return 0;
   }
 
-  template <class Allocator>
-  auto  basic_key<Allocator>::get_cls() const -> uint32_t
+  auto  Key::get_cls() const -> uint32_t
   {
     uint32_t    idl;
     uint32_t    cls;
@@ -524,8 +350,7 @@ namespace query {
     return src != nullptr && (src = loadfrom( src, cls )) != nullptr ? cls : 0;
   }
 
-  template <class Allocator>
-  auto  basic_key<Allocator>::get_str( widechar* out, size_t max ) const -> const widechar*
+  auto  Key::get_str( widechar* out, size_t max ) const -> const widechar*
   {
     uint32_t    idl;
     size_t      len;
@@ -552,8 +377,7 @@ namespace query {
     return src != nullptr && len < max ? out[len] = 0, out : nullptr;
   }
 
-  template <class Allocator>
-  auto  basic_key<Allocator>::get_len() const -> size_t
+  auto  Key::get_len() const -> size_t
   {
     uint32_t    idl;
     size_t      len;
@@ -576,5 +400,3 @@ namespace query {
   }
 
 }}
-
-# endif // __palmira_query_key_hpp__
