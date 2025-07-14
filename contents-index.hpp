@@ -3,6 +3,7 @@
 # include "span.hpp"
 # include <mtc/iStream.h>
 # include <string_view>
+# include <functional>
 
 namespace palmira
 {
@@ -170,7 +171,7 @@ namespace palmira
   */
   struct IContentsIndex::IIndexAPI
   {
-    virtual void  Insert( const Span& key, const Span& block, unsigned bkType = unsigned(-1) ) = 0;
+    virtual void  Insert( const Span& key, const Span& block, unsigned bkType ) = 0;
   };
 
   struct IContentsIndex::IEntities: public mtc::Iface
@@ -206,7 +207,8 @@ namespace palmira
   */
   struct IContents: public mtc::Iface
   {
-    virtual void  Enumerate( IContentsIndex::IIndexAPI* ) const = 0;
+    virtual void  Enum( IContentsIndex::IIndexAPI* ) const = 0;
+            void  List( std::function<void(const Span&, const Span&, unsigned)> );
   };
 
 }

@@ -58,7 +58,7 @@ namespace dump_as {
 
       return new JsonTag( fWrite, uShift + 1, std::string( tag, len ) );
     }
-    void  AddCharStr( unsigned codepage, const char* str, size_t len ) override
+    void  AddCharStr( const char* str, size_t len, unsigned codepage ) override
     {
       auto  putstr = std::string();
 
@@ -83,8 +83,8 @@ namespace dump_as {
     }
     void  AddWideStr( const widechar* wcs, size_t len ) override
     {
-      AddCharStr( codepages::codepage_utf8, codepages::widetombcs(
-        codepages::codepage_utf8, wcs, len ).c_str(), -1 );
+      AddString( codepages::widetombcs( codepages::codepage_utf8, wcs, len ).c_str(),
+        codepages::codepage_utf8 );
     }
   protected:
     void  Print( const char* str, size_t len ) const

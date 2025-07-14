@@ -25,8 +25,10 @@ add_library(palmira-texts
         texts/dump-as-json.cpp
 	texts/dump-as-tags.cpp
         texts/load-as-json.cpp
-        texts/load-as-tags.cpp
+        texts/load-as-tags.cpp)
 
-)
+add_library(palmira-context
+        context/index-keys.cpp
+	context/decomposer.cpp)
 
 add_subdirectory(utils)

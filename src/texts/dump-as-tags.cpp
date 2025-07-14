@@ -53,7 +53,7 @@ namespace dump_as {
 
       return new TagsTag( fWrite, encode, uShift + 1, std::string( tag, len ) );
     }
-    void  AddCharStr( unsigned codepage, const char* str, size_t len ) override
+    void  AddCharStr( const char* str, size_t len, unsigned codepage ) override
     {
       std::string  sprint;
 
@@ -78,7 +78,7 @@ namespace dump_as {
     }
     void  AddWideStr( const widechar* wcs, size_t len ) override
     {
-      AddCharStr( encode, codepages::widetombcs( encode, wcs, len ).c_str(), -1 );
+      AddString( codepages::widetombcs( encode, wcs, len ), encode );
     }
   protected:
     void  Print( const char* str, size_t len ) const

@@ -175,7 +175,7 @@ namespace dynamic {
 
   // process contents indexing
     if ( keys != nullptr )
-      keys->Enumerate( KeyValue( contents, entity->GetIndex() ).ptr() );
+      keys->Enum( KeyValue( contents, entity->GetIndex() ).ptr() );
 
     return entity.ptr();
   }

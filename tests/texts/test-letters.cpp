@@ -1,7 +1,7 @@
 # include "texts/DOM-text.hpp"
 # include "texts/DOM-dump.hpp"
 # include "texts/DOM-load.hpp"
-# include "src/texts/text-to-toks.hpp"
+# include "src/texts/text-2-image.hpp"
 # include <moonycode/codes.h>
 # include <mtc/serialize.h>
 # include <mtc/arena.hpp>
@@ -203,7 +203,7 @@ TestItEasy::RegisterFunc  test_texts( []()
       "Третья строка."
     };
     auto  ucText = palmira::texts::Document();
-    auto  txBody = palmira::texts::Body<std::allocator<char>>();
+    auto  txBody = palmira::texts::BaseBody<std::allocator<char>>();
 
     SECTION( "multibyte text could not be processed by tokenizer" )
     {
@@ -224,7 +224,7 @@ TestItEasy::RegisterFunc  test_texts( []()
     {
       REQUIRE_NOTHROW( palmira::texts::BreakWords( txBody, ucText.GetBlocks() ) );
     }
-    SECTION( "formatting may be transfered from text to Body" )
+    SECTION( "formatting may be transfered from text to BaseBody" )
     {
       REQUIRE_NOTHROW( palmira::texts::CopyMarkup( txBody, ucText.GetMarkup() ) );
     }
@@ -261,6 +261,6 @@ TestItEasy::RegisterFunc  test_texts( []()
           "строка\n"
           ".\n" );
       }
-  }
+    }
   }
 } );

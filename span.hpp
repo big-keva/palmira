@@ -1,31 +1,51 @@
 # if !defined( __palmira_span_hpp__ )
 # define __palmira_span_hpp__
 # include <mtc/iBuffer.h>
-# include <string_view>
-# include <vector>
 
 namespace palmira
 {
 
-  class Span
+  template <class T>
+  class Slice
   {
-    const char* ptr;
-    size_t      len;
+  public:
+    Slice():
+      items( nullptr ),
+      count( 0 )  {}
+    Slice( const T* data, size_t size ):
+      items( data ),
+      count( size ) {}
+    Slice( const Slice& ) = default;
+  template <class Iterable>
+    Slice( const Iterable& coll ):
+      items( coll.data() ),
+      count( coll.size() )  {}
 
   public:
-    auto  data() const -> const char* {  return ptr;  }
-    auto  size() const -> size_t {  return len;  }
+    auto  begin() const {  return items;  }
+    auto  end() const   {  return items + count;  }
+    auto  data() const -> const T* {  return items;  }
+    auto  size() const -> size_t   {  return count;  }
+    bool  empty() const {  return count == 0;  }
+
+    auto  at( size_t pos ) const -> const T& {  return items[pos];  }
+    auto  operator[]( size_t pos ) const -> const T& {  return items[pos];  }
+
+  protected:
+    const T*  items;
+    size_t    count;
+
+  };
+
+  class Span: public Slice<const char>
+  {
+    using Slice::Slice;
 
   public:
-    Span(): ptr( nullptr ), len( 0 ) {}
     Span( const char* pch );
-    Span( const char* pch, size_t cch ): ptr( pch ), len( cch ) {}
     Span( mtc::api<const mtc::IByteBuffer> );
-    template <class Allocator>
-    Span( const std::basic_string<char, std::char_traits<char>, Allocator>& src ):
-      Span( src.data(), src.size() ) {}
-    template <class Allocator>
-    Span( const std::vector<char, Allocator>& src ):
+    template <class Collector>
+    Span( const Collector& src ):
       Span( src.data(), src.size() ) {}
   };
 
