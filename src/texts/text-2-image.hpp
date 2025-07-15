@@ -8,13 +8,13 @@
 namespace palmira {
 namespace texts   {
 
-  template <class ... Classes>
+  template <class ... Classes> inline
   bool  IsCharClass( widechar c, unsigned cls, Classes ... classes )
   {
     return (codepages::charType[c] & 0xf0) == cls || IsCharClass( c, classes... );
   }
 
-  template <>
+  template <> inline
   bool  IsCharClass( widechar c, unsigned cls )
   {
     return (codepages::charType[c] & 0xf0) == cls;
@@ -127,6 +127,7 @@ namespace texts   {
     return output;
   }
 
+  inline
   auto  BreakWords( const Slice<TextChunk>& blocks ) -> Body
   {
     Body  body;

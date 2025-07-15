@@ -1,14 +1,15 @@
 # include "contents-index.hpp"
+# include "lang-api.hpp"
 # include "src/texts/text-2-image.hpp"
-# include "index-type.hpp"
-# include "index-keys.hpp"
+# include "context/index-keys.hpp"
+# include "context/index-type.hpp"
 # include <mtc/arbitrarymap.h>
 # include <mtc/arena.hpp>
 # include <memory>
+#include <context/make-image.hpp>
 
 namespace palmira {
-namespace query {
-namespace coord {
+namespace context {
 
   struct Elements
   {
@@ -23,6 +24,13 @@ namespace coord {
   public:
     Contents():
       keyToPos( memArena.Create<ElementMap>() ) {}
+
+  protected:
+    static
+    auto  CreateKey( unsigned idl, uint32_t cls, const widechar* str, size_t len ) -> Key
+    {
+      return cls != 0 ? Key( idl, cls, str, len ) : Key( idl, str, len );
+    }
 
   public:
     template <class Compressor, class ... Args>
@@ -67,6 +75,7 @@ namespace coord {
     auto    GetBufLen() const -> size_t {  return ::GetBufLen( pos ) + 1;  }
   template <class O>
     auto    Serialize( O* o ) const -> O* {  return ::Serialize( ::Serialize( o, pos ), fid );  }
+
   };
 
   using MiniEntry = unsigned;
@@ -128,8 +137,8 @@ namespace coord {
   template <class ... Args>
     void  AddRecord( Args... ) {  ++count;  }
     auto  BlockType() const -> unsigned override  {  return objectType;  }
-    auto  GetBufLen() const -> size_t override    {  return ::GetBufLen( count - 1 );  }
-    char* Serialize( char* o ) const override     {  return ::Serialize( o, count - 1 );  }
+    auto  GetBufLen() const -> size_t override    {  return ::GetBufLen( count );  }
+    char* Serialize( char* o ) const override     {  return ::Serialize( o, count );  }
   };
 
   class EntryIgnored: public Elements
@@ -202,7 +211,7 @@ namespace coord {
     }
   }
 
-  class DetailedContents final: public Contents
+  class RichContents final: public Contents
   {
     implement_lifetime_control
 
@@ -226,9 +235,7 @@ namespace coord {
       size_t          len,
       uint32_t        cls, const uint8_t* fms, size_t cnt ) override
     {
-      auto  key = cls != 0 ?
-        Key( idl, cls, str, len, get_allocator() ) :
-        Key( idl, str, len, get_allocator() );
+      auto  key = CreateKey( idl, cls, str, len );
 
       if ( cnt > 1 && *fms != 0xff )
         return AddRecord<Compressor<EntryBlockType::FormsOrder, LongEntry, mtc::Arena::allocator<char>>>( Span( key ), unsigned(pos), *fms );
@@ -248,6 +255,7 @@ namespace coord {
       uint32_t  lex, const uint8_t* fms, size_t cnt ) override
     {
       (void)pos, (void)fms, (void)cnt;
+
       return AddRecord<EntryCounter>( Key( idl, lex ) );
     }
     void  AddStem(
@@ -259,13 +267,11 @@ namespace coord {
     {
       (void)pos, (void)fms, (void)cnt;
 
-      return AddRecord<EntryCounter>( cls != 0 ?
-        Key( idl, cls, str, len, get_allocator() ) :
-        Key( idl, str, len, get_allocator() ) );
+      return AddRecord<EntryCounter>( CreateKey( idl, cls, str, len ) );
     }
   };
 
-  class NullContents final: public Contents
+  class LiteContents final: public Contents
   {
     implement_lifetime_control
 
@@ -276,6 +282,7 @@ namespace coord {
       uint32_t  lex, const uint8_t* fms, size_t cnt ) override
     {
       (void)pos, (void)fms, (void)cnt;
+
       return AddRecord<EntryIgnored>( Key( idl, lex ) );
     }
     void  AddStem(
@@ -286,8 +293,24 @@ namespace coord {
       uint32_t        cls, const uint8_t* fms, size_t cnt ) override
     {
       (void)pos, (void)fms, (void)cnt;
-      return AddRecord<EntryIgnored>( Key( idl, cls, str, len, get_allocator() ) );
+
+      return AddRecord<EntryIgnored>( CreateKey( idl, cls, str, len ) );
     }
   };
 
-}}}
+  auto  Lite::Create() -> mtc::api<IImage>
+  {
+    return mtc::api<IImage>( new LiteContents() );
+  }
+
+  auto  BM25::Create() -> mtc::api<IImage>
+  {
+    return mtc::api<IImage>( new BM25Contents() );
+  }
+
+  auto  Rich::Create() -> mtc::api<IImage>
+  {
+    return mtc::api<IImage>( new RichContents() );
+  }
+
+}}

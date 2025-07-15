@@ -3,7 +3,7 @@
 # include <memory>
 
 namespace palmira {
-namespace query {
+namespace context {
 
   class ExternalDecomposer
   {
@@ -38,7 +38,7 @@ namespace query {
   // DefaultDecomposer implementation
 
   void  DefaultDecomposer::operator()(
-    IImage*                       image,
+    IImage*                  image,
     const Slice<TextToken>&  words,
     const Slice<MarkupTag>&/*mtags*/)
   {

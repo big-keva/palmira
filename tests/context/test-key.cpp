@@ -2,12 +2,15 @@
 # include <mtc/test-it-easy.hpp>
 # include <moonycode/codes.h>
 
+using namespace palmira;
+using namespace palmira::context;
+
 TestItEasy::RegisterFunc  test_key( []()
 {
   TEST_CASE( "query/Key" )
   {
-    palmira::query::Key key;
-    widechar            str[10];
+    Key       key;
+    widechar  str[10];
 
     SECTION( "uninitialized Key is empty" )
     {
@@ -82,7 +85,7 @@ TestItEasy::RegisterFunc  test_key( []()
       auto      str = "это очень длинный ключ, сделанный из строки utf8 заведомо большой длины";
       widechar  buf[100];
 
-      key = palmira::query::Key( 96, 11627, codepages::mbcstowide( codepages::codepage_utf8, str ) );
+      key = Key( 96, 11627, codepages::mbcstowide( codepages::codepage_utf8, str ) );
 
       REQUIRE( key.has_int() == false );
       REQUIRE( key.has_str() == true );

@@ -1,7 +1,6 @@
 # if !defined( __palmira_lang_api_hpp__ )
 # define __palmira_lang_api_hpp__
-#include <contents-index.hpp>
-
+# include <contents-index.hpp>
 # include "text-api.hpp"
 
 namespace palmira {

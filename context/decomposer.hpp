@@ -1,10 +1,10 @@
-# if !defined( __palmira_decomposer_hpp__ )
-# define __palmira_decomposer_hpp__
+# if !defined( __palmira_context_decomposer_hpp__ )
+# define __palmira_context_decomposer_hpp__
 # include "lang-api.hpp"
 # include <functional>
 
 namespace palmira {
-namespace query {
+namespace context {
 
   using Decomposer = std::function<void( IImage*,
     const Slice<TextToken>&,
@@ -20,4 +20,4 @@ namespace query {
 
 }};
 
-# endif // !__palmira_decomposer_hpp__
+# endif // !__palmira_context_decomposer_hpp__

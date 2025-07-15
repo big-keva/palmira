@@ -1,7 +1,7 @@
 # include "context/index-keys.hpp"
 
 namespace palmira {
-namespace query {
+namespace context {
 
   // Key implementation
 

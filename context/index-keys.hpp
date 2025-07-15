@@ -1,5 +1,5 @@
-# if !defined( __palmira_query_index_keys_hpp__ )
-# define __palmira_query_index_keys_hpp__
+# if !defined( __palmira_context_index_keys_hpp__ )
+# define __palmira_context_index_keys_hpp__
 # include "span.hpp"
 # include <mtc/serialize.h>
 # include <mtc/wcsstr.h>
@@ -7,7 +7,7 @@
 # include <cstdint>
 
 namespace palmira {
-namespace query {
+namespace context {
 
   class Key
   {
@@ -217,4 +217,4 @@ namespace query {
 
 }}
 
-# endif // __palmira_query_index_keys_hpp__
+# endif // __palmira_context_index_keys_hpp__

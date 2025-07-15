@@ -1,11 +1,13 @@
 # include "context/decomposer.hpp"
-# include "context/contents-processor.hpp"
+# include "context/make-image.hpp"
+# include "context/index-keys.hpp"
+# include "context/index-type.hpp"
 # include "texts/DOM-text.hpp"
 # include "src/texts/text-2-image.hpp"
 # include <mtc/test-it-easy.hpp>
 
 using namespace palmira;
-using namespace palmira::query;
+using namespace palmira::context;
 using namespace palmira::texts;
 
 auto  StrKey( const char* str ) -> Key
@@ -44,8 +46,7 @@ TestItEasy::RegisterFunc  test_contents_processor( []()
           {
             SECTION( "* as simple keys index")
             {
-              if ( REQUIRE_NOTHROW( contents = mtc::api<IImage>( new coord::NullContents() ) )
-                && REQUIRE( contents != nullptr ) )
+              if ( REQUIRE_NOTHROW( contents = Lite::Create() ) && REQUIRE( contents != nullptr ) )
               {
                 REQUIRE_NOTHROW( decomposer( contents,
                   body.GetTokens(),
@@ -60,8 +61,7 @@ TestItEasy::RegisterFunc  test_contents_processor( []()
             }
             SECTION( "* as BM25 index")
             {
-              if ( REQUIRE_NOTHROW( contents = mtc::api<IImage>( new coord::BM25Contents() ) )
-                && REQUIRE( contents != nullptr ) )
+              if ( REQUIRE_NOTHROW( contents = BM25::Create() ) && REQUIRE( contents != nullptr ) )
               {
                 REQUIRE_NOTHROW( decomposer( contents,
                   body.GetTokens(),
@@ -71,22 +71,20 @@ TestItEasy::RegisterFunc  test_contents_processor( []()
                   {
                     if ( REQUIRE( bkType == EntryBlockType::EntryCount ) && REQUIRE( value.size() != 0 ) )
                     {
-                      int ncount;
+                      auto  curkey = Key( key.data(), key.size() );
+                      int   ncount;
 
                       ::FetchFrom( value.data(), ncount );
 
-                      if ( Key( key.data(), key.size() ) == StrKey( "фонарь" ) )
-                        REQUIRE( ncount == 1 );
-                      else
-                        REQUIRE( ncount == 0 );
+                      if ( curkey == StrKey( "фонарь" ) ) REQUIRE( ncount == 2 );
+                        else  REQUIRE( ncount == 1 );
                     }
                   } ) );
               }
             }
             SECTION( "* as detailed index")
             {
-              if ( REQUIRE_NOTHROW( contents = mtc::api<IImage>( new coord::DetailedContents() ) )
-                && REQUIRE( contents != nullptr ) )
+              if ( REQUIRE_NOTHROW( contents = Rich::Create() ) && REQUIRE( contents != nullptr ) )
               {
                 REQUIRE_NOTHROW( decomposer( contents,
                   body.GetTokens(),

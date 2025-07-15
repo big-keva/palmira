@@ -2,7 +2,7 @@
 # define __palmira_query_block_type_hpp__
 
 namespace palmira {
-namespace query {
+namespace context {
 
   struct EntryBlockType final
   {

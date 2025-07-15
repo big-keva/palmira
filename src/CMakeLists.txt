@@ -29,6 +29,7 @@ add_library(palmira-texts
 
 add_library(palmira-context
         context/index-keys.cpp
+        context/make-image.cpp
 	context/decomposer.cpp)
 
 add_subdirectory(utils)
