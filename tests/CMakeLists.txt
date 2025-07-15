@@ -28,7 +28,7 @@ add_executable(test-palmira-texts
 
 add_executable(test-palmira-context
 	context/test-key.cpp
-	context/test-contents-processor.cpp
+	context/test-contents.cpp
 
 	test-main.cpp)
 
