@@ -1,4 +1,4 @@
-# include "../../tinyxml/load-xml-text.hpp"
+# include "../../readers/load-xml-text.hpp"
 # include <mtc/wcsstr.h>
 # include <tinyxml2.h>
 # include <map>

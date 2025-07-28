@@ -1,5 +1,5 @@
-# if !defined( __palmira_tinyxml_load_xml_text_hpp__ )
-# define __palmira_tinyxml_load_xml_text_hpp__
+# if !defined( __palmira_readers_load_xml_text_hpp__ )
+# define __palmira_readers_load_xml_text_hpp__
 # include "DelphiX/text-api.hpp"
 
 namespace palmira {
@@ -19,4 +19,4 @@ namespace tinyxml {
 
 }}
 
-# endif   // !__palmira_tinyxml_load_xml_text_hpp__
+# endif   // !__palmira_readers_load_xml_text_hpp__
