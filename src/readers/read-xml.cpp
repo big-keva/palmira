@@ -1,4 +1,4 @@
-# include "../../readers/load-xml-text.hpp"
+# include "../../readers/read-xml.hpp"
 # include <mtc/wcsstr.h>
 # include <tinyxml2.h>
 # include <map>
@@ -33,11 +33,11 @@ namespace tinyxml {
 
     if ( encode != decmap.end() )
     {
-      if ( mtc::w_strcasecmp( encode->second.c_str(), "utf-8" ) == 0 )    this->encode = codepages::codepage_utf8;
+      if ( mtc::w_strcasecmp( encode->second.c_str(), "utf-8" ) == 0 )        this->encode = codepages::codepage_utf8;
         else
-      if ( mtc::w_strcasecmp( encode->second.c_str(), "windows" ) == 0 )  this->encode = codepages::codepage_1251;
+      if ( mtc::w_strcasecmp( encode->second.c_str(), "windows-1251" ) == 0 ) this->encode = codepages::codepage_1251;
         else
-      if ( mtc::w_strcasecmp( encode->second.c_str(), "iso-8859" ) == 0 ) this->encode = codepages::codepage_iso;
+      if ( mtc::w_strcasecmp( encode->second.c_str(), "iso-8859" ) == 0 )     this->encode = codepages::codepage_iso;
         else
       throw std::invalid_argument( mtc::strprintf( "invalid encoding '%s'", encode->second.c_str() ) );
     }
@@ -116,7 +116,7 @@ namespace tinyxml {
     return pmap != tagMap.end() ? pmap->second : TagMode::undefined;
   }
 
-  void  LoadObject( DelphiX::textAPI::IText* text, const TagModes& maps, const char* buff, size_t size )
+  void  Read( DelphiX::textAPI::IText* text, const TagModes& maps, const char* buff, size_t size )
   {
     Parser                load( maps );
     tinyxml2::XMLDocument xdoc;
@@ -129,7 +129,7 @@ namespace tinyxml {
       load.Load( text, *child );
   }
 
-  void  LoadObject( DelphiX::textAPI::IText* text, const TagModes& maps, FILE* file )
+  void  Read( DelphiX::textAPI::IText* text, const TagModes& maps, FILE* file )
   {
     Parser                load( maps );
     tinyxml2::XMLDocument xdoc;
