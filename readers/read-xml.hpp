@@ -1,9 +1,14 @@
 # if !defined( __palmira_readers_read_xml_hpp__ )
 # define __palmira_readers_read_xml_hpp__
+#include <DelphiX/slices.hpp>
+
 # include "DelphiX/text-api.hpp"
 
 namespace palmira {
 namespace tinyxml {
+
+  class Error: public std::runtime_error
+    {  using std::runtime_error::runtime_error;  };
 
   enum class TagMode: unsigned
   {
@@ -14,7 +19,7 @@ namespace tinyxml {
 
   using TagModes = std::initializer_list<std::pair<const std::string, TagMode>>;
 
-  void  Read( DelphiX::textAPI::IText*, const TagModes&, const char*, size_t );
+  void  Read( DelphiX::textAPI::IText*, const TagModes&, const DelphiX::Slice<const char>& );
   void  Read( DelphiX::textAPI::IText*, const TagModes&, FILE* );
 
 }}
