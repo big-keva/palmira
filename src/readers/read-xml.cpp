@@ -33,13 +33,23 @@ namespace tinyxml {
 
     if ( encode != decmap.end() )
     {
-      if ( mtc::w_strcasecmp( encode->second.c_str(), "utf-8" ) == 0 )        this->encode = codepages::codepage_utf8;
+      if ( mtc::w_strcasecmp( encode->second.c_str(), "utf-8" ) == 0 )
+      {
+        this->encode = codepages::codepage_utf8;
+      }
         else
-      if ( mtc::w_strcasecmp( encode->second.c_str(), "windows-1251" ) == 0 ) this->encode = codepages::codepage_1251;
+      if ( mtc::w_strcasecmp( encode->second.c_str(), "windows-1251" ) == 0
+        || mtc::w_strcasecmp( encode->second.c_str(), "windows-1252" ) == 0 )
+      {
+        this->encode = codepages::codepage_1251;
+      }
         else
-      if ( mtc::w_strcasecmp( encode->second.c_str(), "iso-8859" ) == 0 )     this->encode = codepages::codepage_iso;
+      if ( mtc::w_strcasecmp( encode->second.c_str(), "iso-8859" ) == 0 )
+      {
+        this->encode = codepages::codepage_iso;
+      }
         else
-      throw std::invalid_argument( mtc::strprintf( "invalid encoding '%s'", encode->second.c_str() ) );
+      throw Error( mtc::strprintf( "invalid encoding '%s'", encode->second.c_str() ) );
     }
   }
 
@@ -49,7 +59,7 @@ namespace tinyxml {
     {
       for ( auto attr = elem.FirstAttribute(); attr != nullptr; attr = attr->Next() )
         if ( attr->Value() != nullptr )
-          text->AddMarkup( attr->Name() )->AddString( attr->Value() );
+          text->AddMarkup( attr->Name() )->AddString( attr->Value(), encode );
 
       for ( auto next = elem.FirstChild(); next != nullptr; next = next->NextSibling() )
         Load( text, *next );
@@ -75,7 +85,7 @@ namespace tinyxml {
     }
 
     if ( node.ToText() != nullptr && node.ToText()->Value() != nullptr )
-      text->AddString( node.ToText()->Value() );
+      text->AddString( node.ToText()->Value(), encode );
   }
 
   auto  Parser::Decl( const char* decl ) const -> std::map<std::string, std::string>
@@ -96,15 +106,17 @@ namespace tinyxml {
         auto  valend = valtop;
 
         while ( *valend != '\0' && !mtc::isspace( *valend ) )
-          ++valend, ++decl;
+          ++valend;
 
-        if ( *valtop == '"' || *valtop == '\'' )
-          ++valtop;
-        if ( valend > valtop && (valend[-1] == '"' || valend[-1] == '\'') )
-          --valend;
+        decl = valend;
 
-        outmap.insert( { { keytop, keyend }, { valtop, valend } } );
-      } else outmap.insert( { { keytop, decl = keyend }, {} } );
+        valtop = mtc::ltrim( valtop, "\'\"" );
+        valend = mtc::rtrim( valtop, valend, "\'\"" );
+
+        outmap.insert( { std::string( keytop, keyend ), std::string( valtop, valend ) } );
+      }
+        else
+      outmap.insert( { std::string( keytop, decl = keyend ), "" } );
     }
     return outmap;
   }
@@ -116,13 +128,13 @@ namespace tinyxml {
     return pmap != tagMap.end() ? pmap->second : TagMode::undefined;
   }
 
-  void  Read( DelphiX::textAPI::IText* text, const TagModes& maps, const char* buff, size_t size )
+  void  Read( DelphiX::textAPI::IText* text, const TagModes& maps, const DelphiX::Slice<const char>& buff )
   {
     Parser                load( maps );
     tinyxml2::XMLDocument xdoc;
 
-    if ( xdoc.Parse( (const char*)buff, size ) != tinyxml2::XML_SUCCESS )
-      throw std::runtime_error( mtc::strprintf( "failed to parse XML, error '%s:%s'",
+    if ( xdoc.Parse( buff.data(), buff.size() ) != tinyxml2::XML_SUCCESS )
+      throw Error( mtc::strprintf( "failed to parse XML, error '%s:%s'",
         xdoc.ErrorName(), xdoc.ErrorStr() ) );
 
     for ( auto child = xdoc.FirstChild(); child != nullptr; child = child->NextSibling() )
@@ -135,7 +147,7 @@ namespace tinyxml {
     tinyxml2::XMLDocument xdoc;
 
     if ( xdoc.LoadFile( file ) != tinyxml2::XML_SUCCESS )
-      throw std::runtime_error( mtc::strprintf( "failed to parse XML, error '%s:%s'",
+      throw Error( mtc::strprintf( "failed to parse XML, error '%s:%s'",
         xdoc.ErrorName(), xdoc.ErrorStr() ) );
 
     for ( auto child = xdoc.FirstChild(); child != nullptr; child = child->NextSibling() )
