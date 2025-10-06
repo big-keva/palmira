@@ -14,7 +14,7 @@ namespace collect {
 
     max_BM25_Abstract_size = sizeof(Abstract) + max_BM25Term_count * sizeof(Abstract::BM25Term),
     max_Rich_Abstract_size = sizeof(Abstract) + max_EntrySet_count * sizeof(Abstract::EntrySet)
-                                              + max_EntryPos_count * sizeof(Abstract::EntrySet::EntryPos),
+                                              + max_EntryPos_count * sizeof(Abstract::EntryPos),
 
     max_Rand_Abstract_size = std::max( max_BM25_Abstract_size, max_Rich_Abstract_size )
   };
@@ -67,12 +67,12 @@ namespace collect {
       {
         auto  entptr = (Abstract::EntrySet*)(output + 1);
         auto  entend = entptr + max_EntrySet_count;
-        auto  posptr = (Abstract::EntrySet::EntryPos*)entend;
+        auto  posptr = (Abstract::EntryPos*)entend;
         auto  posend = posptr + max_EntryPos_count;
 
-        output->entries.beg = entptr;
+        output->entries.pbeg = entptr;
 
-        for ( auto beg = source.entries.beg; beg < source.entries.end && entptr != entend && posptr != posend; ++beg )
+        for ( auto beg = source.entries.pbeg; beg < source.entries.pend && entptr != entend && posptr != posend; ++beg )
         {
           *entptr = { beg->limits, beg->weight, beg->center, { posptr, posptr } };
 
@@ -82,7 +82,7 @@ namespace collect {
           (*entptr++).spread.pend = posptr;
         }
 
-        output->entries.end = entptr;
+        output->entries.pend = entptr;
         break;
       }
       default:  break;

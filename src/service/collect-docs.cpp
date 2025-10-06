@@ -9,13 +9,14 @@ namespace collect {
   class Documents::data
   {
     static
-    auto  GetRange( uint32_t, const IQuery::Abstract& ) -> double;
+    auto  GetRange( uint32_t, const Abstract& ) -> double;
 
   public:
-    uint32_t  first = 1;
-    uint32_t  count = 10;
-    IsLessFn  order = []( uint32_t, double w1, uint32_t, double w2 ) {  return w1 > w2;  };
-    RankerFn  range = &GetRange;
+    uint32_t              first = 1;
+    uint32_t              count = 10;
+    IsLessFn              order = []( uint32_t, double w1, uint32_t, double w2 ) {  return w1 > w2;  };
+    RankerFn              range = &GetRange;
+    mtc::api<IQuotation>  quote;
   };
 
   class Documents::impl final: public ICollector
@@ -83,7 +84,7 @@ namespace collect {
     {
       auto    tuples = query->GetTuples( id );
 
-      if ( tuples.dwMode != IQuery::Abstract::None )
+      if ( tuples.dwMode != Abstract::None )
       {
         ++nFound;
 
@@ -105,8 +106,8 @@ namespace collect {
           // если лучше худшего, то заместить
           if ( isLess( id, weight, pWorst->id, pWorst->weight ) )
           {
-            *pWorst = { id, weight };
-              quotes.Set( id, tuples, pWorst->id );
+            quotes.Set( id, tuples, pWorst->id );
+              *pWorst = { id, weight };
             pWorst = nullptr;
           }
         }
@@ -150,20 +151,20 @@ namespace collect {
     return report;
   }
 
-  auto  Documents::data::GetRange( uint32_t, const IQuery::Abstract& tuples ) -> double
+  auto  Documents::data::GetRange( uint32_t, const Abstract& tuples ) -> double
   {
     double  weight;
 
     switch ( tuples.dwMode )
     {
-      case IQuery::Abstract::Rich:
+      case Abstract::Rich:
         weight = 0.0;
 
-        for ( auto p = tuples.entries.beg; p < tuples.entries.end; ++p )
+        for ( auto p = tuples.entries.pbeg; p < tuples.entries.pend; ++p )
           weight = std::max( weight, p->weight );
         return weight / log( 2 + tuples.nWords );
 
-      case IQuery::Abstract::BM25:
+      case Abstract::BM25:
         weight = 1.0;
 
         for ( auto p = tuples.factors.beg; p < tuples.factors.end; ++p )
@@ -200,13 +201,22 @@ namespace collect {
     return params->order = fless, *this;
   }
 
-  auto  Documents::SetScale( RankerFn scale ) -> Documents&
+  auto  Documents::SetRange( RankerFn scale ) -> Documents&
   {
     if ( params == nullptr )
       params = std::make_shared<data>();
     if ( scale == nullptr )
       throw std::invalid_argument( "'range' has to be a valid RankerFn @" __FILE__ ":" LINE_STRING );
     return params->range = scale, *this;
+  }
+
+  auto  Documents::SetQuote( mtc::api<IQuotation> quote ) -> Documents&
+  {
+    if ( params == nullptr )
+      params = std::make_shared<data>();
+    if ( quote == nullptr )
+      throw std::invalid_argument( "'quote' has to be a valid IQuotation object @" __FILE__ ":" LINE_STRING );
+    return params->quote = quote, *this;
   }
 
   auto  Documents::Create() -> mtc::api<ICollector>

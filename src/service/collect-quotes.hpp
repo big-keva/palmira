@@ -1,11 +1,9 @@
-#include <memory>
-
 # include "DelphiX/queries.hpp"
 
 namespace palmira {
 namespace collect {
 
-  using Abstract = DelphiX::queries::IQuery::Abstract;
+  using Abstract = DelphiX::queries::Abstract;
 
   class Abstracts
   {

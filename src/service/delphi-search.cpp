@@ -5,8 +5,8 @@
 # include "DelphiX/indexer/layered-contents.hpp"
 # include "DelphiX/context/processor.hpp"
 # include "DelphiX/context/x-contents.hpp"
-# include "DelphiX/context/formats.hpp"
-# include "DelphiX/enquote/compressor.hpp"
+# include "DelphiX/context/pack-format.hpp"
+# include "DelphiX/context/pack-images.hpp"
 # include "DelphiX/textAPI/DOM-load.hpp"
 # include "DelphiX/queries/builder.hpp"
 
@@ -157,7 +157,7 @@ namespace palmira {
       {
         auto  quoter = mtc::zmap{
           { "ft", context::formats::Pack( pwBody->GetMarkup(), fieldMan ) } };
-        auto  limage = enquote::PackWords( pwBody->GetTokens() );
+        auto  limage = context::imaging::Pack( pwBody->GetTokens() );
 
       // check if the image is big enough to compress it
         try

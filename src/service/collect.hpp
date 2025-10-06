@@ -11,7 +11,7 @@ namespace collect {
   using IQuery         = DelphiX::queries::IQuery;
   using IContentsIndex = DelphiX::IContentsIndex;
   using ITextView      = DelphiX::textAPI::ITextView;
-  using Abstract       = IQuery::Abstract;
+  using Abstract       = DelphiX::queries::Abstract;
 
   struct ICollector: public mtc::Iface
   {
@@ -35,12 +35,13 @@ namespace collect {
     Documents() = default;
 
     using IsLessFn = std::function<bool( uint32_t, double, uint32_t, double )>;
-    using RankerFn = std::function<double( uint32_t, const IQuery::Abstract& )>;
+    using RankerFn = std::function<double( uint32_t, const Abstract& )>;
 
     auto  SetFirst( uint32_t ) -> Documents&;
     auto  SetCount( uint32_t ) -> Documents&;
     auto  SetOrder( IsLessFn ) -> Documents&;   // default by range
-    auto  SetScale( RankerFn ) -> Documents&;
+    auto  SetRange( RankerFn ) -> Documents&;
+    auto  SetQuote( mtc::api<IQuotation> ) -> Documents&;
 
     auto  Create() -> mtc::api<ICollector>;
   };
