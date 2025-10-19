@@ -1,8 +1,9 @@
 # include "../../readers/read-zip.hpp"
 # include <minizip/unzip.h>
 # include <stdexcept>
+# include <algorithm>
 # include <cstring>
-#include <dirent.h>
+//# include <dirent.h>
 
 namespace palmira {
 namespace minizip {
@@ -111,7 +112,7 @@ namespace minizip {
   static  uLong zip_read_file( void*, void* stm, void* ptr, uLong len )
   {
     auto  mem = static_cast<STM*>( stm );
-    auto  cbr = std::min( mem->data->GetLen() - mem->cpos, len );
+    auto  cbr = std::min( uLong(mem->data->GetLen() - mem->cpos), len );
 
     if ( cbr > 0 )
       memcpy( ptr, mem->data->GetPtr() + mem->cpos, cbr );
