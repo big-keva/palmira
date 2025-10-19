@@ -1,5 +1,6 @@
 # include "collect.hpp"
 # include "collect-quotes.hpp"
+# include "DelphiX/compat.hpp"
 # include <stdexcept>
 # include <cmath>
 
