@@ -1,6 +1,8 @@
 link_libraries(
 	palmira
 	DelphiX
+	DeliriX
+	remottp
 	moonycode
 	mtc
 	tinyxml2
@@ -9,14 +11,7 @@ link_libraries(
 	pthread
 	dl)
 
-add_executable(libruseq-local
-	libruseq/local-indexer.cpp)
+add_executable(libruseq-sender
+	libruseq/sender.cpp)
 
-add_executable(k2-local
-	k2-local/k2.cpp
-	k2-local/watch-fs.cpp)
-
-target_link_libraries(k2-local
-	remottp
-	moonycode
-	mtc)
+add_subdirectory(k2-local)

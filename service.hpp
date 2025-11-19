@@ -1,8 +1,7 @@
 # if !defined( __palmira_service_hpp__ )
 # define __palmira_service_hpp__
-# include "DelphiX/text-api.hpp"
+# include "DeliriX/DOM-text.hpp"
 # include <mtc/interfaces.h>
-# include <mtc/arena.hpp>
 # include <mtc/zmap.h>
 
 namespace palmira {
@@ -41,18 +40,17 @@ namespace palmira {
 
   class InsertArgs: public UpdateArgs
   {
-    mtc::Arena  memArena;
-    void*       document;
+    DeliriX::Text document;
 
   public:
-    const DelphiX::textAPI::ITextView&  textview;
+    const DeliriX::ITextView& textview;
 
     InsertArgs(
-      const std::string&                  entId,
-      const DelphiX::textAPI::ITextView&  tview,
-      const mtc::zmap&                    mdata = {},
-      uint64_t                            uVers = 0,
-      const mtc::zval&                    icond = {} ): UpdateArgs( entId, mdata, uVers, icond ), textview( tview ) {}
+      const std::string&        entId,
+      const DeliriX::ITextView& tview,
+      const mtc::zmap&          mdata = {},
+      uint64_t                  uVers = 0,
+      const mtc::zval&          icond = {} ): UpdateArgs( entId, mdata, uVers, icond ), textview( tview ) {}
     InsertArgs( const mtc::zmap& );
 
   private:

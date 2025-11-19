@@ -1,6 +1,6 @@
 # include "collect-quotes.hpp"
-
-#include <stdexcept>
+# include <algorithm>
+# include <stdexcept>
 
 namespace palmira {
 namespace collect {
@@ -76,13 +76,20 @@ namespace collect {
         {
           *entptr = { beg->limits, beg->weight, beg->center, { posptr, posptr } };
 
-          for ( auto pos = beg->spread.pbeg; pos != beg->spread.pend && posptr != posend; ++pos )
+          for ( auto pos = beg->spread.pbeg; pos != beg->spread.pend && posptr != posend; )
             *posptr++ = *pos++;
+
+          std::sort( (Abstract::EntryPos*)entptr->spread.pbeg, posptr, []( const Abstract::EntryPos& p1, const Abstract::EntryPos& p2 )
+            {  return p1.offset < p2.offset;  } );
 
           (*entptr++).spread.pend = posptr;
         }
 
         output->entries.pend = entptr;
+
+        std::sort( (Abstract::EntrySet*)output->entries.pbeg, entptr, []( const Abstract::EntrySet& e1, const Abstract::EntrySet& e2 )
+           {  return e1.limits.uMin < e2.limits.uMin;  } );
+
         break;
       }
       default:  break;
@@ -117,7 +124,7 @@ namespace collect {
         }
       if ( storage->count < storage->limit )
       {
-        CopyAbstract( (Abstract*)&storage->items[storage->count], abstr );
+        CopyAbstract( (Abstract*)&storage->items[storage->count].stored, abstr );
         return void(storage->items[storage->count++].udocid = newid);
       }
       throw std::logic_error( "Abstracts storage overflow" );
@@ -138,7 +145,7 @@ namespace collect {
 
   auto  Abstracts::abstracts::Create( unsigned maxcount ) -> abstracts*
   {
-    auto  nalloc = sizeof(abstracts) + (maxcount - 1) * sizeof(abstracts::abstract_data);
+    auto  nalloc = sizeof(abstracts) + (maxcount - 1) * sizeof(abstracts::abstract_item);
     auto  nitems = (nalloc + sizeof(abstracts) - 1) / sizeof(abstracts);
     auto  palloc = std::allocator<abstracts>().allocate( nitems );
 

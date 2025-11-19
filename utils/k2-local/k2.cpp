@@ -1,19 +1,18 @@
 # include "../service/delphi-search.hpp"
 # include "watch-fs.hpp"
-# include "contrib/remottp/server/server.h"
-# include "contrib/remottp/common/message.hpp"
-# include "contrib/remottp/server/chunks.h"
+# include "contrib/remottp/server.hpp"
+# include "contrib/remottp/src/events.hpp"
 # include <iostream>
 # include <cstdio>
 #include <DelphiX/queries.hpp>
 #include <DelphiX/context/x-contents.hpp>
 #include <DelphiX/indexer/layered-contents.hpp>
-#include <DelphiX/indexer/static-contents.hpp>
 #include <DelphiX/queries/parser.hpp>
 #include <DelphiX/src/indexer/index-layers.hpp>
 #include <DelphiX/storage/posix-fs.hpp>
 #include <mtc/config.h>
 #include <mtc/directory.h>
+#include <mtc/threadPool.hpp>
 # include <mtc/json.h>
 # include <sys/resource.h>
 
@@ -27,6 +26,11 @@ auto  GetJsonQuery( mtc::IByteStream* src ) -> mtc::zmap
     { "count", "int32" } } );
 
   return jquery;
+}
+
+auto  GetSkipPaths( const mtc::config& cfg ) -> std::vector<std::string>
+{
+  return { cfg.get_path( "index_path" ) };
 }
 
 auto  BuildService( const mtc::config& cfg ) -> mtc::api<palmira::IService>
@@ -47,9 +51,9 @@ auto  BuildService( const mtc::config& cfg ) -> mtc::api<palmira::IService>
   .Create();
 }
 
-auto  LoadText( const std::string& path ) -> DelphiX::textAPI::Document
+auto  LoadText( const std::string& path ) -> DeliriX::Text
 {
-  auto  getdoc = DelphiX::textAPI::Document();
+  auto  getdoc = DeliriX::Text();
   auto  infile = fopen( path.c_str(), "rt" );
 
   if ( infile != nullptr )
@@ -57,7 +61,7 @@ auto  LoadText( const std::string& path ) -> DelphiX::textAPI::Document
     char  szline[0x1000];
 
     while ( fgets( szline, sizeof(szline) - 1, infile ) != nullptr )
-      getdoc.AddString( szline );
+      getdoc.AddBlock( szline );
 
     fclose( infile );
   }
@@ -81,9 +85,14 @@ bool  CheckExt( const std::string& stpath, const std::initializer_list<const cha
 
 mtc::ThreadPool   indexQueue;
 
-void  IndexDir( mtc::api<palmira::IService> service, const std::string dir )
+void  IndexDir( mtc::api<palmira::IService> service, const std::string dir, std::atomic_long* counter = nullptr )
 {
   auto  thedir = mtc::directory::Open( (!dir.empty() && dir.back() != '/' ? dir + '/' : dir).c_str() );
+  auto  rCount = std::atomic_long( 1 );
+
+// increment atomic counter
+  if ( counter != nullptr ) ++*counter;
+    else counter = &rCount;
 
   for ( auto dirent = thedir.Get(); dirent.defined(); dirent = thedir.Get() )
     if ( *dirent.string() != '.' )
@@ -92,7 +101,7 @@ void  IndexDir( mtc::api<palmira::IService> service, const std::string dir )
 
       if ( dirent.attrib() & mtc::directory::attr_dir )
       {
-        IndexDir( service, stpath );
+        IndexDir( service, stpath, counter );
       }
         else
       if ( CheckExt( stpath, { "h", "hpp", "c", "cpp", "cxx", "txt" } ) )
@@ -116,21 +125,28 @@ void  IndexDir( mtc::api<palmira::IService> service, const std::string dir )
         }
       }
     }
+  if ( --*counter == 0 )
+    fputs( "recursive directory indexing completed\n", stdout );
 }
 
 int   main(int, char**)
 {
   auto  config = mtc::config::Open( "/home/keva/dev/palmira/utils/k2-local/config.json" );
   auto  search = BuildService( config.get_config( "delphi" ) );
+  auto  ignore = GetSkipPaths( config.get_config( "delphi" ) );
   auto  server = new http::Server( "0.0.0.0", 8080 );
   auto  fwatch = palmira::k2_find::WatchDir( [&]( unsigned what, const std::string& sz )
     {
+      for ( auto& next: ignore )
+        if ( sz.length() >= next.length() && next == sz.substr( 0, next.length() ) )
+          return;
+
       fprintf( stdout, "%s: %s\n",
         what == palmira::k2_find::WatchDir::create_file ? "create" :
         what == palmira::k2_find::WatchDir::modify_file ? "modify" :
         what == palmira::k2_find::WatchDir::delete_file ? "delete" : "??????", sz.c_str() );
     } );
-  auto  scanIt = std::thread( IndexDir, search, std::string( "/home/keva/" ) );
+  auto  scanIt = std::thread( IndexDir, search, std::string( "/home/keva/" ), nullptr );
 
   fwatch.AddWatch( "/home/keva/" );
 
@@ -152,22 +168,13 @@ int   main(int, char**)
           { "first", nfirst },
           { "count", ncount } }, {} } );
 
-        http::OutputResponse( out, { http::StatusCode::Ok, {
+        http::Output( out, { http::StatusCode::Ok, {
       //    { "Transfer-Encoding", "chunked" },
-          { "Access-Control-Allow-Origin", "*" } } }, report/*{
-          { "error", mtc::zmap{
-            { "code", 0 },
-            { "info", "OK" } } },
-          { "query", wquery },
-          { "first", nfirst },
-          { "found", 10 },
-          { "items", mtc::array_zmap{
-            { { "id", "Первый про '" + codepages::widetombcs( codepages::codepage_utf8, wquery ) + "'" },
-              { "range", 1.0 } },
-            { { "id", "Продолжение о '" + codepages::widetombcs( codepages::codepage_utf8, wquery ) + "'" },
-              { "range", 0.9 } } } } }*/ );
+          { "Access-Control-Allow-Origin", "*" },
+          { "Connection", "keep-alive" }/*,
+          { "Keep-Alive", "timeout=30, max=1000" }*/ } }, report );
       }
-    } else http::OutputResponse( out, { http::StatusCode::BadRequest, { { "Access-Control-Allow-Origin", "*" } } } );
+    } else http::Output( out, { http::StatusCode::BadRequest, { { "Access-Control-Allow-Origin", "*" } } } );
   } );
 
   server->Start();

@@ -7,10 +7,12 @@
 # include "DelphiX/context/x-contents.hpp"
 # include "DelphiX/context/pack-format.hpp"
 # include "DelphiX/context/pack-images.hpp"
-# include "DelphiX/textAPI/DOM-load.hpp"
 # include "DelphiX/queries/builder.hpp"
+# include "DeliriX/DOM-load.hpp"
 
 # include <zlib.h>
+#include <DelphiX/enquote/quotations.hpp>
+#include <src/object-zmap.hpp>
 
 namespace palmira {
 
@@ -111,7 +113,7 @@ namespace palmira {
     return rCount;
   }
 
-  auto  ZipBuf( const std::vector<char>& src ) -> std::vector<char>
+  auto  ZipBuf( const mtc::span<const char>& src ) -> std::vector<char>
   {
     auto  compressed_size = compressBound( src.size() );
     auto  compressed_data = std::vector<char>( compressed_size );
@@ -127,6 +129,22 @@ namespace palmira {
     return compressed_data.resize( compressed_size ), compressed_data;
   }
 
+  auto  Unpack( const mtc::span<const char>& src ) -> std::vector<char>
+  {
+    std::vector<char> unpack( src.size() * 2 );
+    uLongf            length;
+    int               nerror;
+
+    while ( (nerror = uncompress( (Bytef*)unpack.data(), &(length = unpack.size()),
+      (const Bytef*)src.data(), src.size() )) == Z_BUF_ERROR )
+        unpack.resize( unpack.size() * 3 / 2 );
+
+    if ( nerror == Z_OK ) unpack.resize( length );
+      else unpack.clear();
+
+    return unpack;
+  }
+
   auto  DelphiSearch::Insert( const InsertArgs& insert ) -> mtc::zmap
   {
     try
@@ -136,15 +154,15 @@ namespace palmira {
       auto  mArena = mtc::Arena();
       auto  pwBody = mArena.Create<context::BaseImage<mtc::Arena::allocator<char>>>();
       auto  pwText = &insert.textview;
+      auto  utfdoc = DeliriX::Text();
       auto  getdoc = mtc::api<const IEntity>();
       auto  enBeef = std::vector<char>();
 
     // check if document is utf16-encoded; recode document if not so
       if ( !IsEncoded( insert.textview, unsigned(-1) ) )
       {
-        auto  utfdoc = mArena.Create<textAPI::BaseDocument<mtc::Arena::allocator<char>>>();
-          CopyUtf16( utfdoc, insert.textview );
-        pwText = utfdoc;
+        CopyUtf16( &utfdoc, insert.textview );
+        pwText = &utfdoc;
       }
 
     // create document image
@@ -171,13 +189,13 @@ namespace palmira {
 
     // create text contents and index document
       getdoc = ctxIndex->SetEntity( insert.objectId, contents( pwBody->GetLemmas(), pwBody->GetMarkup(), fieldMan ).ptr(),
-        { serial.first.get(), serial.second }, enBeef );
+        { serial.first.get(), serial.second }, { enBeef.data(), enBeef.size() } );
 
       return UpdateReport{ 0, "OK", { { "metadata", LoadMetadata( getdoc->GetExtra() ) } } };
     }
     catch ( const std::bad_function_call& xp )        {  return UpdateReport{ EFAULT, xp.what() };  }
     catch ( const std::invalid_argument& xp )         {  return UpdateReport{ EINVAL, xp.what() };  }
-    catch ( const textAPI::load_as::ParseError& xp )  {  return UpdateReport{ EINVAL, xp.what() };  }
+    catch ( const DeliriX::load_as::ParseError& xp )  {  return UpdateReport{ EINVAL, xp.what() };  }
   }
 
   auto  DelphiSearch::Update( const UpdateArgs& update ) -> mtc::zmap
@@ -194,7 +212,7 @@ namespace palmira {
       return UpdateReport{ 0, "OK", { { "metadata", LoadMetadata( getdoc->GetExtra() ) } } };
     }
     catch ( const std::invalid_argument& xp )         {  return UpdateReport{ EINVAL, xp.what() };  }
-    catch ( const textAPI::load_as::ParseError& xp )  {  return UpdateReport{ EINVAL, xp.what() };  }
+    catch ( const DeliriX::load_as::ParseError& xp )  {  return UpdateReport{ EINVAL, xp.what() };  }
   }
 
   auto  DelphiSearch::Remove( const RemoveArgs& remove ) -> mtc::zmap
@@ -207,7 +225,7 @@ namespace palmira {
       return UpdateReport( ENOENT, "document not found" );
     }
     catch ( const std::invalid_argument& xp )         {  return UpdateReport{ EINVAL, xp.what() };  }
-    catch ( const textAPI::load_as::ParseError& xp )  {  return UpdateReport{ EINVAL, xp.what() };  }
+    catch ( const DeliriX::load_as::ParseError& xp )  {  return UpdateReport{ EINVAL, xp.what() };  }
   }
 
   auto  DelphiSearch::Search( const SearchArgs& search ) -> mtc::zmap
@@ -234,9 +252,33 @@ namespace palmira {
     }
       else
     {
+      auto  quotate = [this]( uint32_t id, const queries::Abstract& abstr ) -> mtc::array_zval
+        {
+          auto  entity = ctxIndex->GetEntity( id );
+          auto  bundle = entity != nullptr ? entity->GetBundle() : nullptr;
+          auto  output = mtc::array_zval();
+
+          if ( bundle != nullptr )
+          {
+            auto  dump = mtc::zmap( mtc::zmap::dump( bundle->GetPtr() ) );
+            auto  mkup = dump.get_array_char( "ft" );
+            auto  buff = std::vector<char>();
+            auto  text = mtc::span<const char>();
+
+          // if image is packed, unpack it, else use plain image
+            if ( dump.get_array_char( "im" ) != nullptr ) text = *dump.get_array_char( "im" );
+              else
+            if ( dump.get_array_char( "ip" ) != nullptr ) text = buff = Unpack( *dump.get_array_char( "ip" ) );
+
+            if ( !text.empty() )
+              enquote::QuoteMachine( fieldMan ).Structured()( ZmapAsText( output ), text, *mkup, abstr );
+          }
+          return output;
+        };
       auto  collect = collect::Documents()
         .SetFirst( search.order.get_word32( "first", 1 ) )
-        .SetCount( search.order.get_word32( "count", 10 ) ).Create();
+        .SetCount( search.order.get_word32( "count", 10 ) )
+        .SetQuote( quotate ).Create();
       auto  request = queries::BuildRichQuery( search.query, search.terms, ctxIndex, lingProc, fieldMan );
 
       if ( request == nullptr )
@@ -257,7 +299,7 @@ namespace palmira {
 
       ::Serialize( serial.data(), fields.data(), fields.size() );
 
-      ctxIndex->SetEntity( { "\0\0__index_mappings__\0\0", 22 }, {}, serial );
+      ctxIndex->SetEntity( { "\0\0__index_mappings__\0\0", 22 }, {}, { serial.data(), serial.size() } );
     }
     ctxIndex->Commit();
   }

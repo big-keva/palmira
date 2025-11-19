@@ -1,15 +1,16 @@
 # include "service/delphi-search.hpp"
-# include "DelphiX/textAPI/DOM-text.hpp"
+# include "DeliriX/DOM-text.hpp"
 # include "DelphiX/context/x-contents.hpp"
-# include "../../readers/read-zip.hpp"
-# include "../../readers/read-xml.hpp"
 # include <mtc/recursive_shared_mutex.hpp>
 # include <mtc/directory.h>
 # include <condition_variable>
 # include <vector>
 # include <list>
+#include <DeliriX/archive.hpp>
+#include <DeliriX/formats.hpp>
 #include <DelphiX/queries.hpp>
 #include <DelphiX/queries/parser.hpp>
+#include <mtc/byteBuffer.h>
 #include <mtc/json.h>
 
 std::atomic_llong         totalBytes = 0;
@@ -23,7 +24,7 @@ std::list<std::string>    archives;
 std::mutex                archLock;
 std::condition_variable   archWait;
 
-std::list<std::pair<std::string, DelphiX::textAPI::Document>>
+std::list<std::pair<std::string, DeliriX::Text>>
                           textList;
 std::mutex                textLock;
 std::condition_variable   textWait;
@@ -34,7 +35,7 @@ volatile bool             canContinue = true;
 volatile bool             noMoreFiles = false;
 volatile bool             noMoreBooks = false;
 
-auto  LoadFile( const std::string& path ) -> std::vector<char>
+auto  LoadFile( const std::string& path ) -> mtc::api<const mtc::IByteBuffer>
 {
   std::vector<char> load;
   char              buff[1024 * 0x40];
@@ -45,10 +46,10 @@ auto  LoadFile( const std::string& path ) -> std::vector<char>
 
   fclose( file );
 
-  return load;
+  return mtc::CreateByteBuffer( load.data(), load.size(), mtc::enable_exceptions ).ptr();
 }
 
-void  InsertText( const std::string& id, const DelphiX::textAPI::Document& text )
+void  InsertText( const std::string& id, const DeliriX::Text& text )
 {
   totalBytes += text.GetLength();
 
@@ -72,7 +73,7 @@ void  IndexTexts()
     {
       auto  waitLock = mtc::make_unique_lock( textLock );
       auto  sourceId = std::string();
-      auto  document = DelphiX::textAPI::Document();
+      auto  document = DeliriX::Text();
 
     // get document text
       textWait.wait( waitLock, [&]()
@@ -96,17 +97,46 @@ void  IndexTexts()
 //  fprintf( stderr, "indexer finished\n" );
 }
 
+void  ReadZipped( const mtc::api<const mtc::IByteBuffer>& buf, const std::string& str )
+{
+  auto  archive = DeliriX::OpenZip( buf );
+
+  // check if zip
+  if ( archive != nullptr )
+  {
+    for ( auto entry = archive->ReadDir(); entry != nullptr; entry = archive->ReadDir() )
+    {
+      ReadZipped( entry->GetFile(), str + '#' + entry->GetName() );
+    }
+  }
+    else
+  // not a zip, it is fb2
+  {
+    DeliriX::Text thedoc;
+    auto          locker = mtc::make_unique_lock( textLock, std::defer_lock );
+
+    DeliriX::ParseFB2( &thedoc, buf );
+
+    locker.lock();
+
+    if ( textWait.wait( locker, [&](){  return !canContinue || textList.size() < MaxDomText;  } ), canContinue )
+      textList.push_back( { str, std::move( thedoc ) } );
+
+    textWait.notify_all();
+  }
+}
+
 void  ParseBooks()
 {
   pthread_setname_np( pthread_self(), "ParseBooks" );
 
-  try
+  while ( canContinue && !noMoreFiles )
   {
-    while ( canContinue && !noMoreFiles )
+    try
     {
       auto  waitLock = mtc::make_unique_lock( archLock );
       auto  archPath = std::string();
-      auto  bookBuff = std::vector<char>();
+      auto  bookBuff = mtc::api<const mtc::IByteBuffer>();
 
       archWait.wait( waitLock, [&]()
         {  return !canContinue || noMoreFiles || !archives.empty();  } );
@@ -121,46 +151,17 @@ void  ParseBooks()
 
       bookBuff = LoadFile( archPath );
 
-      palmira::minizip::Read( [&]( const DelphiX::Slice<const char>& input, const std::vector<std::string>& names )
-        {
-          DelphiX::textAPI::Document  thedoc;
-
-          try
-          {
-            auto  waitLock = mtc::make_unique_lock( textLock, std::defer_lock );
-
-            palmira::tinyxml::Read( &thedoc, {
-              { "empty-line", palmira::tinyxml::TagMode::remove },
-              { "coverpage",  palmira::tinyxml::TagMode::remove },
-              { "binary",     palmira::tinyxml::TagMode::remove },
-              { "image",      palmira::tinyxml::TagMode::remove },
-              { "section",    palmira::tinyxml::TagMode::ignore },
-              { "FictionBook",palmira::tinyxml::TagMode::ignore },
-              { "p",          palmira::tinyxml::TagMode::ignore } }, input );
-
-            waitLock.lock();
-
-            auto  doc_path = archPath;
-
-            for ( auto& next: names )
-              doc_path += "#" + next;
-
-            if ( textWait.wait( waitLock, [&](){  return !canContinue || textList.size() < MaxDomText;  } ), canContinue )
-              textList.push_back( { doc_path, std::move( thedoc ) } );
-
-            textWait.notify_all();
-          }
-          catch ( const palmira::tinyxml::Error& pe )
-          {
-          }
-        }, bookBuff );
+      ReadZipped( bookBuff, archPath );
+    }
+    catch ( const std::exception& xp )
+    {
+      fprintf( stderr, "%s\n", xp.what() );
+    }
+    catch ( ... )
+    {
+      fprintf( stderr, "parser exception\n" );
     }
   }
-  catch ( ... )
-  {
-    fprintf( stderr, "parser exception\n" );
-  }
-//  fprintf( stderr, "parser finished\n" );
   noMoreBooks = true;
 }
 
@@ -230,13 +231,13 @@ int   main()
         momentBytes = totalBytes.load();
         momentStart = momentTime;
       }
- //     fprintf( stderr, "monitor finished\n" );
+      fprintf( stderr, "monitor finished\n" );
     } ) );
 
 // directory reading thread as main
-//  runthr.push_back( std::thread( [&]()
-//  {
-/*    for ( auto dirent = diread.Get(); canContinue && dirent.defined(); dirent = diread.Get() )
+  runthr.push_back( std::thread( [&]()
+  {
+    for ( auto dirent = diread.Get(); canContinue && dirent.defined(); dirent = diread.Get() )
     {
       auto  waitLock = mtc::make_unique_lock( archLock );
 
@@ -249,18 +250,14 @@ int   main()
         archWait.notify_one();
       }
     }
-*/
+
     noMoreFiles = true;
     canContinue = false;
     archWait.notify_all();
     textWait.notify_all();
-//  } ) );
+  } ) );
 
-//  fprintf( stderr, "no more files\n" );
   IndexTexts();
-
-  auto z = libRusEq->Search( { DelphiX::queries::ParseQuery( "батюшка получил посылку и упорхнул" ), {}, {} } );
-  mtc::json::Print( stdout, z, mtc::json::print::decorated() );
 
   for ( auto& th: runthr)
     th.join();

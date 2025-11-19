@@ -1,3 +1,5 @@
+# if !defined( __palmira_delphi_search_hpp__ )
+# define __palmira_delphi_search_hpp__
 # include "DelphiX/context/processor.hpp"
 # include "service.hpp"
 
@@ -6,8 +8,8 @@ namespace palmira {
   using namespace DelphiX;
 
   using FnContents = std::function<mtc::api<IContents>(
-    const Slice<const Slice<const context::Lexeme>>&,
-    const Slice<const textAPI::MarkupTag>&, FieldHandler& )>;
+    const mtc::span<const mtc::span<const context::Lexeme>>&,
+    const mtc::span<const DeliriX::MarkupTag>&, FieldHandler& )>;
 
   class DelphiXService
   {
@@ -28,3 +30,5 @@ namespace palmira {
   };
 
 }
+
+# endif   // !__palmira_delphi_search_hpp__

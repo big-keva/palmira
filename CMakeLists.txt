@@ -28,12 +28,13 @@ include_directories(
 
 add_subdirectory(contrib/moonycode)
 add_subdirectory(contrib/mtc)
+add_subdirectory(contrib/DeliriX)
 add_subdirectory(contrib/DelphiX)
 add_subdirectory(contrib/remottp)
 
 add_library(palmira
-	src/readers/read-xml.cpp
-	src/readers/read-zip.cpp
+	src/objects/read-zip.cpp
+	src/objects/doc-zmap.cpp
 
 	src/service/delphi-search.cpp
 	src/service/collect-docs.cpp
