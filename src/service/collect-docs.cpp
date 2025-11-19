@@ -12,11 +12,11 @@ namespace collect {
     auto  GetRange( uint32_t, const Abstract& ) -> double;
 
   public:
-    uint32_t              first = 1;
-    uint32_t              count = 10;
-    IsLessFn              order = []( uint32_t, double w1, uint32_t, double w2 ) {  return w1 > w2;  };
-    RankerFn              range = &GetRange;
-    mtc::api<IQuotation>  quote;
+    uint32_t  first = 1;
+    uint32_t  count = 10;
+    IsLessFn  order = []( uint32_t, double w1, uint32_t, double w2 ) {  return w1 > w2;  };
+    RankerFn  range = &GetRange;
+    QuotesFn  quote;
   };
 
   class Documents::impl final: public ICollector
@@ -40,7 +40,8 @@ namespace collect {
       nLimit( params.first + params.count - 1 ),
       isLess( params.order ),
       ranker( params.range ),
-      quotes( nLimit ) {}
+      quoter( params.quote ),
+      quoBox( nLimit ) {}
 
   public:     // creation
     static
@@ -59,9 +60,10 @@ namespace collect {
     const unsigned            nLimit;
     const IsLessFn            isLess;
     const RankerFn            ranker;
+    const QuotesFn            quoter;
 
     mtc::api<IQuery>          pQuery;
-    Abstracts                 quotes;
+    Abstracts                 quoBox;
     unsigned                  nCount = 0;
     unsigned                  nFound = 0;
     Entity*                   pWorst = nullptr;
@@ -91,7 +93,7 @@ namespace collect {
         if ( nCount < nLimit )
         {
           new ( Entities() + nCount++ ) Entity{ id, ranker( id, tuples ) };
-            quotes.Set( id, tuples );
+            quoBox.Set( id, tuples );
         }
           else
         {
@@ -106,7 +108,7 @@ namespace collect {
           // если лучше худшего, то заместить
           if ( isLess( id, weight, pWorst->id, pWorst->weight ) )
           {
-            quotes.Set( id, tuples, pWorst->id );
+            quoBox.Set( id, tuples, pWorst->id );
               *pWorst = { id, weight };
             pWorst = nullptr;
           }
@@ -144,8 +146,26 @@ namespace collect {
 
         pitems->push_back( {
           { "id",     std::string( entity->GetId() ) },
+          { "index",  beg->id },
           { "extra",  zExtra },
           { "range",  beg->weight } } );
+
+      // if quotation enabled, set the found element quote
+        if ( quoter != nullptr && quoBox.Get( beg->id ) != nullptr )
+        {
+          if ( beg->id == 36 )
+          {
+            int i = 0;
+          }
+            pitems->back().set_array_zval( "quote", std::move( quoter( beg->id, *quoBox.Get( beg->id ) ) ) );
+
+            for ( auto& next: *pitems->back().get_array_zval( "quote" ) )
+            {
+              auto st = mtc::to_string( next );
+
+              int i = 0;
+            }
+        }
       }
     }
     return report;
@@ -210,7 +230,7 @@ namespace collect {
     return params->range = scale, *this;
   }
 
-  auto  Documents::SetQuote( mtc::api<IQuotation> quote ) -> Documents&
+  auto  Documents::SetQuote( QuotesFn quote ) -> Documents&
   {
     if ( params == nullptr )
       params = std::make_shared<data>();
