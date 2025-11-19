@@ -27,10 +27,11 @@ namespace k2_find {
     void  AddWatch( std::string, bool withSubdirectories = true );
 
   protected:
-    int                                   notifyFd = -1;         // directory event handler
-    NotifyFn                              notifyFn;
-    std::unordered_map<int, std::string>  watchSet;
-    std::thread                           dirWatch;
+    struct WatchData;
+
+    std::shared_ptr<WatchData>  watchPtr;
+    std::thread                 watchThr;
+    NotifyFn                    notifyFn;
 
   };
 
