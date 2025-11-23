@@ -153,20 +153,7 @@ namespace collect {
 
       // if quotation enabled, set the found element quote
         if ( quoter != nullptr && quoBox.Get( beg->id ) != nullptr )
-        {
-          if ( beg->id == 36 )
-          {
-            int i = 0;
-          }
-            pitems->back().set_array_zval( "quote", std::move( quoter( beg->id, *quoBox.Get( beg->id ) ) ) );
-
-            for ( auto& next: *pitems->back().get_array_zval( "quote" ) )
-            {
-              auto st = mtc::to_string( next );
-
-              int i = 0;
-            }
-        }
+          pitems->back().set_array_zval( "quote", std::move( quoter( beg->id, *quoBox.Get( beg->id ) ) ) );
       }
     }
     return report;
