@@ -1,6 +1,6 @@
 link_libraries(
 	palmira
-	DelphiX
+	structo
 	DeliriX
 	remottp
 	moonycode
@@ -13,5 +13,11 @@ link_libraries(
 
 add_executable(libruseq-sender
 	libruseq/sender.cpp)
+
+add_executable(libruseq-search
+	libruseq/search.cpp)
+
+add_executable(libruseq-send-1
+	libruseq/send-1.cpp)
 
 add_subdirectory(k2-local)

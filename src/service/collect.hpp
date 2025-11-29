@@ -1,17 +1,17 @@
 # if !defined( __palmira_src_service_collect_hpp__ )
 # define __palmira_src_service_collect_hpp__
-//# include "DelphiX/text-api.hpp"
-# include "DelphiX/contents.hpp"
-# include "DelphiX/queries.hpp"
-# include "DelphiX/compat.hpp"
+//# include "structo/text-api.hpp"
+# include "structo/contents.hpp"
+# include "structo/queries.hpp"
+# include "structo/compat.hpp"
 # include <mtc/zmap.h>
 
 namespace palmira {
 namespace collect {
 
-  using IQuery         = DelphiX::queries::IQuery;
-  using IContentsIndex = DelphiX::IContentsIndex;
-  using Abstract       = DelphiX::queries::Abstract;
+  using IQuery         = structo::queries::IQuery;
+  using IContentsIndex = structo::IContentsIndex;
+  using Abstract       = structo::queries::Abstract;
 
   struct ICollector: public mtc::Iface
   {

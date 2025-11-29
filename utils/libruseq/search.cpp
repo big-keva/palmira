@@ -1,0 +1,183 @@
+# include <remottp/server.hpp>
+# include <remottp/src/events.hpp>
+# include <remottp/src/server/rest.hpp>
+# include "service/delphi-search.hpp"
+# include "DeliriX/DOM-text.hpp"
+# include "structo/context/x-contents.hpp"
+# include "structo/queries.hpp"
+# include "structo/indexer/layered-contents.hpp"
+# include "structo/storage/posix-fs.hpp"
+# include <mtc/directory.h>
+# include <condition_variable>
+# include <vector>
+#include <DeliriX/DOM-load.hpp>
+# include <DeliriX/formats.hpp>
+#include <mtc/config.h>
+# include <mtc/json.h>
+
+template <>
+std::string* Serialize( std::string* o, const void* p, size_t l )
+  {  return &(*o += std::string( (const char*)p, l ));  }
+
+template <>
+std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
+  {  return o->insert( o->end(), (const char*)p, l + (const char*)p ), o;  }
+
+void  Output( mtc::IByteStream* output, http::StatusCode status, const char* msgstr )
+{
+  Output( output, http::Respond( status, { { "Content-Type", "text/html" } } ),
+    mtc::strprintf( "<html>\n"
+    "<head><title>%u %s</title></head>\n"
+    "<body>%s</body>\n"
+    "</html>\n", unsigned(status), http::to_string( status ), msgstr ).c_str() );
+}
+
+void  Output( mtc::IByteStream* output, http::StatusCode status, const mtc::zmap& report )
+{
+  auto  serial = std::vector<char>( report.GetBufLen() );
+    report.Serialize( serial.data() );
+
+  Output( output, http::Respond( status, { { "Content-Type", "application/json" } } ),
+    serial.data(), serial.size() );
+}
+
+auto  OpenStore( const mtc::config& config ) -> mtc::api<structo::IStorage>
+{
+  auto  ixpath = config.get_path( "generic_name" );
+
+  if ( ixpath != "" )
+    return Open( structo::storage::posixFS::StoragePolicies::Open( ixpath ) );
+
+  throw std::invalid_argument( "neither generic index name nor index policy was found" );
+}
+
+auto  OpenIndex( const mtc::config& config ) -> mtc::api<structo::IContentsIndex>
+{
+  return structo::indexer::layered::Index()
+    .Set( OpenStore( config ) )
+    .Create();
+}
+
+auto  OpenSearch( const mtc::config& config ) -> mtc::api<palmira::IService>
+{
+  auto  cfgidx = config.get_section( "index" );
+
+  if ( cfgidx.empty() )
+    throw std::invalid_argument( "section 'index' not found in configuration file" );
+
+  return palmira::StructoService()
+    .Set( OpenIndex( cfgidx ) )
+    .Set( structo::context::GetRichContents )
+    .Set( structo::context::Processor() )
+  .Create();
+}
+
+auto  GetJsonInsertArgs( DeliriX::Text& txt, mtc::IByteStream* src ) -> mtc::zmap
+{
+  auto  jinput = mtc::json::parse::make_source( src );
+  auto  reader = mtc::json::parse::reader( jinput );
+
+  // parse json arguments
+  return REST::JSON::ParseInput( reader, {
+    { "document", [&]( mtc::json::parse::reader& reader )
+      {  DeliriX::load_as::Json( &txt, [&](){  return reader.getnext();  } );  } } } );
+}
+
+auto  GetDumpInsertArgs( DeliriX::Text& txt, mtc::IByteStream* src ) -> mtc::zmap
+{
+  if ( txt.FetchFrom( src ) == nullptr )
+    throw std::invalid_argument( "application/octet-stream contains invalid data" );
+  return {};
+}
+
+int   main( int argc, char* argv[] )
+{
+  auto  server = http::Server();
+  auto  search = mtc::api<palmira::IService>();
+  auto  config = mtc::config();
+
+  if ( argc < 2 )
+    return fprintf( stdout, "Usage: %s config.name\n", argv[0] ), EINVAL;
+
+  try
+  {
+    uint32_t  dwport;
+
+    config = config.Open( argv[1] );
+
+    if ( (search = OpenSearch( config )) == nullptr )
+      throw std::logic_error( "unexpected OpenSearch(...) result 'nullptr'" );
+
+    if ( (dwport = config.get_uint32( "port" )) > std::numeric_limits<uint16_t>::max() )
+      throw std::invalid_argument( "invalid port specified for 'port' variable" );
+
+    server = http::Server( "localhost", dwport );
+  }
+  catch ( const mtc::config::error& xp )
+    {  return fprintf( stderr, "Error: %s\n", xp.what() ), EINVAL;  }
+  catch ( const std::invalid_argument& xp )
+    {  return fprintf( stderr, "Invalid argument: %s\n", xp.what() ), EINVAL;  }
+
+// configure server
+  server.RegisterHandler( "/insert", http::Method::POST,
+    [search]( mtc::IByteStream* out, const http::Request& req, mtc::IByteStream* src )
+    {
+      auto  cnType = req.GetHeaders().get( "Content-Type" );
+      auto  jsargs = mtc::zmap();
+      auto& params = req.GetUri().parameters();
+      auto  pdocid = params.find( "id" );
+      auto  sdocid = pdocid != params.end() ? http::UriDecode( pdocid->second ) : std::string();
+      auto  intext = DeliriX::Text();
+
+    // check document body
+      if ( src == nullptr )
+        return Output( out, http::StatusCode::BadRequest, "Request POST '/insert' has to contain body" );
+
+    // get the object depending on the type of contents
+      if ( cnType.substr( 0, 16 ) == "application/json" )         jsargs = GetJsonInsertArgs( intext, src );
+        else
+      if ( cnType.substr( 0, 24 ) == "application/octet-stream" ) jsargs = GetDumpInsertArgs( intext, src );
+        else
+      return Output( out, http::StatusCode::BadRequest, "Request POST '/insert' has unknown Content-Type" );
+
+    // check 'id' parameter
+      if ( sdocid.empty() )
+      {
+        if ( jsargs.get_charstr( "id" ) != nullptr )
+          sdocid = *jsargs.get_charstr( "id" );
+
+        if ( sdocid.empty() )
+          return Output( out, http::StatusCode::BadRequest, "Request '/insert' URI has to contain parameter 'id'" );
+      }
+
+    // index document
+      Output( out, http::StatusCode::Ok,
+        search->Insert( { sdocid, intext, jsargs.get_zmap( "metadata", {} ) } ) );
+    } );
+
+  server.RegisterHandler( "/search", http::Method::GET,
+    [search]( mtc::IByteStream* out, const http::Request&, mtc::IByteStream* )
+    {
+      Output( out, http::StatusCode::Ok, "Non implemented yet" );
+    } );
+
+  server.RegisterHandler( "/delete", http::Method::GET,
+    [search]( mtc::IByteStream* out, const http::Request& req, mtc::IByteStream* )
+    {
+      auto& params = req.GetUri().parameters();
+      auto  pdocid = params.find( "id" );
+      auto  sdocid = pdocid != params.end() ? http::UriDecode( pdocid->second ) : std::string();
+
+    // check loaded parameters
+      if ( sdocid.empty() )
+        return Output( out, http::StatusCode::BadRequest, "Request '/delete' URI has to contain parameter 'id'" );
+
+    // index document
+      Output( out, http::StatusCode::Ok,
+        search->Remove( { sdocid } ) );
+    } );
+
+  server.Start();
+    fgetc(stdin);
+  server.Stop();
+}

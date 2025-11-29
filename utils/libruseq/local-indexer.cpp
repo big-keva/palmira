@@ -1,6 +1,6 @@
 # include "service/delphi-search.hpp"
 # include "DeliriX/DOM-text.hpp"
-# include "DelphiX/context/x-contents.hpp"
+# include "structo/context/x-contents.hpp"
 # include <mtc/recursive_shared_mutex.hpp>
 # include <mtc/directory.h>
 # include <condition_variable>
@@ -165,8 +165,8 @@ void  ParseBooks()
   noMoreBooks = true;
 }
 
-# include "DelphiX/storage/posix-fs.hpp"
-# include "DelphiX/indexer/layered-contents.hpp"
+# include "structo/storage/posix-fs.hpp"
+# include "structo/indexer/layered-contents.hpp"
 
 auto  GetSearchService() -> mtc::api<palmira::IService>
 {

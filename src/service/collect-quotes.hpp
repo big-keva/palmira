@@ -1,9 +1,9 @@
-# include "DelphiX/queries.hpp"
+# include "structo/queries.hpp"
 
 namespace palmira {
 namespace collect {
 
-  using Abstract = DelphiX::queries::Abstract;
+  using Abstract = structo::queries::Abstract;
 
   class Abstracts
   {
