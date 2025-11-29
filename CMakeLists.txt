@@ -29,7 +29,7 @@ include_directories(
 add_subdirectory(contrib/moonycode)
 add_subdirectory(contrib/mtc)
 add_subdirectory(contrib/DeliriX)
-add_subdirectory(contrib/DelphiX)
+add_subdirectory(contrib/structo)
 add_subdirectory(contrib/remottp)
 
 add_library(palmira
