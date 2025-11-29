@@ -23,7 +23,7 @@ TestItEasy::RegisterFunc  test_zipfile( []()
     {
       auto  buf = LoadFile( "/home/keva/Downloads/Libruks/Архивы Либрусек/fb2-793780-793916.zip" );
 
-      palmira::minizip::Read( []( const DelphiX::Slice<const char>&, const std::vector<std::string>& names )
+      palmira::minizip::Read( []( const mtc::span<const char>&, const std::vector<std::string>& names )
         {
           for ( size_t i = 0; i != names.size(); ++i )
             fprintf( stdout, i != 0 ? "->%s" : "%s", names[i].c_str() );
