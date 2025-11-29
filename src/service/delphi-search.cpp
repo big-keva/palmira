@@ -1,17 +1,17 @@
 # include "../../service/delphi-search.hpp"
 # include "../statusReport.hpp"
 # include "collect.hpp"
-# include "DelphiX/storage/posix-fs.hpp"
-# include "DelphiX/indexer/layered-contents.hpp"
-# include "DelphiX/context/processor.hpp"
-# include "DelphiX/context/x-contents.hpp"
-# include "DelphiX/context/pack-format.hpp"
-# include "DelphiX/context/pack-images.hpp"
-# include "DelphiX/queries/builder.hpp"
+# include "structo/storage/posix-fs.hpp"
+# include "structo/indexer/layered-contents.hpp"
+# include "structo/enquote/quotations.hpp"
+# include "structo/context/processor.hpp"
+# include "structo/context/x-contents.hpp"
+# include "structo/context/pack-format.hpp"
+# include "structo/context/pack-images.hpp"
+# include "structo/queries/builder.hpp"
 # include "DeliriX/DOM-load.hpp"
 
 # include <zlib.h>
-#include <DelphiX/enquote/quotations.hpp>
 #include <src/object-zmap.hpp>
 
 namespace palmira {
@@ -72,7 +72,7 @@ namespace palmira {
     time_point  begin = clock_type::now();
   };
 
-  class DelphiXService::data
+  class StructoService::data
   {
   public:
     mtc::api<IContentsIndex>  ctxIndex;
@@ -335,9 +335,9 @@ namespace palmira {
       zv.get_type() == mtc::zval::z_widestr ? codepages::widetombcs( codepages::codepage_utf8, *zv.get_widestr() ) : "";
   }
 
-  // DelphiXService implementation
+  // StructoService implementation
 
-  auto  DelphiXService::Set( FnContents contents ) -> DelphiXService&
+  auto  StructoService::Set( FnContents contents ) -> StructoService&
   {
     if ( init == nullptr )
       init = std::make_shared<data>();
@@ -345,7 +345,7 @@ namespace palmira {
       return *this;
   }
 
-  auto  DelphiXService::Set( mtc::api<IContentsIndex> index ) -> DelphiXService&
+  auto  StructoService::Set( mtc::api<IContentsIndex> index ) -> StructoService&
   {
     if ( init == nullptr )
       init = std::make_shared<data>();
@@ -353,7 +353,7 @@ namespace palmira {
       return *this;
   }
 
-  auto  DelphiXService::Set( context::Processor&& proc ) -> DelphiXService&
+  auto  StructoService::Set( context::Processor&& proc ) -> StructoService&
   {
     if ( init == nullptr )
       init = std::make_shared<data>();
@@ -361,7 +361,7 @@ namespace palmira {
       return *this;
   }
 
-  auto  DelphiXService::Set( const context::Processor& proc ) -> DelphiXService&
+  auto  StructoService::Set( const context::Processor& proc ) -> StructoService&
   {
     if ( init == nullptr )
       init = std::make_shared<data>();
@@ -369,7 +369,7 @@ namespace palmira {
       return *this;
   }
 
-  auto  DelphiXService::Create() -> mtc::api<IService>
+  auto  StructoService::Create() -> mtc::api<IService>
   {
     if ( init->contents == nullptr )
       throw std::invalid_argument( "invalid (null) contents creation callback" );
