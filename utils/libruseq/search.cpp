@@ -2,17 +2,16 @@
 # include <remottp/src/events.hpp>
 # include <remottp/src/server/rest.hpp>
 # include "service/delphi-search.hpp"
-# include "DeliriX/DOM-text.hpp"
 # include "structo/context/x-contents.hpp"
 # include "structo/queries.hpp"
 # include "structo/indexer/layered-contents.hpp"
 # include "structo/storage/posix-fs.hpp"
+# include "DeliriX/DOM-load.hpp"
 # include <mtc/directory.h>
 # include <condition_variable>
+# include <statusReport.hpp>
 # include <vector>
-#include <DeliriX/DOM-load.hpp>
-# include <DeliriX/formats.hpp>
-#include <mtc/config.h>
+# include <mtc/config.h>
 # include <mtc/json.h>
 
 template <>
@@ -131,14 +130,27 @@ int   main( int argc, char* argv[] )
 
     // check document body
       if ( src == nullptr )
-        return Output( out, http::StatusCode::BadRequest, "Request POST '/insert' has to contain body" );
+        return Output( out, http::StatusCode::BadRequest, "Request POST '/insert' has to body" );
 
     // get the object depending on the type of contents
-      if ( cnType.substr( 0, 16 ) == "application/json" )         jsargs = GetJsonInsertArgs( intext, src );
-        else
-      if ( cnType.substr( 0, 24 ) == "application/octet-stream" ) jsargs = GetDumpInsertArgs( intext, src );
-        else
-      return Output( out, http::StatusCode::BadRequest, "Request POST '/insert' has unknown Content-Type" );
+      try
+      {
+        if ( cnType.substr( 0, 16 ) == "application/json" )         jsargs = GetJsonInsertArgs( intext, src );
+          else
+        if ( cnType.substr( 0, 24 ) == "application/octet-stream" ) jsargs = GetDumpInsertArgs( intext, src );
+          else
+        return Output( out, http::StatusCode::BadRequest, "Request POST '/insert' has unknown Content-Type" );
+      }
+      catch ( const mtc::json::parse::error& xp )
+      {
+        return Output( out, http::StatusCode::Ok, palmira::StatusReport( EINVAL,
+          mtc::strprintf( "error parsing request body, line %d: %s", xp.get_json_lineid(), xp.what() ) ) );
+      }
+      catch ( const std::invalid_argument& xp )
+      {
+        return Output( out, http::StatusCode::Ok, palmira::StatusReport( EINVAL,
+          mtc::strprintf( "error reading request body: %s", xp.what() ) ) );
+      }
 
     // check 'id' parameter
       if ( sdocid.empty() )
