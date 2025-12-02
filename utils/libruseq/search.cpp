@@ -158,7 +158,8 @@ int   main( int argc, char* argv[] )
     tm_out = getcfg.get_double( "timeout", -1 );
 
     server = http::Server( "localhost", dwport )
-      .SetMaxTimeout( tm_out );
+      .SetMaxTimeout( tm_out )
+      .SetProcessors( 16 );
   }
   catch ( const std::invalid_argument& xp )
   {  return fprintf( stderr, "Invalid argument: %s\n", xp.what() ), EINVAL;  }
