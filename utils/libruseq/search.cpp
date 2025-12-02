@@ -127,6 +127,7 @@ int   main( int argc, char* argv[] )
       auto  pdocid = params.find( "id" );
       auto  sdocid = pdocid != params.end() ? http::UriDecode( pdocid->second ) : std::string();
       auto  intext = DeliriX::Text();
+      auto  tstart = std::chrono::steady_clock::now();
 
     // check document body
       if ( src == nullptr )
@@ -162,9 +163,18 @@ int   main( int argc, char* argv[] )
           return Output( out, http::StatusCode::BadRequest, "Request '/insert' URI has to contain parameter 'id'" );
       }
 
+      auto  finish = std::chrono::steady_clock::now();
+
     // index document
-      Output( out, http::StatusCode::Ok,
-        search->Insert( { sdocid, intext, jsargs.get_zmap( "metadata", {} ) } ) );
+      Output( out, http::StatusCode::Ok, mtc::zmap(
+        search->Insert( { sdocid, intext, jsargs.get_zmap( "metadata", {} ) } ), {
+          { "time", mtc::zmap{
+            { "start", tstart.time_since_epoch().count() },
+            { "final", finish.time_since_epoch().count() },
+            { "duration", std::chrono::duration_cast<std::chrono::milliseconds>(finish - tstart).count() / 1000.0 } } } } ) );
+
+      fprintf( stdout, "OK\tInsert(%s)\t%6.2f seconds\n", sdocid.c_str(),
+        std::chrono::duration_cast<std::chrono::milliseconds>(finish - tstart).count() / 1000.0 );
     } );
 
   server.RegisterHandler( "/search", http::Method::GET,
