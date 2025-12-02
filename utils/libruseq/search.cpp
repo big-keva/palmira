@@ -175,6 +175,8 @@ int   main( int argc, char* argv[] )
       auto  sdocid = pdocid != params.end() ? http::UriDecode( pdocid->second ) : std::string();
       auto  intext = DeliriX::Text();
       auto  tstart = std::chrono::system_clock::now();
+      auto  tfinal = std::chrono::system_clock::time_point();
+      auto  report = palmira::StatusReport();
 
     // check document body
       if ( src == nullptr )
@@ -210,17 +212,17 @@ int   main( int argc, char* argv[] )
           return OutputHTML( out, http::StatusCode::BadRequest, "Request '/insert' URI has to contain parameter 'id'" );
       }
 
-      auto  finish = std::chrono::system_clock::now();
+      report = search->Insert( { sdocid, intext, jsargs.get_zmap( "metadata", {} ) } );
+      tfinal = std::chrono::system_clock::now();
 
     // index document
-      OutputJSON( out, http::StatusCode::Ok, mtc::zmap(
-        search->Insert( { sdocid, intext, jsargs.get_zmap( "metadata", {} ) } ), {
+      OutputJSON( out, http::StatusCode::Ok, mtc::zmap( report, {
           { "time", mtc::zmap{
             { "started", StringTime( tstart ) },
-            { "elapsed", std::chrono::duration_cast<std::chrono::milliseconds>(finish - tstart).count() / 1000.0 } } } } ) );
+            { "elapsed", std::chrono::duration_cast<std::chrono::milliseconds>(tfinal - tstart).count() / 1000.0 } } } } ) );
 
       fprintf( stdout, "OK\tInsert(%s)\t%6.2f seconds\n", sdocid.c_str(),
-        std::chrono::duration_cast<std::chrono::milliseconds>(finish - tstart).count() / 1000.0 );
+        std::chrono::duration_cast<std::chrono::milliseconds>(tfinal - tstart).count() / 1000.0 );
     } );
 
   server.RegisterHandler( "/search", http::Method::GET,
