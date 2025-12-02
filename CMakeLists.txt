@@ -4,15 +4,15 @@ project(palmira)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 
-option(SANITIZER_ENABLED "Enable sanitize" ON)
-option(PROFILER_ENABLED "Enable profile" OFF)
+option(SANITIZE_ENABLED "Enable sanitize" ON)
+option(PROFILER_ENABLED "Enable profile" ON)
 
 add_compile_options(-mfpmath=sse -fstack-protector-all -g
 	-W -Wall -Wextra -Wcast-align -pedantic -Wfloat-equal -Wpointer-arith -Wformat-security
 	-Wmissing-format-attribute -Wformat=1 -Wwrite-strings -Wcast-align -Wno-long-long
 	-Woverloaded-virtual -Wno-suggest-attribute=format)
 
-if (SANITIZER_ENABLED)
+if (SANITIZE_ENABLED)
 	add_compile_options(-fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=leak)
 	add_link_options(-fsanitize=address)
 endif()
