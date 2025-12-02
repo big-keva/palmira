@@ -22,7 +22,21 @@ template <>
 std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
   {  return o->insert( o->end(), (const char*)p, l + (const char*)p ), o;  }
 
-void  Output( mtc::IByteStream* output, http::StatusCode status, const char* msgstr )
+auto  StringTime( const std::chrono::system_clock::time_point& time )
+{
+  auto  utimer = std::chrono::system_clock::to_time_t( time );
+  auto  tvalue = tm{};
+  auto  millit = std::chrono::duration_cast<std::chrono::milliseconds>( time.time_since_epoch()
+    % std::chrono::seconds(1) ).count();
+
+  localtime_r( &utimer, &tvalue );
+
+  return mtc::strprintf( "%d-%02d-%02d %02d:%02d:%02d.%03d",
+    tvalue.tm_year + 1900, tvalue.tm_mon + 1, tvalue.tm_mday,
+    tvalue.tm_hour, tvalue.tm_min, tvalue.tm_sec, millit );
+}
+
+void  OutputHTML( mtc::IByteStream* output, http::StatusCode status, const char* msgstr )
 {
   Output( output, http::Respond( status, { { "Content-Type", "text/html" } } ),
     mtc::strprintf( "<html>\n"
@@ -31,10 +45,10 @@ void  Output( mtc::IByteStream* output, http::StatusCode status, const char* msg
     "</html>\n", unsigned(status), http::to_string( status ), msgstr ).c_str() );
 }
 
-void  Output( mtc::IByteStream* output, http::StatusCode status, const mtc::zmap& report )
+void  OutputJSON( mtc::IByteStream* output, http::StatusCode status, const mtc::zmap& report )
 {
-  auto  serial = std::vector<char>( report.GetBufLen() );
-    report.Serialize( serial.data() );
+  auto  serial = std::vector<char>();
+    mtc::json::Print( &serial, report, mtc::json::print::decorated() );
 
   Output( output, http::Respond( status, { { "Content-Type", "application/json" } } ),
     serial.data(), serial.size() );
@@ -127,11 +141,11 @@ int   main( int argc, char* argv[] )
       auto  pdocid = params.find( "id" );
       auto  sdocid = pdocid != params.end() ? http::UriDecode( pdocid->second ) : std::string();
       auto  intext = DeliriX::Text();
-      auto  tstart = std::chrono::steady_clock::now();
+      auto  tstart = std::chrono::system_clock::now();
 
     // check document body
       if ( src == nullptr )
-        return Output( out, http::StatusCode::BadRequest, "Request POST '/insert' has to body" );
+        return OutputHTML( out, http::StatusCode::BadRequest, "Request POST '/insert' has to body" );
 
     // get the object depending on the type of contents
       try
@@ -140,16 +154,16 @@ int   main( int argc, char* argv[] )
           else
         if ( cnType.substr( 0, 24 ) == "application/octet-stream" ) jsargs = GetDumpInsertArgs( intext, src );
           else
-        return Output( out, http::StatusCode::BadRequest, "Request POST '/insert' has unknown Content-Type" );
+        return OutputHTML( out, http::StatusCode::BadRequest, "Request POST '/insert' has unknown Content-Type" );
       }
       catch ( const mtc::json::parse::error& xp )
       {
-        return Output( out, http::StatusCode::Ok, palmira::StatusReport( EINVAL,
+        return OutputJSON( out, http::StatusCode::Ok, palmira::StatusReport( EINVAL,
           mtc::strprintf( "error parsing request body, line %d: %s", xp.get_json_lineid(), xp.what() ) ) );
       }
       catch ( const std::invalid_argument& xp )
       {
-        return Output( out, http::StatusCode::Ok, palmira::StatusReport( EINVAL,
+        return OutputJSON( out, http::StatusCode::Ok, palmira::StatusReport( EINVAL,
           mtc::strprintf( "error reading request body: %s", xp.what() ) ) );
       }
 
@@ -160,18 +174,17 @@ int   main( int argc, char* argv[] )
           sdocid = *jsargs.get_charstr( "id" );
 
         if ( sdocid.empty() )
-          return Output( out, http::StatusCode::BadRequest, "Request '/insert' URI has to contain parameter 'id'" );
+          return OutputHTML( out, http::StatusCode::BadRequest, "Request '/insert' URI has to contain parameter 'id'" );
       }
 
-      auto  finish = std::chrono::steady_clock::now();
+      auto  finish = std::chrono::system_clock::now();
 
     // index document
-      Output( out, http::StatusCode::Ok, mtc::zmap(
+      OutputJSON( out, http::StatusCode::Ok, mtc::zmap(
         search->Insert( { sdocid, intext, jsargs.get_zmap( "metadata", {} ) } ), {
           { "time", mtc::zmap{
-            { "start", tstart.time_since_epoch().count() },
-            { "final", finish.time_since_epoch().count() },
-            { "duration", std::chrono::duration_cast<std::chrono::milliseconds>(finish - tstart).count() / 1000.0 } } } } ) );
+            { "started", StringTime( tstart ) },
+            { "elapsed", std::chrono::duration_cast<std::chrono::milliseconds>(finish - tstart).count() / 1000.0 } } } } ) );
 
       fprintf( stdout, "OK\tInsert(%s)\t%6.2f seconds\n", sdocid.c_str(),
         std::chrono::duration_cast<std::chrono::milliseconds>(finish - tstart).count() / 1000.0 );
@@ -180,7 +193,8 @@ int   main( int argc, char* argv[] )
   server.RegisterHandler( "/search", http::Method::GET,
     [search]( mtc::IByteStream* out, const http::Request&, mtc::IByteStream* )
     {
-      Output( out, http::StatusCode::Ok, "Non implemented yet" );
+      OutputJSON( out, http::StatusCode::Ok, palmira::StatusReport(
+        ENOSYS, "Non implemented yet" ) );
     } );
 
   server.RegisterHandler( "/delete", http::Method::GET,
@@ -192,10 +206,10 @@ int   main( int argc, char* argv[] )
 
     // check loaded parameters
       if ( sdocid.empty() )
-        return Output( out, http::StatusCode::BadRequest, "Request '/delete' URI has to contain parameter 'id'" );
+        return OutputHTML( out, http::StatusCode::BadRequest, "Request '/delete' URI has to contain parameter 'id'" );
 
     // index document
-      Output( out, http::StatusCode::Ok,
+      OutputJSON( out, http::StatusCode::Ok,
         search->Remove( { sdocid } ) );
     } );
 
