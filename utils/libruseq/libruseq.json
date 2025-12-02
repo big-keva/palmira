@@ -1,9 +1,12 @@
 {
-  "port": 57571,
+  "http": {
+    "port": 57571,
+    "timeout": 60
+  },
 
-  "index": {
-    "generic_name": "index/lq"
-/*    "index_policy": [
-    ]*/
+  "service": {
+    "index": {
+      "generic_name": "index/lq"
+    }
   }
 }

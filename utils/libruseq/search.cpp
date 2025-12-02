@@ -112,24 +112,56 @@ int   main( int argc, char* argv[] )
   if ( argc < 2 )
     return fprintf( stdout, "Usage: %s config.name\n", argv[0] ), EINVAL;
 
+// open the configuration
+  try
+  {  config = config.Open( argv[1] );  }
+  catch ( const mtc::config::error& xp )
+  {  return fprintf( stderr, "Config error: %s\n", xp.what() );  }
+  catch ( const mtc::json::parse::error& xp )
+  {  return fprintf( stderr, "Error parsing config JSON, line %d: %s\n", xp.get_json_lineid(), xp.what() );  }
+  catch ( ... )
+  {  return fprintf( stderr, "Unknwon error opening config\n" );  }
+
+// create search
   try
   {
-    uint32_t  dwport;
+    auto  getcfg = config.get_section( "service" );
 
-    config = config.Open( argv[1] );
+    if ( getcfg.empty() )
+      return fprintf( stderr, "Section 'service' not found in configuration file\n" );
 
-    if ( (search = OpenSearch( config )) == nullptr )
+    if ( (search = OpenSearch( getcfg )) == nullptr )
       throw std::logic_error( "unexpected OpenSearch(...) result 'nullptr'" );
-
-    if ( (dwport = config.get_uint32( "port" )) > std::numeric_limits<uint16_t>::max() )
-      throw std::invalid_argument( "invalid port specified for 'port' variable" );
-
-    server = http::Server( "localhost", dwport );
   }
-  catch ( const mtc::config::error& xp )
-    {  return fprintf( stderr, "Error: %s\n", xp.what() ), EINVAL;  }
   catch ( const std::invalid_argument& xp )
-    {  return fprintf( stderr, "Invalid argument: %s\n", xp.what() ), EINVAL;  }
+  {  return fprintf( stderr, "Invalid argument: %s\n", xp.what() ), EINVAL;  }
+
+// create server
+  try
+  {
+    auto    getcfg = config.get_section( "http" );
+    int32_t dwport;
+    double  tm_out;
+
+    if ( getcfg.empty() )
+      return fprintf( stderr, "Section 'http' not found in configuration file\n" );
+
+    if ( getcfg.to_zmap().get( "port" ) == nullptr )
+      throw std::invalid_argument( "undefined 'http->port', expected to be uint16" );
+
+    if ( (dwport = getcfg.get_int32( "port", -1 )) < 0 )
+      throw std::invalid_argument( "invalid 'http->port' value" );
+
+    if ( dwport > std::numeric_limits<uint16_t>::max() )
+      throw std::invalid_argument( "invalid 'http->port' value" );
+
+    tm_out = getcfg.get_double( "timeout", -1 );
+
+    server = http::Server( "localhost", dwport )
+      .SetMaxTimeout( tm_out );
+  }
+  catch ( const std::invalid_argument& xp )
+  {  return fprintf( stderr, "Invalid argument: %s\n", xp.what() ), EINVAL;  }
 
 // configure server
   server.RegisterHandler( "/insert", http::Method::POST,
