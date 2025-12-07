@@ -4,8 +4,8 @@ project(palmira)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 
-option(SANITIZE_ENABLED "Enable sanitize" ON)
-option(PROFILER_ENABLED "Enable profile" ON)
+option(SANITIZE_ENABLED "Enable sanitize" OFF)
+option(PROFILER_ENABLED "Enable profile" OFF)
 
 add_compile_options(-mfpmath=sse -fstack-protector-all -g
 	-W -Wall -Wextra -Wcast-align -pedantic -Wfloat-equal -Wpointer-arith -Wformat-security
