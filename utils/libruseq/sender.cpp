@@ -8,8 +8,10 @@
 # include <condition_variable>
 # include <vector>
 # include <list>
+# include <statusReport.hpp>
 # include <mtc/fileStream.h>
 # include <mtc/exceptions.h>
+# include <zlib.h>
 
 template <>
 inline  std::string* Serialize( std::string* o, const void* p, size_t l )
@@ -18,6 +20,8 @@ inline  std::string* Serialize( std::string* o, const void* p, size_t l )
 template <>
 inline  std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
 {  return o->insert( o->end(), (const char*)p, l + (const char*)p ), o;  }
+
+volatile  bool  canContinue = true;
 
 namespace archives
 {
@@ -29,22 +33,107 @@ namespace archives
 
 namespace requests
 {
-  std::atomic_long  sent = 0;
   std::atomic_long  OK = 0;
+  std::atomic_long  error = 0;
   std::atomic_long  fault = 0;
   std::atomic_long  timeout = 0;
+  std::atomic_long  processing = 0;
+  std::atomic_long  maxrequests = 20;
   std::mutex        locker;
   std::condition_variable waiter;
-
-  std::mutex        logmtx;
-  FILE*             logger;
 }
 
+namespace logger
+{
+  std::mutex        logmtx;
+  FILE*             logger;
 
-volatile  bool  canContinue = true;
+  void  log( const char* format, ... )
+  {
+    va_list args;
+    va_start( args, format );
 
-http::Client    http_client;
-http::Channel   get_channel = http_client.GetChannel( "127.0.0.1", 57571 );
+    auto  locker = mtc::make_unique_lock( logmtx );
+    vfprintf( logger, format, args );
+    va_end( args );
+  }
+}
+
+namespace stats
+{
+  std::atomic_uint32_t  total_docs = 0;
+  std::atomic_uint64_t  total_size = 0;
+  std::atomic_uint32_t  last_100_size = 0;
+
+  std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point last_100_start = start;
+
+  std::mutex  locker;
+  std::condition_variable waiter;
+
+  void  Monitor()
+  {
+    auto  exlock = mtc::make_unique_lock( stats::locker );
+
+    while ( waiter.wait( exlock ), canContinue )
+    {
+      auto  now = std::chrono::steady_clock::now();
+      auto  total_diff = 1.0 * std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+      auto  last_100_diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_100_start).count() / 1000.0;
+
+      fprintf( stdout, "%u\tdocs, %lu\tbytes, %6.2f (%6.2f) RPS,\t%6.2f (%6.2f) KbPs\n",
+        total_docs.load(), total_size.load(),
+        total_docs.load() / total_diff, 100 / last_100_diff,
+        total_size.load() / total_diff / 1000.0, last_100_size.load() / last_100_diff / 1000.0 );
+
+      last_100_size = 0;
+      last_100_start = now;
+    }
+  }
+}
+
+http::Client    http_client( 4 );
+//http::Channel   get_channel = http_client.GetChannel( "83.220.175.72", 57571 );
+http::Channel   get_channel = http_client.GetChannel( "0.0.0.0", 57571 );
+
+auto  Deflate( const std::vector<char>& src ) -> std::vector<char>
+{
+  z_stream          deflate_stream;
+  std::vector<char> deflate_buffer;
+
+  deflate_stream.zalloc = Z_NULL;
+  deflate_stream.zfree = Z_NULL;
+  deflate_stream.opaque = Z_NULL;
+
+  if ( src.empty() )
+    return {};
+
+// Инициализируем deflate с уровнем сжатия по умолчанию (Z_DEFAULT_COMPRESSION = 6)
+  if ( deflateInit( &deflate_stream, Z_DEFAULT_COMPRESSION ) != Z_OK )
+    throw std::runtime_error( "deflate init error" );
+
+// Устанавливаем указатель на входные данные
+  deflate_stream.next_in = reinterpret_cast<Bytef*>( const_cast<char*>( src.data() ) );
+  deflate_stream.avail_in = static_cast<uInt>( src.size() );
+
+  deflate_buffer.resize( deflateBound( &deflate_stream, src.size() ) );
+
+  // Устанавливаем указатель на выходные данные
+  deflate_stream.next_out = reinterpret_cast<Bytef*>(deflate_buffer.data());
+  deflate_stream.avail_out = static_cast<uInt>(deflate_buffer.size());
+
+  if ( deflate( &deflate_stream, Z_FINISH ) != Z_STREAM_END )
+  {
+    deflateEnd( &deflate_stream );
+    throw std::runtime_error( "data compression error" );
+  }
+
+  deflate_buffer.resize( deflate_stream.total_out );
+
+  deflateEnd( &deflate_stream );
+
+  return deflate_buffer;
+}
 
 /*
  * Рекурсивный сканер каталога и построения списка архивов для дальнейшего разбора
@@ -80,79 +169,129 @@ void  ListArchives( const char* path, const char* mask )
       }
 }
 
-void  StoreArchive( const std::string& name, const DeliriX::Text& text )
+void  WashSocket( mtc::IByteStream* stm )
+{
+  char  buffer[1024];
+
+  while ( stm != nullptr && stm->Get( buffer, sizeof(buffer) ) > 0 )
+    (void)NULL;
+}
+
+void  IndexArchive( const std::string& name, const DeliriX::Text& text )
 {
   std::vector<char> serial;
+  bool              packed = false;
 
   text.Serialize( &serial );
 
+  try
+  {
+    serial = std::move( Deflate( serial ) );
+    packed = true;
+  }
+  catch ( ... )
+  {}
+
   auto  locker = mtc::make_unique_lock( requests::locker );
+    requests::waiter.wait( locker, [&]{  return !canContinue || requests::processing  < requests::maxrequests; } );
 
-  requests::waiter.wait( locker, [&]{  return !canContinue || (requests::sent - requests::OK - requests::fault - requests::timeout) < 20; } );
-
-  auto  r = http_client.NewRequest( http::Method::POST, mtc::strprintf( "/insert?id=%s", http::UriEncode( name ).c_str() ) )
-    .SetHeaders( { { "Content-Type", "application/octet-stream" } } )
-    .SetBody( std::move( serial ) )
-    .SetCallback( [name]( http::ExecStatus status, const http::Respond& res, mtc::api<mtc::IByteStream> stm )
-      {
-        switch ( status )
+  if ( canContinue )
+  {
+    auto  thereq = http_client.NewRequest( http::Method::POST, mtc::strprintf( "/insert?id=%s", http::UriEncode( name ).c_str() ) )
+      .SetHeaders( { { "Content-Type", "application/octet-stream" } } )
+      .SetBody( std::move( serial ) )
+      .SetCallback( [name, size = text.GetLength()]( http::ExecStatus status, const http::Respond& res, mtc::api<mtc::IByteStream> stm )
         {
-          case http::ExecStatus::Ok:
-          {
-            char  buffer[1024];
-            int   cbread;
+          --requests::processing;
 
-            while ( (cbread = stm->Get( buffer, sizeof(buffer) )) > 0 )
-              (void)NULL;
-            ++requests::OK;
+          switch ( status )
+          {
+            case http::ExecStatus::Ok:
+            {
+              auto    report = palmira::StatusReport();
+              double  elapse;
+
+            // get zmap report
+              if ( res.GetHeaders().get( "Content-Type" ) == "application/json" )
+              {
+                try
+                  {  mtc::json::Parse( stm.ptr(), report );  }
+                catch ( const mtc::json::parse::error& xp )
+                  {  report = palmira::StatusReport( EFAULT, "Could not parse the report" );  }
+              }
+
+            // clean socket data
+              WashSocket( stm );
+
+            // check if error
+              if ( report.status().code() != 0 )
+              {
+                logger::log( "FAULT\t(%d; %s)\t%s\n",
+                  report.status().code(), report.status().info().c_str(), name.c_str() );
+                ++requests::fault;
+                  return requests::waiter.notify_one();
+              }
+
+            // use stats
+              logger::log( "OK\t%s\n",
+                name.c_str() );
+              ++requests::OK;
+                stats::total_size += size;
+                stats::last_100_size += size;
+              if ( ++stats::total_docs % 100 == 0 )
+                stats::waiter.notify_one();
+
+            // check indexing timeout and align to optimal request length:
+            // - if elapsed time is greater than 3s, decrease the number of parallel requests;
+            // - if elapsed time is less than 2s, increase it
+              elapse = report.get_zmap( "time", {} ).get_double( "elapsed", -1.0 );
+
+              if ( elapse > 3.0 )
+              {
+                auto  curmax = requests::maxrequests.load();
+
+                while ( !requests::maxrequests.compare_exchange_strong( curmax, std::max( long(curmax) - 1, 4l ) ) )
+                  (void)NULL;
+              }
+                else
+              if ( elapse < 2.0 )
+              {
+                auto  curmax = requests::maxrequests.load();
+
+                while ( !requests::maxrequests.compare_exchange_strong( curmax, std::min( long(curmax) + 1, 100l ) ) )
+                  (void)NULL;
+              }
               break;
-          }
-          case http::ExecStatus::Failed:
-          {
-            mtc::interlocked( mtc::make_unique_lock( requests::logmtx ), [&]()
-              {  fprintf( requests::logger, "%s\tFAULT\n", name.c_str() );  } );
-            ++requests::fault;
+            }
+            case http::ExecStatus::Failed:
+            {
+              logger::log( "ERROR\t%s\n", name.c_str() );
+              ++requests::error;
               break;
+            }
+            case http::ExecStatus::TimedOut:  default:
+            {
+              auto  curmax = requests::maxrequests.load();
+
+              while ( !requests::maxrequests.compare_exchange_strong( curmax, std::max( long(curmax) - 1, 4l ) ) )
+                (void)NULL;
+
+              logger::log( "TIMEOUT\t%s\n", name.c_str() );
+              ++requests::timeout;
+              break;
+            }
           }
-          case http::ExecStatus::TimedOut:  default:
-          {
-            mtc::interlocked( mtc::make_unique_lock( requests::logmtx ), [&]()
-              {  fprintf( requests::logger, "%s\tTIMEOUT\n", name.c_str() );  } );
-            ++requests::timeout;
-                break;
-          }
-        }
-        requests::waiter.notify_one();
-      } )
-    .SetTimeout( 5.0 )
-    .Start( get_channel );
+          requests::waiter.notify_one();
+        } )
+      .SetTimeout( 10.0 );
 
-  ++requests::sent;
-  /*
-    r.wait();
+    if ( packed )
+      thereq.GetHeaders()["Content-Encoding"] = "deflate";
 
-    if ( r.get().status == http::ExecStatus::Ok )
-    {
-      fprintf( stdout, "Succeeded: %u %s\n",
-        unsigned( r.get().report.GetStatusCode() ), to_string( r.get().report.GetStatusCode() ) );
+    thereq.Start( get_channel );
 
-      for ( auto stream = r.get().stream; stream != nullptr; stream = nullptr )
-      {
-        char  buffer[1024];
-        int   cbread;
-
-        while ( (cbread = stream->Get( buffer, sizeof(buffer) )) > 0 )
-          fwrite( buffer, cbread, 1, stdout );
-      }
-    }
-      else
-    {
-      fprintf( stdout, "%s\n",
-        r.get().status == http::ExecStatus::Failed ? "Failed" :
-        r.get().status == http::ExecStatus::Invalid ? "Invalid" :
-        r.get().status == http::ExecStatus::TimedOut ? "TimedOut" : "Undefined" );
-    }
-  */
+    ++requests::processing;
+  }
 }
 
 void  ParseArchive( const std::string& archive )
@@ -210,7 +349,7 @@ void  ParseArchive( const std::string& archive )
     catch ( ... )
     {  return (void)fprintf( stderr, "unknown exception parsing fb2 from '%s'\n", archive.c_str() );  }
 
-    StoreArchive( archive, text );
+    IndexArchive( archive, text );
   }
 }
 
@@ -248,17 +387,18 @@ int   main()
   auto  folder = "/media/keva/KINGSTON/Libruks/Архивы Либрусек/";
   auto  thrvec = std::vector<std::thread>();
 
-  requests::logger = fopen( "faults.txt", "wt" );
+  logger::logger = fopen( "log.txt", "wt" );
 
   for ( unsigned i = 0; i < std::thread::hardware_concurrency(); ++i )
     thrvec.push_back( std::thread( ReadArchives ) );
+  thrvec.push_back( std::thread( stats::Monitor ) );
 
   ListArchives( folder, "*.zip" );
 
   for ( auto& thread: thrvec )
     thread.join();
 
-  fclose( requests::logger );
+  fclose( logger::logger );
 
   return 0;
 }
