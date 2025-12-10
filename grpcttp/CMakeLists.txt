@@ -11,7 +11,7 @@ set(PROTO_HDR "${CMAKE_CURRENT_BINARY_DIR}/grpcttp.pb.h")
 set(PROTO_GRPC_SRC "${CMAKE_CURRENT_BINARY_DIR}/grpcttp.grpc.pb.cc")
 set(PROTO_GRPC_HDR "${CMAKE_CURRENT_BINARY_DIR}/grpcttp.grpc.pb.h")
 
-set(SRC src/messages.cpp)
+set(SRC src/messages.cpp src/server.cpp src/client.cpp)
 
 set(PROTOBUF_PROTOC protoc)
 
