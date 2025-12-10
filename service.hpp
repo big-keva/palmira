@@ -10,6 +10,7 @@ namespace palmira {
   {
     std::string objectId;
 
+    AccessArgs() = default;
     AccessArgs( const std::string& entId ): objectId( entId ) {}
     AccessArgs( const mtc::zmap& );
   };
@@ -19,6 +20,7 @@ namespace palmira {
     uint64_t    uVersion;
     mtc::zval   ifClause;
 
+    RemoveArgs() = default;
     RemoveArgs(
       const std::string&  entId,
       uint64_t            uVers = 0,
@@ -30,6 +32,7 @@ namespace palmira {
   {
     mtc::zmap   metadata;
 
+    UpdateArgs() = default;
     UpdateArgs(
       const std::string&  entId,
       const mtc::zmap&    mdata,
@@ -45,6 +48,7 @@ namespace palmira {
   public:
     const DeliriX::ITextView& textview;
 
+    InsertArgs(): textview( document ) {}
     InsertArgs(
       const std::string&        entId,
       const DeliriX::ITextView& tview,
@@ -52,6 +56,8 @@ namespace palmira {
       uint64_t                  uVers = 0,
       const mtc::zval&          icond = {} ): UpdateArgs( entId, mdata, uVers, icond ), textview( tview ) {}
     InsertArgs( const mtc::zmap& );
+
+    auto  GetTextAPI() -> DeliriX::IText& {  return document;  }
 
   private:
     void  LoadBody( const mtc::zmap& );
@@ -67,11 +73,18 @@ namespace palmira {
 
   struct IService: mtc::Iface
   {
-    virtual auto  Insert( const InsertArgs& ) -> mtc::zmap = 0;
-    virtual auto  Update( const UpdateArgs& ) -> mtc::zmap = 0;
-    virtual auto  Remove( const RemoveArgs& ) -> mtc::zmap = 0;
-    virtual auto  Search( const SearchArgs& ) -> mtc::zmap = 0;
+    struct IPending;
+
+    virtual auto  Insert( const InsertArgs& ) -> mtc::api<IPending> = 0;
+    virtual auto  Update( const UpdateArgs& ) -> mtc::api<IPending> = 0;
+    virtual auto  Remove( const RemoveArgs& ) -> mtc::api<IPending> = 0;
+    virtual auto  Search( const SearchArgs& ) -> mtc::api<IPending> = 0;
     virtual void  Commit() = 0;
+  };
+
+  struct IService::IPending: Iface
+  {
+    virtual auto  Wait( double = -1.0 ) -> mtc::zmap = 0;
   };
 
 }

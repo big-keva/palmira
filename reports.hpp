@@ -1,5 +1,5 @@
-# if !defined( __palmira_status_report_hpp__ )
-# define __palmira_status_report_hpp__
+# if !defined( __palmira_reports_hpp__ )
+# define __palmira_reports_hpp__
 # include <mtc/zmap-alias.h>
 
 namespace palmira {
@@ -38,4 +38,4 @@ namespace palmira {
 
 }
 
-# endif   // !__palmira_status_report_hpp__
+# endif   // !__palmira_reports_hpp__

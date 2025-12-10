@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 option(SANITIZE_ENABLED "Enable sanitize" OFF)
 option(PROFILER_ENABLED "Enable profile" OFF)
+option(GRPC_API_ENABLED "Enable gRPC support" ON)
 
 add_compile_options(-mfpmath=sse -fstack-protector-all -g
 	-W -Wall -Wextra -Wcast-align -pedantic -Wfloat-equal -Wpointer-arith -Wformat-security
@@ -26,6 +27,10 @@ include_directories(
 	./
 	contrib)
 
+if(GRPC_API_ENABLED)
+	add_subdirectory(grpcttp)
+endif()
+
 add_subdirectory(contrib/moonycode)
 add_subdirectory(contrib/mtc)
 add_subdirectory(contrib/DeliriX)
@@ -36,9 +41,11 @@ add_library(palmira
 	src/objects/read-zip.cpp
 	src/objects/doc-zmap.cpp
 
-	src/service/delphi-search.cpp
+	src/service/structo-search.cpp
 	src/service/collect-docs.cpp
 	src/service/collect-quotes.cpp
+
+	src/toolset/toolset.cpp
 
 	src/z-arguments.cpp)
 
