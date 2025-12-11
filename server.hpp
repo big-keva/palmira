@@ -5,11 +5,11 @@
 namespace palmira
 {
 
-  struct IServer: public mtc::Iface
+  struct IServer: mtc::Iface
   {
-    virtual void  Start();
-    virtual void  Stop();
-    virtual void  Wait();
+    virtual void  Start() = 0;
+    virtual void  Stop()  = 0;
+    virtual void  Wait()  = 0;
   };
 
 }

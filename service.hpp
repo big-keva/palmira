@@ -58,6 +58,7 @@ namespace palmira {
     InsertArgs( const mtc::zmap& );
 
     auto  GetTextAPI() -> DeliriX::IText& {  return document;  }
+    auto  SetDocText( DeliriX::Text&& txt ) -> InsertArgs& {  return document = std::move( txt ), *this;  }
 
   private:
     void  LoadBody( const mtc::zmap& );
