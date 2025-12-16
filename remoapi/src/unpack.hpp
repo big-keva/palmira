@@ -6,7 +6,9 @@
 
 namespace remoapi
 {
-  auto  Unpack( const http::Request&, mtc::IByteStream* ) -> mtc::api<mtc::IByteStream>;
+  auto  Inflate( const http::Message&, mtc::IByteStream* ) -> mtc::api<mtc::IByteStream>;
+  auto  Deflate( const std::vector<char>& src ) -> std::vector<char>;
+
 }
 
 # endif   // !__palmira_remoapi_unpack_hpp__

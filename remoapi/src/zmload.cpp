@@ -33,11 +33,48 @@ namespace zmap    {
   {
     auto  zmdata = mtc::zmap();
     auto  intext = DeliriX::Text();
+    auto  dockey = decltype(zmdata.get( "document" )){};
 
     if ( zmdata.FetchFrom( src ) == nullptr )
       throw std::runtime_error( "Failed to load zmap from the stream @" __FILE__ ":" LINE_STRING );
-    if ( intext.FetchFrom( src ) == nullptr )
-      throw std::runtime_error( "Failed to load text from the stream @" __FILE__ ":" LINE_STRING );
+
+    if ( (dockey = zmdata.get( "document" )) == nullptr )
+      return Update( arg, req, zmdata );
+
+    switch ( dockey->get_type() )
+    {
+      case mtc::zval::z_charstr:
+      {
+        if ( *dockey->get_charstr() == "after:dump" )
+        {
+          if ( intext.FetchFrom( src ) == nullptr )
+            throw std::runtime_error( "Failed to load text from the stream @" __FILE__ ":" LINE_STRING );
+        }
+          else
+        if ( *dockey->get_charstr() == "after:xml" )
+        {
+          DeliriX::load_as::Tags( &intext, DeliriX::load_as::MakeSource( src ) );
+        }
+          else
+        if ( *dockey->get_charstr() == "after:json" )
+        {
+          DeliriX::load_as::Json( &intext, DeliriX::load_as::MakeSource( src ) );
+        }
+        break;
+      }
+      case mtc::zval::z_array_char:
+      {
+        auto  inbuff = mtc::sourcebuf(
+          dockey->get_array_charstr()->data(),
+          dockey->get_array_charstr()->size() );
+
+        if ( intext.FetchFrom( inbuff.ptr() ) == nullptr )
+          throw std::invalid_argument( "Failed to load text from the 'document' buffer @" __FILE__ ":" LINE_STRING );
+        break;
+      }
+      default:
+        throw std::invalid_argument( "Invalid 'document' image key type @" __FILE__ ":" LINE_STRING );
+    }
 
     return Update( arg, req, zmdata ).SetDocText( std::move( intext ) );
   }

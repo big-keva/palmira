@@ -87,9 +87,9 @@ namespace remoapi
 
   // Request processors
 
-  auto  Unpack( const http::Request& req, mtc::IByteStream* src ) -> mtc::api<mtc::IByteStream>
+  auto  Inflate( const http::Message& msg, mtc::IByteStream* src ) -> mtc::api<mtc::IByteStream>
   {
-    auto  method = req.GetHeaders().get( "Content-Encoding" );
+    auto  method = msg.GetHeaders().get( "Content-Encoding" );
 
     if ( method == "" )
       return src;
@@ -101,6 +101,45 @@ namespace remoapi
       (void)NULL;
 
     throw std::invalid_argument( mtc::strprintf( "Content-Encoding=%s not supported", method.c_str() ) );
+  }
+
+  auto  Deflate( const std::vector<char>& src ) -> std::vector<char>
+  {
+    z_stream          deflate_stream;
+    std::vector<char> deflate_buffer;
+
+    deflate_stream.zalloc = Z_NULL;
+    deflate_stream.zfree = Z_NULL;
+    deflate_stream.opaque = Z_NULL;
+
+    if ( src.empty() )
+      return {};
+
+  // Инициализируем deflate с уровнем сжатия по умолчанию (Z_DEFAULT_COMPRESSION = 6)
+    if ( deflateInit( &deflate_stream, Z_DEFAULT_COMPRESSION ) != Z_OK )
+      throw std::runtime_error( "deflate init error" );
+
+  // Устанавливаем указатель на входные данные
+    deflate_stream.next_in = reinterpret_cast<Bytef*>( const_cast<char*>( src.data() ) );
+    deflate_stream.avail_in = static_cast<uInt>( src.size() );
+
+    deflate_buffer.resize( deflateBound( &deflate_stream, src.size() ) );
+
+  // Устанавливаем указатель на выходные данные
+    deflate_stream.next_out = reinterpret_cast<Bytef*>(deflate_buffer.data());
+    deflate_stream.avail_out = static_cast<uInt>(deflate_buffer.size());
+
+    if ( deflate( &deflate_stream, Z_FINISH ) != Z_STREAM_END )
+    {
+      deflateEnd( &deflate_stream );
+      throw std::runtime_error( "data compression error" );
+    }
+
+    deflate_buffer.resize( deflate_stream.total_out );
+
+    deflateEnd( &deflate_stream );
+
+    return deflate_buffer;
   }
 
 }

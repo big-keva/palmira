@@ -33,13 +33,16 @@ namespace remoapi
 
   };
 
-  auto  IsJson( const http::Request& req ) -> bool  {  return req.GetHeaders().get( "Content-Type") == "application/json";  }
-  auto  IsDump( const http::Request& req ) -> bool  {  return req.GetHeaders().get( "Content-Type") == "application/octet-stream";  }
+  auto  IsJson( const http::Request& req ) -> bool
+    {  return req.GetHeaders().get( "Content-Type").substr( 0, 16 ) == "application/json";  }
+  auto  IsDump( const http::Request& req ) -> bool
+    {  return req.GetHeaders().get( "Content-Type").substr( 0, 24 ) == "application/octet-stream";  }
 
   void  OutputHTML( mtc::IByteStream*, http::StatusCode, const char* msgstr );
   void  OutputJSON( mtc::IByteStream*, http::StatusCode, const mtc::zmap& report );
 
-  template <class Args, mtc::api<palmira::IService::IPending> (palmira::IService::*Method)( const Args& )>
+  template <class Args, mtc::api<palmira::IService::IPending> (palmira::IService::*Method)
+    ( const Args&, palmira::IService::NotifyFn )>
   struct ActionCall
   {
     mtc::api<palmira::IService> service;
@@ -47,7 +50,7 @@ namespace remoapi
     void  operator()( mtc::IByteStream* out, const http::Request& req, mtc::IByteStream* src, std::function<bool()> cancel )
     {
       auto  ctType = req.GetHeaders().get( "Content-Type" );
-      auto  stream = Unpack( req, src );
+      auto  stream = Inflate( req, src );
 
       // check if cancel
       if ( cancel() )
@@ -64,7 +67,7 @@ namespace remoapi
           else
         throw std::logic_error( "Content-Type is not supported @" __FILE__ ":" LINE_STRING );
 
-        OutputJSON( out, http::StatusCode::Ok, (service->*Method)( args )->Wait() );
+        OutputJSON( out, http::StatusCode::Ok, (service->*Method)( args, []( const mtc::zmap& ){} )->Wait() );
       }
       catch ( const mtc::json::parse::error& xp )
       {
@@ -138,7 +141,7 @@ namespace remoapi
 
   auto  CreateServer( mtc::api<palmira::IService> serv, uint16_t port ) -> mtc::api<palmira::IServer>
   {
-    return new remoapi::Server( serv, port );
+    return new Server( serv, port );
   }
 
 }
