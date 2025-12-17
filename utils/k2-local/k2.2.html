@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DelphiX</title>
+    <style>
+        * 
+        {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body 
+        {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .search-container 
+        {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+
+        .search-header 
+        {
+            margin-bottom: 20px;
+        }
+
+        .search-form 
+        {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .search-input 
+        {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .search-input:focus 
+        {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .search-button 
+        {
+            padding: 12px 24px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+
+        .search-button:hover 
+        {
+            background-color: #0056b3;
+        }
+
+        .results-info 
+        {
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .results-list 
+        {
+            list-style: none;
+        }
+
+        .result-item 
+        {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: transform 0.2s ease;
+        }
+
+        .result-item:hover 
+        {
+            transform: translateX(5px);
+            border-color: #007bff;
+        }
+
+        .result-link 
+        {
+            display: block;
+            color: #007bff;
+            text-decoration: none;
+            font-weight: bold;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+
+        .result-link:hover 
+        {
+            text-decoration: underline;
+        }
+
+        .result-relevance 
+        {
+            display: inline-block;
+            font-size: 12px;
+            color: #28a745;
+            margin-bottom: 8px;
+        }
+
+        .result-index
+        {
+            display: inline-block;
+            margin-left: 1em;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .result-quote 
+        {
+            font-style: italic;
+            color: #6c757d;
+            background: #fff;
+            padding: 8px;
+            border-left: 3px solid #007bff;
+            border-radius: 2px;
+            line-height: 1.4;
+        }
+
+        /* Стили для выделения найденных слов */
+        .highlight 
+        {
+            background-color: #ffeb3b;
+            padding: 1px 3px;
+            border-radius: 3px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        .ellipsis 
+        {
+            color: #999;
+            font-weight: bold;
+        }
+
+        .file-actions 
+        {
+            margin-top: 8px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-button 
+        {
+            padding: 4px 8px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.3s ease;
+        }
+
+        .action-button:hover 
+        {
+            background-color: #5a6268;
+        }
+
+        .loading 
+        {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #007bff;
+        }
+
+        .loading.active 
+        {
+            display: block;
+        }
+
+        .error 
+        {
+            color: #dc3545;
+            padding: 10px;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <div class="search-header">
+            <h1>DelphiX</h1>
+        </div>
+        
+        <form class="search-form" id="searchForm">
+            <input 
+                type="text" 
+                class="search-input" 
+                id="searchInput" 
+                placeholder="Введите поисковый запрос..." 
+                autocomplete="off"
+            >
+            <button type="submit" class="search-button">Искать</button>
+        </form>
+
+        <div class="error" id="errorMessage" style="display: none;"></div>
+
+        <div class="results-info" id="resultsInfo" style="display: none;">
+            Найдено документов: <span id="foundCount">0</span> за <span id="elapcedTime">0</span> мс
+        </div>
+
+        <ul class="results-list" id="resultsList"></ul>
+    </div>
+
+    <script>
+        class FileSearch 
+        {
+            constructor() 
+            {
+                this.searchInput = document.getElementById('searchInput');
+                this.searchForm = document.getElementById('searchForm');
+                this.resultsList = document.getElementById('resultsList');
+                this.resultsInfo = document.getElementById('resultsInfo');
+                this.foundCount = document.getElementById('foundCount');
+                this.elapcedTime = document.getElementById('elapcedTime');
+                this.errorMessage = document.getElementById('errorMessage');
+                
+                this.timeoutId = null;
+                this.DEBOUNCE_DELAY = 250;
+                
+                this.initializeEvents();
+            }
+            
+            initializeEvents() 
+            {
+                this.searchForm.addEventListener('submit', (e) => 
+                {
+                    e.preventDefault();
+                    this.performSearch();
+                });
+                
+                this.searchInput.addEventListener('input', () => 
+                {
+                    this.debounceSearch();
+                });
+            }
+            
+            debounceSearch() 
+            {
+                clearTimeout(this.timeoutId);
+                this.timeoutId = setTimeout(() => 
+                {
+                    this.performSearch();
+                }, this.DEBOUNCE_DELAY);
+            }
+            
+            async performSearch() 
+            {
+                const query = this.searchInput.value.trim();
+                
+                if (!query) 
+                {
+                    this.clearResults();
+                    return;
+                }
+                
+                this.hideError();
+                
+                try 
+                {
+                    const response = await this.sendSearchRequest(query);
+                    this.displayResults(response);
+                } 
+                catch (error) 
+                {
+                    this.showError(error.message);
+                }
+            }
+            
+            async sendSearchRequest(query) 
+            {
+                const requestBody = JSON.stringify({ query: query });
+                
+                const response = await fetch('http://localhost:8080/search', 
+                {
+                    method: 'POST',
+                    headers: 
+                    {
+                        'Content-Type': 'application/json',
+                    },
+                    body: requestBody
+                });
+                
+                if (!response.ok) 
+                {
+                    throw new Error(`Ошибка сервера: ${response.status}`);
+                }
+                
+                return await response.json();
+            }
+            
+            displayResults(data) 
+            {
+                this.clearResults();
+
+                this.elapcedTime.textContent = data.timer.elapsed;
+                
+                if (data.found === 0) 
+                {
+                    this.foundCount.textContent = '0';
+                    this.resultsInfo.style.display = 'block';
+                    return;
+                }
+                
+                this.foundCount.textContent = data.found;
+                
+                data.items.forEach(item => 
+                {
+                    const listItem = this.createResultItem(item);
+                    this.resultsList.appendChild(listItem);
+                });
+
+                this.resultsInfo.style.display = 'block';
+            }
+            
+            createResultItem(item) 
+            {
+                const li = document.createElement('li');
+                li.className = 'result-item';
+                
+                // Заголовок файла
+                const title = document.createElement('div');
+                title.className = 'result-link';
+                title.textContent = this.formatFileName(item.id);
+                title.onclick = () => this.openFile(item.id);
+                
+                // Релевантность
+                const relevance = document.createElement('div');
+                relevance.className = 'result-relevance';
+                relevance.textContent = `Релевантность: ${item.range.toFixed(2)}`;
+                
+                // Индекс
+                const index = document.createElement('div');
+                index.className = 'result-index';
+                index.textContent = 'Индекс: ' + item.index;
+
+                // Цитата с обработкой сложной структуры
+                const quote = document.createElement('div');
+                quote.className = 'result-quote';
+                
+                if (item.quote) 
+                {
+                    const quoteContent = this.processQuoteStructure(item.quote);
+                    quote.appendChild(quoteContent);
+                } 
+                else 
+                {
+                    quote.textContent = 'Цитата не доступна';
+                }
+                
+                // Кнопки действий
+                const actions = document.createElement('div');
+                actions.className = 'file-actions';
+                
+                const openButton = document.createElement('button');
+                openButton.className = 'action-button';
+                openButton.textContent = 'Открыть';
+                openButton.onclick = () => this.openFile(item.id);
+                
+                const showInFolderButton = document.createElement('button');
+                showInFolderButton.className = 'action-button';
+                showInFolderButton.textContent = 'Показать в папке';
+                showInFolderButton.onclick = () => this.showInFolder(item.id);
+                
+                actions.appendChild(openButton);
+                actions.appendChild(showInFolderButton);
+                
+                li.appendChild(title);
+                li.appendChild(relevance);
+                li.appendChild(index);
+                li.appendChild(quote);
+                li.appendChild(actions);
+                
+                return li;
+            }
+            
+            // Обработка сложной структуры цитаты
+            processQuoteStructure(quoteData)
+            {
+                const container = document.createElement('span');
+                
+                if (Array.isArray(quoteData))
+                {
+                    let previousItemType = null;
+                    
+                    // Если это массив - обрабатываем каждый элемент
+                    quoteData.forEach((item, index) =>
+                    {
+                        let currentItemType = this.getItemType(item);
+                        
+                        // Добавляем разделитель между элементами
+                        if (index > 0)
+                        {
+                            this.addSeparator(container, previousItemType, currentItemType);
+                        }
+                        
+                        if (typeof item === 'string')
+                        {
+                            // Строка с символами выделения
+                            const processedText = this.processHighlightedText(item);
+                            container.appendChild(processedText);
+                        }
+                        else if (typeof item === 'object' && item !== null)
+                        {
+                            // Объект с одной переменной
+                            const key = Object.keys(item)[0];
+                            if (key)
+                            {
+                                const value = item[key];
+
+                                if (typeof value === 'string')
+                                {
+                                    const processedText = this.processHighlightedText(value);
+                                    container.appendChild(processedText);
+                                }
+                                else if (Array.isArray(value))
+                                {
+                                    // Рекурсивная обработка вложенного массива
+                                    const nestedContent = this.processQuoteStructure(value);
+                                    container.appendChild(nestedContent);
+                                }
+                            }
+                        }
+                        
+                        previousItemType = currentItemType;
+                    });
+                }
+                else if (typeof quoteData === 'string')
+                {
+                    // Простая строка
+                    const processedText = this.processHighlightedText(quoteData);
+                    container.appendChild(processedText);
+                }
+                
+                return container;
+            }
+            
+            // Определяет тип элемента для правильного разделения
+            getItemType(item)
+            {
+                if (typeof item === 'string')
+                {
+                    return 'string';
+                }
+                else if (typeof item === 'object' && item !== null)
+                {
+                    return 'object';
+                }
+                return 'unknown';
+            }
+            
+            // Добавляет разделитель между элементами
+            addSeparator(container, previousType, currentType)
+            {
+                // Если оба элемента - строки, проверяем наличие многоточий
+                if (previousType === 'string' && currentType === 'string')
+                {
+                    // В реальной реализации здесь нужно анализировать концы строк
+                    // Для простоты всегда добавляем многоточие между строками
+                    const ellipsisSpan = document.createElement('span');
+                    ellipsisSpan.className = 'ellipsis';
+                    ellipsisSpan.textContent = '…';
+                    container.appendChild(ellipsisSpan);
+                }
+                else
+                {
+                    // Между объектами или строкой и объектом - добавляем перевод строки
+                    const lineBreak = document.createElement('br');
+                    container.appendChild(lineBreak);
+                }
+            }
+            
+            // Обработка текста с символами выделения \x07 и \x08
+            processHighlightedText(text) 
+            {
+                const container = document.createElement('span');
+                
+                if (typeof text !== 'string') 
+                {
+                    container.textContent = String(text);
+                    return container;
+                }
+                
+                const startMark = '\x07'; // Символ начала выделения
+                const endMark = '\x08';   // Символ конца выделения
+                const ellipsisChar = '\u2026'; // Символ многоточия
+                
+                let currentIndex = 0;
+                let inHighlight = false;
+                let buffer = '';
+                
+                for (let i = 0; i < text.length; i++) 
+                {
+                    const char = text[i];
+                    
+                    if (char === startMark && !inHighlight) 
+                    {
+                        // Начало выделения - добавляем предыдущий текст
+                        if (buffer) 
+                        {
+                            const normalSpan = document.createElement('span');
+                            normalSpan.textContent = buffer;
+                            container.appendChild(normalSpan);
+                            buffer = '';
+                        }
+                        inHighlight = true;
+                    } 
+                    else if (char === endMark && inHighlight) 
+                    {
+                        // Конец выделения - добавляем выделенный текст
+                        if (buffer) 
+                        {
+                            const highlightSpan = document.createElement('span');
+                            highlightSpan.className = 'highlight';
+                            highlightSpan.textContent = buffer;
+                            container.appendChild(highlightSpan);
+                            buffer = '';
+                        }
+                        inHighlight = false;
+                    } 
+                    else 
+                    {
+                        // Обычный символ - добавляем в буфер
+                        buffer += char;
+                    }
+                }
+                
+                // Добавляем оставшийся текст
+                if (buffer) 
+                {
+                    const finalSpan = document.createElement('span');
+                    if (inHighlight) 
+                    {
+                        finalSpan.className = 'highlight';
+                    }
+                    finalSpan.textContent = buffer;
+                    container.appendChild(finalSpan);
+                }
+                
+                return container;
+            }
+            
+            openFile(filePath) 
+            {
+                try 
+                {
+                    const fileUrl = this.pathToFileUrl(filePath);
+                    window.open(fileUrl, '_blank');
+                } 
+                catch (error) 
+                {
+                    this.showError(`Не удалось открыть файл: ${error.message}`);
+                }
+            }
+            
+            showInFolder(filePath) 
+            {
+                try 
+                {
+                    if (navigator.platform.includes('Win')) 
+                    {
+                        const path = this.normalizeWindowsPath(filePath);
+                        window.open(`file:///explorer /select,"${path}"`);
+                    } 
+                    else if (navigator.platform.includes('Mac')) 
+                    {
+                        const path = this.normalizePath(filePath);
+                        window.open(`file://${path}`);
+                    } 
+                    else 
+                    {
+                        const path = this.normalizePath(filePath);
+                        window.open(`file://${path}`);
+                    }
+                } 
+                catch (error) 
+                {
+                    this.showError(`Не удалось открыть папку: ${error.message}`);
+                }
+            }
+            
+            pathToFileUrl(filePath) 
+            {
+                const normalizedPath = this.normalizePath(filePath);
+                return `file:///${encodeURI(normalizedPath)}`;
+            }
+            
+            normalizePath(path) 
+            {
+                return path.replace(/\\/g, '/');
+            }
+            
+            normalizeWindowsPath(path) 
+            {
+                return path.replace(/\//g, '\\');
+            }
+            
+            formatFileName(path) 
+            {
+                return path.split(/[\\/]/).pop() || path;
+            }
+            
+            clearResults() 
+            {
+                this.resultsInfo.style.display = 'none';
+                this.resultsList.innerHTML = '';
+            }
+            
+            showError(message) 
+            {
+                this.errorMessage.textContent = message;
+                this.errorMessage.style.display = 'block';
+            }
+            
+            hideError() 
+            {
+                this.errorMessage.style.display = 'none';
+            }
+        }
+        
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => 
+        {
+            new FileSearch();
+        });
+    </script>
+</body>
+</html>
