@@ -1,5 +1,5 @@
-# if !defined( __palmira_remoapi_client_hpp__ )
-# define __palmira_remoapi_client_hpp__
+# if !defined( __palmira_network_http_client_hpp__ )
+# define __palmira_network_http_client_hpp__
 # include "../service.hpp"
 
 namespace remoapi
@@ -40,4 +40,4 @@ namespace remoapi
 
 }
 
-# endif // !__palmira_remoapi_client_hpp__
+# endif // !__palmira_network_http_client_hpp__
