@@ -1,6 +1,6 @@
 # if !defined( __palmira_remoapi_loader_hpp__ )
 # define __palmira_remoapi_loader_hpp__
-# include "../../service.hpp"
+# include "../../../service.hpp"
 # include <remottp/request.hpp>
 # include <mtc/iStream.h>
 
