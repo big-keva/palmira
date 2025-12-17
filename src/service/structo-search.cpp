@@ -1,5 +1,5 @@
 # include "../../service/structo-search.hpp"
-# include "../object-zmap.hpp"
+# include "../toolset/object-zmap.hpp"
 # include "../reports.hpp"
 # include "../toolset.hpp"
 # include "collect.hpp"
@@ -26,10 +26,10 @@ namespace palmira {
     long  Detach() override;
 
   protected:
-    auto  Insert( const InsertArgs& ) -> mtc::api<IPending> override;
-    auto  Update( const UpdateArgs& ) -> mtc::api<IPending> override;
-    auto  Remove( const RemoveArgs& ) -> mtc::api<IPending> override;
-    auto  Search( const SearchArgs& ) -> mtc::api<IPending> override;
+    auto  Insert( const InsertArgs&, NotifyFn ) -> mtc::api<IPending> override;
+    auto  Update( const UpdateArgs&, NotifyFn ) -> mtc::api<IPending> override;
+    auto  Remove( const RemoveArgs&, NotifyFn ) -> mtc::api<IPending> override;
+    auto  Search( const SearchArgs&, NotifyFn ) -> mtc::api<IPending> override;
     void  Commit() override;
 
     template <size_t N>
@@ -145,7 +145,7 @@ namespace palmira {
     return unpack;
   }
 
-  auto  StructoSearch::Insert( const InsertArgs& insert ) -> mtc::api<IPending>
+  auto  StructoSearch::Insert( const InsertArgs& insert, NotifyFn notify ) -> mtc::api<IPending>
   {
     try
     {
@@ -191,14 +191,14 @@ namespace palmira {
       getdoc = ctxIndex->SetEntity( insert.objectId, contents( pwBody->GetLemmas(), pwBody->GetMarkup(), fieldMan ).ptr(),
         { serial.first.get(), serial.second }, { enBeef.data(), enBeef.size() } );
 
-      return Quick( UpdateReport{ 0, "OK", { { "metadata", LoadMetadata( getdoc->GetExtra() ) } } } );
+      return Immediate( UpdateReport{ 0, "OK", { { "metadata", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
     }
-    catch ( const std::bad_function_call& xp )        {  return Quick( UpdateReport{ EFAULT, xp.what() } );  }
-    catch ( const std::invalid_argument& xp )         {  return Quick( UpdateReport{ EINVAL, xp.what() } );  }
-    catch ( const DeliriX::load_as::ParseError& xp )  {  return Quick( UpdateReport{ EINVAL, xp.what() } );  }
+    catch ( const std::bad_function_call& xp )        {  return Immediate( UpdateReport{ EFAULT, xp.what() }, notify );  }
+    catch ( const std::invalid_argument& xp )         {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
+    catch ( const DeliriX::load_as::ParseError& xp )  {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
   }
 
-  auto  StructoSearch::Update( const UpdateArgs& update ) -> mtc::api<IPending>
+  auto  StructoSearch::Update( const UpdateArgs& update, NotifyFn notify ) -> mtc::api<IPending>
   {
     try
     {
@@ -207,28 +207,27 @@ namespace palmira {
       auto  getdoc = mtc::api<const IEntity>();
 
       if ( (getdoc = ctxIndex->SetExtras( update.objectId, { serial.first.get(), serial.second } )) == nullptr )
-        return Quick( UpdateReport{ ENOENT, "document not found" } );
+        return Immediate( UpdateReport{ ENOENT, "document not found" }, notify );
 
-      return Quick( UpdateReport{ 0, "OK", { { "metadata", LoadMetadata( getdoc->GetExtra() ) } } } );
+      return Immediate( UpdateReport{ 0, "OK", { { "metadata", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
     }
-    catch ( const std::invalid_argument& xp )         {  return Quick( UpdateReport{ EINVAL, xp.what() } );  }
-    catch ( const DeliriX::load_as::ParseError& xp )  {  return Quick( UpdateReport{ EINVAL, xp.what() } );  }
+    catch ( const std::invalid_argument& xp )         {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
+    catch ( const DeliriX::load_as::ParseError& xp )  {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
   }
 
-  auto  StructoSearch::Remove( const RemoveArgs& remove ) -> mtc::api<IPending>
+  auto  StructoSearch::Remove( const RemoveArgs& remove, NotifyFn notify ) -> mtc::api<IPending>
   {
     try
     {
       if ( ctxIndex->DelEntity( remove.objectId ) )
-        return Quick( UpdateReport( 0, "OK" ) );
-
-      return Quick( UpdateReport( ENOENT, "document not found" ) );
+        return Immediate( UpdateReport( 0, "OK" ), notify );
+      return Immediate( UpdateReport( ENOENT, "document not found" ), notify );
     }
-    catch ( const std::invalid_argument& xp )         {  return Quick( UpdateReport{ EINVAL, xp.what() } );  }
-    catch ( const DeliriX::load_as::ParseError& xp )  {  return Quick( UpdateReport{ EINVAL, xp.what() } );  }
+    catch ( const std::invalid_argument& xp )         {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
+    catch ( const DeliriX::load_as::ParseError& xp )  {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
   }
 
-  auto  StructoSearch::Search( const SearchArgs& search ) -> mtc::api<IPending>
+  auto  StructoSearch::Search( const SearchArgs& search, NotifyFn notify ) -> mtc::api<IPending>
   {
     Timing  timing;
 
@@ -238,17 +237,17 @@ namespace palmira {
       auto  getent = mtc::api<const IEntity>();
 
       if ( ent_id.empty() )
-        return Quick( timing( SearchReport( EINVAL, "invalid 'id' data type, string expected" ) ) );
+        return Immediate( timing( SearchReport( EINVAL, "invalid 'id' data type, string expected" ) ), notify );
 
       if ( (getent = ctxIndex->GetEntity( ent_id )) != nullptr )
       {
-        return Quick( timing( SearchReport( 0, "OK", {
+        return Immediate( timing( SearchReport( 0, "OK", {
           { "first", uint32_t(1) },
           { "found", uint32_t(1) },
           { "items", mtc::array_zmap{
-            { { "id", { getent->GetId().data(), getent->GetId().size() } } } } } } ) ) );
+            { { "id", { getent->GetId().data(), getent->GetId().size() } } } } } } ) ), notify );
       }
-      return Quick( timing( SearchReport( ENOENT, "document not found" ) ) );
+      return Immediate( timing( SearchReport( ENOENT, "document not found" ) ), notify );
     }
       else
     {
@@ -282,11 +281,11 @@ namespace palmira {
       auto  request = queries::BuildRichQuery( search.query, search.terms, ctxIndex, lingProc, fieldMan );
 
       if ( request == nullptr )
-        return Quick( timing( SearchReport( 0, "OK", { { "found", 0U } } ) ) );
+        return Immediate( timing( SearchReport( 0, "OK", { { "found", 0U } } ) ), notify );
 
       collect->Search( request );
 
-      return Quick( timing( SearchReport( collect->Finish( ctxIndex ) ) ) );
+      return Immediate( timing( SearchReport( collect->Finish( ctxIndex ) ) ), notify );
     }
   }
 
