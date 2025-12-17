@@ -6,7 +6,15 @@
 
 namespace palmira {
 
-  struct AccessArgs
+  struct TimingArgs
+  {
+    double      fTimeout = -1.0;
+
+    TimingArgs() = default;
+    TimingArgs( const mtc::zmap& );
+  };
+
+  struct AccessArgs: TimingArgs
   {
     std::string objectId;
 
@@ -15,7 +23,7 @@ namespace palmira {
     AccessArgs( const mtc::zmap& );
   };
 
-  struct RemoveArgs: public AccessArgs
+  struct RemoveArgs: AccessArgs
   {
     uint64_t    uVersion;
     mtc::zval   ifClause;
@@ -65,21 +73,28 @@ namespace palmira {
 
   };
 
-  struct SearchArgs
+  struct SearchArgs: TimingArgs
   {
     mtc::zval   query;
     mtc::zmap   order;
     mtc::zmap   terms;
+
+    SearchArgs() = default;
+    SearchArgs( const mtc::zval& req, const mtc::zmap& ord = {}, const mtc::zmap& tms = {} ):
+      query( req ),
+      order( ord ),
+      terms( tms )  {}
   };
 
   struct IService: mtc::Iface
   {
     struct IPending;
+    using  NotifyFn = std::function<void( const mtc::zmap& )>;
 
-    virtual auto  Insert( const InsertArgs& ) -> mtc::api<IPending> = 0;
-    virtual auto  Update( const UpdateArgs& ) -> mtc::api<IPending> = 0;
-    virtual auto  Remove( const RemoveArgs& ) -> mtc::api<IPending> = 0;
-    virtual auto  Search( const SearchArgs& ) -> mtc::api<IPending> = 0;
+    virtual auto  Insert( const InsertArgs&, NotifyFn = []( const mtc::zmap& ){} ) -> mtc::api<IPending> = 0;
+    virtual auto  Update( const UpdateArgs&, NotifyFn = []( const mtc::zmap& ){} ) -> mtc::api<IPending> = 0;
+    virtual auto  Remove( const RemoveArgs&, NotifyFn = []( const mtc::zmap& ){} ) -> mtc::api<IPending> = 0;
+    virtual auto  Search( const SearchArgs&, NotifyFn = []( const mtc::zmap& ){} ) -> mtc::api<IPending> = 0;
     virtual void  Commit() = 0;
   };
 
