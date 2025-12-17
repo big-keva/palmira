@@ -4,9 +4,7 @@
 
 namespace palmira
 {
-
-  auto  Quick( const mtc::zmap& ) -> mtc::api<IService::IPending>;
-
+  auto  Immediate( const mtc::zmap&, IService::NotifyFn = {} ) -> mtc::api<IService::IPending>;
 }
 
 # endif // !__palmira_toolset_hpp__
