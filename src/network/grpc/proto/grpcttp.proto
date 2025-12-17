@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package grpcttp;
+
+service Search
+{
+  rpc Insert( InsertArgs ) returns (UpdateReport) {}
+  rpc Update( UpdateArgs ) returns (UpdateReport) {}
+  rpc Remove( RemoveArgs ) returns (UpdateReport) {}
+}
+
+message Status
+{
+  int32   code = 1;
+  string  info = 2;
+}
+
+message StatusReport
+{
+  Status    status = 1;
+}
+
+message UpdateReport
+{
+  Status    status = 1;
+  Metadata  metadata = 2;
+}
+
+message RemoveArgs
+{
+  string    objectId = 1;
+}
+
+message UpdateArgs
+{
+  string    objectId = 1;
+  Metadata  metadata = 2;
+}
+
+message InsertArgs
+{
+  string    objectId = 1;
+  Metadata  metadata = 2;
+  Document  document = 3;
+}
+
+message MetaValue
+{
+  oneof value_type
+  {
+    bool   as_bool = 1;
+    int32  as_int32 = 2;
+    int64  as_int64 = 3;
+    uint32 as_uint32 = 4;
+    uint64 as_uint64 = 5;
+    float  as_float = 6;
+    double as_double = 7;
+    string as_string = 8;
+
+    Metadata as_metadata = 10;
+
+    array_int32 as_array_int32 = 12;
+    array_int64 as_array_int64 = 13;
+    array_uint32 as_array_uint32 = 14;
+    array_uint64 as_array_uint64 = 15;
+    array_float as_array_float = 16;
+    array_double as_array_double = 17;
+    array_string as_array_string = 18;
+
+    array_Metadata as_array_metadata = 20;
+    array_Metavalue as_array_metavalue = 21;
+  }
+}
+
+message Metadata {  map<string, MetaValue>  data = 1;  }
+
+message Document {  repeated Element elements = 1;  }
+
+message Element
+{
+  oneof element_type
+  {
+    string  text = 1;
+    Tag     mkup = 2;
+  }
+}
+
+message Tag
+{
+  string    tag = 1;
+  Document  items = 2;
+}
+
+message array_int32 {  repeated int32 value = 1;  }
+message array_int64 {  repeated int64 value = 1;  }
+message array_uint32 {  repeated uint32 value = 1;  }
+message array_uint64 {  repeated uint64 value = 1;  }
+message array_float {  repeated float value = 1;  }
+message array_double {  repeated double value = 1;  }
+message array_string {  repeated string value = 1;  }
+
+message array_Metadata {  repeated Metadata value = 1;  }
+message array_Metavalue {  repeated MetaValue value = 1;  }
