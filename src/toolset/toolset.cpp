@@ -8,11 +8,18 @@ namespace palmira
     auto  Wait(double) -> zmap override {  return *this;}
 
   public:
-    QuickPending( const mtc::zmap& z ): mtc::zmap( z ) {}
+    QuickPending( const zmap& z, IService::NotifyFn n ): mtc::zmap( z )
+    {
+      if ( n != nullptr )
+        n( *this );
+    }
 
     implement_lifetime_control
   };
 
-  auto  Quick( const mtc::zmap& rez ) -> mtc::api<IService::IPending> {  return new QuickPending( rez );  }
+  auto  Immediate( const mtc::zmap& rez, IService::NotifyFn nfn ) -> mtc::api<IService::IPending>
+  {
+    return new QuickPending( rez, nfn );
+  }
 
 }

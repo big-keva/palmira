@@ -1,4 +1,4 @@
-# include "../service.hpp"
+# include "../../service.hpp"
 # include "object-zmap.hpp"
 # include "DeliriX/DOM-load.hpp"
 
@@ -6,9 +6,16 @@ namespace palmira {
 
   using Document = DeliriX::Text;
 
+  // TimingArgs
+
+  TimingArgs::TimingArgs( const mtc::zmap& args ):
+    fTimeout( args.get_double( "timeout", -1.0 ) )
+  {
+  }
+
   // AccessArgs
 
-  AccessArgs::AccessArgs( const mtc::zmap& args ):
+  AccessArgs::AccessArgs( const mtc::zmap& args ): TimingArgs( args ),
     objectId( args.get_charstr( "id", "" ) )
   {
     if ( objectId.empty() )
