@@ -1,20 +1,19 @@
-# include "../service/delphi-search.hpp"
-# include "watch-fs.hpp"
-# include "contrib/remottp/server.hpp"
-# include "contrib/remottp/src/events.hpp"
-# include <iostream>
-# include <cstdio>
-#include <DelphiX/queries.hpp>
-#include <DelphiX/context/x-contents.hpp>
-#include <DelphiX/indexer/layered-contents.hpp>
-#include <DelphiX/queries/parser.hpp>
-#include <DelphiX/src/indexer/index-layers.hpp>
-#include <DelphiX/storage/posix-fs.hpp>
-#include <mtc/config.h>
-#include <mtc/directory.h>
-#include <mtc/threadPool.hpp>
+# include <service/structo-search.hpp>
+# include <watchFs.hpp>
+# include <remottp/http-server.hpp>
+# include <remottp/src/events.hpp>
+# include <structo/queries.hpp>
+# include <structo/context/x-contents.hpp>
+# include <structo/indexer/layered-contents.hpp>
+# include <structo/queries/parser.hpp>
+# include <structo/src/indexer/index-layers.hpp>
+# include <structo/storage/posix-fs.hpp>
+# include <mtc/config.h>
+# include <mtc/directory.h>
+# include <mtc/threadPool.hpp>
 # include <mtc/json.h>
 # include <sys/resource.h>
+# include <cstdio>
 
 auto  GetJsonQuery( mtc::IByteStream* src ) -> mtc::zmap
 {
@@ -40,14 +39,14 @@ auto  BuildService( const mtc::config& cfg ) -> mtc::api<palmira::IService>
   if ( ixpath.empty() )
     throw std::invalid_argument( "no 'index_path' parameter found @" __FILE__ ":" LINE_STRING );
 
-  return palmira::DelphiXService()
-    .Set( DelphiX::indexer::layered::Index()
+  return palmira::StructoService()
+    .Set( structo::indexer::layered::Index()
       .Set(
         Open(
-          DelphiX::storage::posixFS::StoragePolicies::Open( ixpath ) ) )
+          structo::storage::posixFS::StoragePolicies::Open( ixpath ) ) )
       .Create() )
-    .Set( DelphiX::context::GetRichContents )
-    .Set( DelphiX::context::Processor() )
+    .Set( structo::context::GetRichContents )
+    .Set( structo::context::Processor() )
   .Create();
 }
 
@@ -106,10 +105,11 @@ void  IndexDir( mtc::api<palmira::IService> service, const std::string dir, std:
         else
       if ( CheckExt( stpath, { "h", "hpp", "c", "cpp", "cxx", "txt" } ) )
       {
-        auto  getdoc = service->Search( { mtc::zmap{
-          { "id", stpath } }, {
-          { "first", int32_t(1) },
-          { "count", int32_t(1) } }, {} } );
+        auto  getdoc = service->Search( palmira::SearchArgs{
+          mtc::zmap{
+            { "id", stpath } },
+          { { "first", int32_t(1) },
+            { "count", int32_t(1) } } } )->Wait();
 
         if ( getdoc.get_word32( "found", 0 ) == 0 )
         {
@@ -135,46 +135,50 @@ int   main(int, char**)
   auto  search = BuildService( config.get_config( "delphi" ) );
   auto  ignore = GetSkipPaths( config.get_config( "delphi" ) );
   auto  server = new http::Server( "0.0.0.0", 8080 );
-  auto  fwatch = palmira::k2_find::WatchDir( [&]( unsigned what, const std::string& sz )
+  auto  fwatch = palmira::WatchDir( [&]( unsigned what, const std::string& sz )
     {
       for ( auto& next: ignore )
         if ( sz.length() >= next.length() && next == sz.substr( 0, next.length() ) )
           return;
 
       fprintf( stdout, "%s: %s\n",
-        what == palmira::k2_find::WatchDir::create_file ? "create" :
-        what == palmira::k2_find::WatchDir::modify_file ? "modify" :
-        what == palmira::k2_find::WatchDir::delete_file ? "delete" : "??????", sz.c_str() );
+        what == palmira::WatchDir::create_file ? "create" :
+        what == palmira::WatchDir::modify_file ? "modify" :
+        what == palmira::WatchDir::delete_file ? "delete" : "??????", sz.c_str() );
     } );
   auto  scanIt = std::thread( IndexDir, search, std::string( "/home/keva/" ), nullptr );
 
   fwatch.AddWatch( "/home/keva/" );
 
   server->RegisterHandler( "/search", http::Method::POST, [&](
-    mtc::IByteStream*     out,
-    const http::Request&  req,
-    mtc::IByteStream*     src )
+    mtc::IByteStream*     output,
+    const http::Request&  refreq,
+    mtc::IByteStream*     source,
+    std::function<bool()> cancel )
   {
-    if ( req.GetHeaders().get( "Content-Type" ) == "application/json" )
+    if ( refreq.GetHeaders().get( "Content-Type" ) == "application/json" )
     {
-      auto  zquery = GetJsonQuery( src );
+      auto  zquery = GetJsonQuery( source );
       auto  nfirst = zquery.get_int32( "first", 1 );
       auto  ncount = zquery.get_int32( "count", 10 );
       auto  wquery = zquery.get_widestr( "query", {} );
 
       if ( wquery.length() != 0 )
       {
-        auto  report = search->Search( { DelphiX::queries::ParseQuery( wquery ), {
+        auto  report = search->Search( { structo::queries::ParseQuery( wquery ), mtc::zmap{
           { "first", nfirst },
-          { "count", ncount } }, {} } );
+          { "count", ncount } }, {} } )->Wait();
 
-        http::Output( out, { http::StatusCode::Ok, {
+        http::Output( output, { http::StatusCode::Ok, {
       //    { "Transfer-Encoding", "chunked" },
           { "Access-Control-Allow-Origin", "*" },
           { "Connection", "keep-alive" }/*,
           { "Keep-Alive", "timeout=30, max=1000" }*/ } }, report );
       }
-    } else http::Output( out, { http::StatusCode::BadRequest, { { "Access-Control-Allow-Origin", "*" } } } );
+    }
+      else
+    http::Output( output, { http::StatusCode::BadRequest, { { "Access-Control-Allow-Origin", "*" } } } );
+    cancel();
   } );
 
   server->Start();
