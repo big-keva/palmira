@@ -8,6 +8,7 @@
 # include <remottp/src/events.hpp>
 # include <remottp/message.hpp>
 # include <mtc/recursive_shared_mutex.hpp>
+# include <mtc/ptr.h>
 # include <condition_variable>
 
 template <>

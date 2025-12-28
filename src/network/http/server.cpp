@@ -9,6 +9,10 @@
 # include <mtc/recursive_shared_mutex.hpp>
 # include <condition_variable>
 
+template <>
+inline  std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
+  {  return o->insert( o->end(), (const char*)p, l + (const char*)p ), o;  }
+
 namespace remoapi
 {
 
