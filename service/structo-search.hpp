@@ -2,6 +2,7 @@
 # define __palmira_structo_search_hpp__
 # include "structo/context/processor.hpp"
 # include "service.hpp"
+# include <mtc/config.h>
 
 namespace palmira {
 
@@ -28,6 +29,8 @@ namespace palmira {
     std::shared_ptr<data> init;
 
   };
+
+  auto  CreateStructo( const mtc::config& config ) -> mtc::api<IService>;
 
 }
 
