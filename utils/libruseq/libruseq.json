@@ -1,10 +1,23 @@
 {
-  "http": {
+  "api": "http-server",
+
+  "http-server": {
+    "type": "http",
+    "port": 57571,
+    "timeout": 60
+  },
+
+  "grpc-server": {
+    "type": "gRPC",
     "port": 57571,
     "timeout": 60
   },
 
   "service": {
+    "contents": "Rich",  // BM25, Mini
+    "languages": [
+        { "id": 0, "module": "../../cmake-build-relwithdebinfo/plugins/morpho-ru/libmorpho-ru.so" }
+    ],
     "index": {
       "generic_name": "index/lq"
     }

@@ -2,6 +2,7 @@
 # include <DeliriX/archive.hpp>
 # include <DeliriX/formats.hpp>
 # include <remottp/client.hpp>
+# include "../statusReport.hpp"
 # include <mtc/recursive_shared_mutex.hpp>
 # include <mtc/directory.h>
 # include <mtc/json.h>
@@ -21,67 +22,65 @@ std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
   {  return o->insert( o->end(), (const char*)p, l + (const char*)p ), o;  }
 
 http::Client    http_client;
+//http::Channel   get_channel = http_client.GetChannel( "83.220.175.72", 57571 );
 http::Channel   get_channel = http_client.GetChannel( "127.0.0.1", 57571 );
 
-void  StoreArchive( const std::string& name, const DeliriX::Text& text )
+void  WashSocket( mtc::IByteStream* stm )
+{
+  char  buffer[1024];
+
+  while ( stm != nullptr && stm->Get( buffer, sizeof(buffer) ) > 0 )
+    (void)NULL;
+}
+
+void  IndexArchive( const std::string& name, const DeliriX::Text& text )
 {
   std::vector<char> serial;
 
   text.Serialize( &serial );
 
   auto  r = http_client.NewRequest( http::Method::POST, mtc::strprintf( "/insert?id=%s", http::UriEncode( name ).c_str() ) )
+    .SetHeaders( { { "Content-Type", "application/octet-stream" } } )
     .SetBody( std::move( serial ) )
     .SetTimeout( 5.0 )
-    .SetCallback( []( http::ExecStatus status, const http::Respond& resp, mtc::api<mtc::IByteStream> stm )
+    .SetCallback( []( http::ExecStatus status, const http::Respond& res, mtc::api<mtc::IByteStream> stm )
       {
-        if ( status == http::ExecStatus::Ok )
+        switch ( status )
         {
-          fprintf( stdout, "Succeeded: %u %s\n",
-            unsigned( resp.GetStatusCode() ), to_string( resp.GetStatusCode() ) );
-
-          if ( stm != nullptr )
+          case http::ExecStatus::Ok:
           {
-            char  buffer[1024];
-            int   cbread;
+            auto  report = palmira::StatusReport();
 
-            while ( (cbread = stm->Get( buffer, sizeof(buffer) )) > 0 )
-              fwrite( buffer, cbread, 1, stdout );
+          // get zmap report
+            if ( res.GetHeaders().get( "Content-Type" ) == "application/json" )
+            {
+              try
+              {  mtc::json::Parse( stm.ptr(), report );  }
+              catch ( const mtc::json::parse::error& xp )
+              {  report = palmira::StatusReport( EFAULT, "Could not parse the report" );  }
+            }
+
+          // clean socket data
+            WashSocket( stm );
+
+            mtc::json::Print( stdout, report, mtc::json::print::decorated() );
+            break;
           }
-        }
-          else
-        {
-          fprintf( stdout, "%s\n",
-            status == http::ExecStatus::Failed ? "Failed" :
-            status == http::ExecStatus::Invalid ? "Invalid" :
-            status == http::ExecStatus::TimedOut ? "TimedOut" : "Undefined" );
+          case http::ExecStatus::Failed:
+          {
+            fprintf( stdout, "FAULT\n" );
+            break;
+          }
+          case http::ExecStatus::TimedOut:  default:
+          {
+            fprintf( stdout, "TIMEOUT\n" );
+            break;
+          }
         }
       } )
     .Start( get_channel );
 
   fprintf( stdout, "Done send\n" );
-/*  r.wait();
-
-  if ( r.get().status == http::ExecStatus::Ok )
-  {
-    fprintf( stdout, "Succeeded: %u %s\n",
-      unsigned( r.get().report.GetStatusCode() ), to_string( r.get().report.GetStatusCode() ) );
-
-    for ( auto stream = r.get().stream; stream != nullptr; stream = nullptr )
-    {
-      char  buffer[1024];
-      int   cbread;
-
-      while ( (cbread = stream->Get( buffer, sizeof(buffer) )) > 0 )
-        fwrite( buffer, cbread, 1, stdout );
-    }
-  }
-    else
-  {
-    fprintf( stdout, "%s\n",
-      r.get().status == http::ExecStatus::Failed ? "Failed" :
-      r.get().status == http::ExecStatus::Invalid ? "Invalid" :
-      r.get().status == http::ExecStatus::TimedOut ? "TimedOut" : "Undefined" );
-  }*/
 }
 
 void  ParseArchive( const std::string& archive )
@@ -136,11 +135,13 @@ void  ParseArchive( const std::string& archive )
     {
       DeliriX::ParseFB2( &text, buffer );
     }
+    catch ( const std::exception& xp )
+    {  return (void)fprintf( stderr, "error parsing '%s': %s\n", archive.c_str(), xp.what() );  }
     catch ( ... )
-    {  return (void)fprintf( stderr, "unknown exception parsing fb2 from '%s'\n", archive.c_str() );  }
+    {  return (void)fprintf( stderr, "error parsing '%s'\n", archive.c_str() );  }
 
   // set to indexer
-    StoreArchive( archive, text );
+    IndexArchive( archive, text );
 
     fprintf( stdout, "Done Parse\n" );
   }
@@ -148,11 +149,13 @@ void  ParseArchive( const std::string& archive )
 
 int   main()
 {
-  auto  fullfn = "/media/keva/KINGSTON/Libruks/Архивы Либрусек/4/400001.zip";
+  auto  fullfn = "/media/keva/KINGSTON/Libruks/Архивы Либрусек/1/100026.zip";
 
   ParseArchive( fullfn );
 
   fprintf( stdout, "ready to cleanup\n" );
+
+  getc( stdin );
 
   return 0;
 }

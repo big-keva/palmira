@@ -1,25 +1,18 @@
+# include "../reports.hpp"
 # include <DeliriX/DOM-text.hpp>
 # include <DeliriX/archive.hpp>
 # include <DeliriX/formats.hpp>
-# include <remottp/client.hpp>
+# include <network/http-client.hpp>
+# include <network/grpc-client.hpp>
 # include <mtc/recursive_shared_mutex.hpp>
 # include <mtc/directory.h>
 # include <mtc/json.h>
 # include <condition_variable>
 # include <vector>
 # include <list>
-# include <statusReport.hpp>
 # include <mtc/fileStream.h>
 # include <mtc/exceptions.h>
 # include <zlib.h>
-
-template <>
-inline  std::string* Serialize( std::string* o, const void* p, size_t l )
-{  return &(*o += std::string( (const char*)p, l ));  }
-
-template <>
-inline  std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
-{  return o->insert( o->end(), (const char*)p, l + (const char*)p ), o;  }
 
 volatile  bool  canContinue = true;
 
@@ -59,6 +52,8 @@ namespace logger
   }
 }
 
+mtc::api<palmira::IService> client;
+
 namespace stats
 {
   std::atomic_uint32_t  total_docs = 0;
@@ -90,49 +85,6 @@ namespace stats
       last_100_start = now;
     }
   }
-}
-
-http::Client    http_client( 4 );
-//http::Channel   get_channel = http_client.GetChannel( "83.220.175.72", 57571 );
-http::Channel   get_channel = http_client.GetChannel( "0.0.0.0", 57571 );
-
-auto  Deflate( const std::vector<char>& src ) -> std::vector<char>
-{
-  z_stream          deflate_stream;
-  std::vector<char> deflate_buffer;
-
-  deflate_stream.zalloc = Z_NULL;
-  deflate_stream.zfree = Z_NULL;
-  deflate_stream.opaque = Z_NULL;
-
-  if ( src.empty() )
-    return {};
-
-// Инициализируем deflate с уровнем сжатия по умолчанию (Z_DEFAULT_COMPRESSION = 6)
-  if ( deflateInit( &deflate_stream, Z_DEFAULT_COMPRESSION ) != Z_OK )
-    throw std::runtime_error( "deflate init error" );
-
-// Устанавливаем указатель на входные данные
-  deflate_stream.next_in = reinterpret_cast<Bytef*>( const_cast<char*>( src.data() ) );
-  deflate_stream.avail_in = static_cast<uInt>( src.size() );
-
-  deflate_buffer.resize( deflateBound( &deflate_stream, src.size() ) );
-
-  // Устанавливаем указатель на выходные данные
-  deflate_stream.next_out = reinterpret_cast<Bytef*>(deflate_buffer.data());
-  deflate_stream.avail_out = static_cast<uInt>(deflate_buffer.size());
-
-  if ( deflate( &deflate_stream, Z_FINISH ) != Z_STREAM_END )
-  {
-    deflateEnd( &deflate_stream );
-    throw std::runtime_error( "data compression error" );
-  }
-
-  deflate_buffer.resize( deflate_stream.total_out );
-
-  deflateEnd( &deflate_stream );
-
-  return deflate_buffer;
 }
 
 /*
@@ -169,126 +121,80 @@ void  ListArchives( const char* path, const char* mask )
       }
 }
 
-void  WashSocket( mtc::IByteStream* stm )
+void  RegisterTimeout( const palmira::StatusReport&, const std::string& name )
 {
-  char  buffer[1024];
+  auto  curmax = requests::maxrequests.load();
 
-  while ( stm != nullptr && stm->Get( buffer, sizeof(buffer) ) > 0 )
+  logger::log( "TIMEOUT\t%s\n", name.c_str() );
+
+  while ( !requests::maxrequests.compare_exchange_strong( curmax, std::max( long(curmax) - 1, 4l ) ) )
     (void)NULL;
+
+  ++requests::timeout;
+    requests::waiter.notify_one();
+}
+
+void  RegisterOK( const palmira::StatusReport& res, const std::string& name, uint32_t size )
+{
+  double elapse = res.get_zmap( "time", {} ).get_double( "elapsed", -1.0 );
+
+  logger::log( "OK\t%s\n", name.c_str() );
+    stats::total_size += size;
+    stats::last_100_size += size;
+  ++requests::OK;
+
+  if ( ++stats::total_docs % 100 == 0 )
+    stats::waiter.notify_one();
+
+  // check indexing timeout and align to optimal request length:
+  // - if elapsed time is greater than 3s, decrease the number of parallel requests;
+  // - if elapsed time is less than 2s, increase it
+  if ( elapse > 0.0 )
+  {
+    if ( elapse > 3.0 )
+    {
+      auto  curmax = requests::maxrequests.load();
+
+      while ( !requests::maxrequests.compare_exchange_strong( curmax, std::max( long(curmax) - 1, 4l ) ) )
+        (void)NULL;
+    }
+      else
+    if ( elapse < 1.5 )
+    {
+      auto  curmax = requests::maxrequests.load();
+
+      while ( !requests::maxrequests.compare_exchange_strong( curmax, std::min( long(curmax) + 1, 100l ) ) )
+        (void)NULL;
+    }
+  }
+  requests::waiter.notify_one();
 }
 
 void  IndexArchive( const std::string& name, const DeliriX::Text& text )
 {
-  std::vector<char> serial;
-  bool              packed = false;
-
-  text.Serialize( &serial );
-
-  try
-  {
-    serial = std::move( Deflate( serial ) );
-    packed = true;
-  }
-  catch ( ... )
-  {}
-
   auto  locker = mtc::make_unique_lock( requests::locker );
     requests::waiter.wait( locker, [&]{  return !canContinue || requests::processing  < requests::maxrequests; } );
 
   if ( canContinue )
   {
-    auto  thereq = http_client.NewRequest( http::Method::POST, mtc::strprintf( "/insert?id=%s", http::UriEncode( name ).c_str() ) )
-      .SetHeaders( { { "Content-Type", "application/octet-stream" } } )
-      .SetBody( std::move( serial ) )
-      .SetCallback( [name, size = text.GetLength()]( http::ExecStatus status, const http::Respond& res, mtc::api<mtc::IByteStream> stm )
+    client->Insert( { name, text, {} }, [name, size = text.GetLength()]( const palmira::SearchReport& res )
+      {
+        --requests::processing;
+
+        switch ( res.status().code() )
         {
-          --requests::processing;
-
-          switch ( status )
-          {
-            case http::ExecStatus::Ok:
-            {
-              auto    report = palmira::StatusReport();
-              double  elapse;
-
-            // get zmap report
-              if ( res.GetHeaders().get( "Content-Type" ) == "application/json" )
-              {
-                try
-                  {  mtc::json::Parse( stm.ptr(), report );  }
-                catch ( const mtc::json::parse::error& xp )
-                  {  report = palmira::StatusReport( EFAULT, "Could not parse the report" );  }
-              }
-
-            // clean socket data
-              WashSocket( stm );
-
-            // check if error
-              if ( report.status().code() != 0 )
-              {
-                logger::log( "FAULT\t(%d; %s)\t%s\n",
-                  report.status().code(), report.status().info().c_str(), name.c_str() );
-                ++requests::fault;
-                  return requests::waiter.notify_one();
-              }
-
-            // use stats
-              logger::log( "OK\t%s\n",
-                name.c_str() );
-              ++requests::OK;
-                stats::total_size += size;
-                stats::last_100_size += size;
-              if ( ++stats::total_docs % 100 == 0 )
-                stats::waiter.notify_one();
-
-            // check indexing timeout and align to optimal request length:
-            // - if elapsed time is greater than 3s, decrease the number of parallel requests;
-            // - if elapsed time is less than 2s, increase it
-              elapse = report.get_zmap( "time", {} ).get_double( "elapsed", -1.0 );
-
-              if ( elapse > 3.0 )
-              {
-                auto  curmax = requests::maxrequests.load();
-
-                while ( !requests::maxrequests.compare_exchange_strong( curmax, std::max( long(curmax) - 1, 4l ) ) )
-                  (void)NULL;
-              }
-                else
-              if ( elapse < 2.0 )
-              {
-                auto  curmax = requests::maxrequests.load();
-
-                while ( !requests::maxrequests.compare_exchange_strong( curmax, std::min( long(curmax) + 1, 100l ) ) )
-                  (void)NULL;
-              }
-              break;
-            }
-            case http::ExecStatus::Failed:
-            {
-              logger::log( "ERROR\t%s\n", name.c_str() );
-              ++requests::error;
-              break;
-            }
-            case http::ExecStatus::TimedOut:  default:
-            {
-              auto  curmax = requests::maxrequests.load();
-
-              while ( !requests::maxrequests.compare_exchange_strong( curmax, std::max( long(curmax) - 1, 4l ) ) )
-                (void)NULL;
-
-              logger::log( "TIMEOUT\t%s\n", name.c_str() );
-              ++requests::timeout;
-              break;
-            }
-          }
-          requests::waiter.notify_one();
-        } )
-      .SetTimeout( 10.0 );
-
-    if ( packed )
-      thereq.GetHeaders()["Content-Encoding"] = "deflate";
-
-    thereq.Start( get_channel );
+          case 0:
+            RegisterOK( res, name, size );
+            break;
+          case ETIMEDOUT:
+            RegisterTimeout( res, name );
+            break;
+          default:
+            logger::log( "FAULT\t(%d; %s)\t%s\n", res.status().code(), res.status().info().c_str(), name.c_str() );
+              ++requests::fault;
+            requests::waiter.notify_one();
+        }
+      } );
 
     ++requests::processing;
   }
@@ -386,6 +292,8 @@ int   main()
 {
   auto  folder = "/media/keva/KINGSTON/Libruks/Архивы Либрусек/";
   auto  thrvec = std::vector<std::thread>();
+
+  client = remoapi::Client( "0.0.0.0:57571" ).Create();
 
   logger::logger = fopen( "log.txt", "wt" );
 
