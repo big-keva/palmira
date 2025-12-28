@@ -15,6 +15,8 @@ option(PROFILER_ENABLED "Enable profile" OFF)
 option(gRPC_API_ENABLED "Enable gRPC support" ON)
 option(HTTP_API_ENABLED "Enable HTTP/1.1 support" ON)
 
+# add_compile_options(-DDEBUG_TOOLS)
+#
 add_compile_options(-mfpmath=sse -fstack-protector-all -g
 	-W -Wall -Wextra -Wcast-align -pedantic -Wfloat-equal -Wpointer-arith -Wformat-security
 	-Wmissing-format-attribute -Wformat=1 -Wwrite-strings -Wcast-align -Wno-long-long
@@ -38,6 +40,12 @@ add_subdirectory(contrib/moonycode)
 add_subdirectory(contrib/mtc)
 add_subdirectory(contrib/DeliriX)
 add_subdirectory(contrib/structo)
+add_subdirectory(contrib/libmorph)
+add_subdirectory(contrib/stemka)
+
+add_subdirectory(plugins/morpho-ru)
+add_subdirectory(plugins/stemka-ru)
+add_subdirectory(plugins/stemka-ua)
 
 if(gRPC_API_ENABLED)
 	include(src/network/grpc/cmake/grpc.cmake)
@@ -98,10 +106,12 @@ add_library(tripoli
 	src/objects/read-zip.cpp
 	src/objects/doc-zmap.cpp
 
+	src/service/structo-create.cpp
 	src/service/structo-search.cpp
 	src/service/collect-docs.cpp
 	src/service/collect-quotes.cpp
 
+	src/toolset/plugins.cpp
 	src/toolset/toolset.cpp
 	src/toolset/z-arguments.cpp)
 
@@ -144,5 +154,5 @@ target_link_libraries(k2
 	pthread
 	dl)
 
-# add_subdirectory(tests)
 add_subdirectory(utils)
+add_subdirectory(tests)
