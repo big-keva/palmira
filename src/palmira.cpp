@@ -1,9 +1,11 @@
 # include "netServer.hpp"
-# include "service/structo-search.hpp"
+# include "../service/structo-search.hpp"
+# include "../plugins.hpp"
 # include "structo/context/x-contents.hpp"
 # include "structo/queries.hpp"
 # include "structo/indexer/layered-contents.hpp"
 # include "structo/storage/posix-fs.hpp"
+# include <mtc/sharedLibrary.hpp>
 # include <mtc/config.h>
 # include <mtc/json.h>
 # include <pthread.h>
@@ -12,37 +14,6 @@
 # include <system_error>
 # include <functional>
 # include <thread>
-
-auto  OpenStore( const mtc::config& config ) -> mtc::api<structo::IStorage>
-{
-  auto  ixpath = config.get_path( "generic_name" );
-
-  if ( ixpath != "" )
-    return Open( structo::storage::posixFS::StoragePolicies::Open( ixpath ) );
-
-  throw std::invalid_argument( "neither generic index name nor index policy was found" );
-}
-
-auto  OpenIndex( const mtc::config& config ) -> mtc::api<structo::IContentsIndex>
-{
-  return structo::indexer::layered::Index()
-    .Set( OpenStore( config ) )
-    .Create();
-}
-
-auto  OpenSearch( const mtc::config& config ) -> mtc::api<palmira::IService>
-{
-  auto  cfgidx = config.get_section( "index" );
-
-  if ( cfgidx.empty() )
-    throw std::invalid_argument( "section 'index' not found in configuration file" );
-
-  return palmira::StructoService()
-    .Set( OpenIndex( cfgidx ) )
-    .Set( structo::context::GetRichContents )
-    .Set( structo::context::Processor() )
-  .Create();
-}
 
 void  BlockSignals()
 {
@@ -115,7 +86,7 @@ int   main( int argc, char* argv[] )
       if ( getcfg.empty() )
         return fprintf( stderr, "Section 'service' not found in configuration file\n" );
 
-      if ( (search = OpenSearch( getcfg )) == nullptr )
+      if ( (search = palmira::CreateStructo( getcfg )) == nullptr )
         throw std::logic_error( "unexpected OpenSearch(...) result 'nullptr'" );
     }
   catch ( const std::invalid_argument& xp )
