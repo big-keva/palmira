@@ -8,12 +8,16 @@ namespace palmira
 
   auto  CreateGrpcServer( mtc::api<palmira::IService> srv, mtc::config& cfg ) -> mtc::api<palmira::IServer>
   {
+# if defined( gRPC_API_ENABLED )
     auto  dwport = cfg.get_int32( "port", -1 );
 
     if ( dwport > 0 && uint16_t(dwport) == dwport )
       return grpcapi::CreateServer( srv, dwport );
 
     throw std::invalid_argument( "gRPC 'port' has to be uint16 @" __FILE__ ":" LINE_STRING );
+# else
+    throw std::invalid_argument( "gRPC is not enabled in the build @" __FILE__ ":" LINE_STRING );
+# endif   // gRPC_API_ENABLED
   }
 
   auto  CreateHttpServer( mtc::api<palmira::IService> srv, mtc::config& cfg ) -> mtc::api<palmira::IServer>

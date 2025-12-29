@@ -12,7 +12,7 @@ endif()
 
 option(SANITIZE_ENABLED "Enable sanitize" OFF)
 option(PROFILER_ENABLED "Enable profile" OFF)
-option(gRPC_API_ENABLED "Enable gRPC support" ON)
+option(gRPC_API_ENABLED "Enable gRPC support" OFF)
 option(HTTP_API_ENABLED "Enable HTTP/1.1 support" ON)
 
 # add_compile_options(-DDEBUG_TOOLS)
@@ -41,11 +41,11 @@ add_subdirectory(contrib/mtc)
 add_subdirectory(contrib/DeliriX)
 add_subdirectory(contrib/structo)
 add_subdirectory(contrib/libmorph)
-add_subdirectory(contrib/stemka)
+# add_subdirectory(contrib/stemka)
 
 add_subdirectory(plugins/morpho-ru)
-add_subdirectory(plugins/stemka-ru)
-add_subdirectory(plugins/stemka-ua)
+# add_subdirectory(plugins/stemka-ru)
+# add_subdirectory(plugins/stemka-ua)
 
 if(gRPC_API_ENABLED)
 	include(src/network/grpc/cmake/grpc.cmake)
@@ -89,6 +89,10 @@ if(gRPC_API_ENABLED)
 		${_REFLECTION}
 		${_GRPC_GRPCPP}
 		${_PROTOBUF_LIBPROTOBUF})
+
+	set(GRPC_LIBS grpcapi)
+
+	add_compile_options(-DgRPC_API_ENABLED)
 endif()
 
 if(HTTP_API_ENABLED)
@@ -126,7 +130,7 @@ add_executable(k2
 	src/k2.cpp)
 
 target_link_libraries(palmira
-	grpcapi
+	${GRPC_LIBS}
 	httpapi
 	tripoli
 	structo
