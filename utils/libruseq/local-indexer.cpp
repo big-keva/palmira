@@ -136,6 +136,39 @@ void  ParseTexts()
   }
 }
 
+std::mutex mtx;
+
+auto  LoadString( DeliriX::ITextView& text, const std::initializer_list<const char*> tags ) -> mtc::charstr
+{
+  auto  l = mtc::make_unique_lock( mtx );
+  auto  ptag = mtc::api( &text );
+  auto  next = tags.begin();
+
+  while ( next != tags.end() && (ptag = ptag->FindFirst( *next )) != nullptr )
+    ++next;
+
+  if ( ptag == nullptr )
+    return "";
+
+  auto  blocks = ptag->GetBlocks();
+  auto  output = mtc::charstr();
+
+  for ( auto& next: blocks )
+  {
+    if ( next.GetEncoding() == (uint32_t)-1 )
+    {
+      output = mtc::strprintf( "%s%s%s", output.c_str(), output.empty() ? "" : "\n",
+        codepages::widetombcs( codepages::codepage_utf8, next.GetWideStr() ).c_str() );
+    }
+      else
+    {
+      output = mtc::strprintf( "%s%s%s", output.c_str(), output.empty() ? "" : "\n",
+        codepages::mbcstombcs( codepages::codepage_utf8, next.GetEncoding(), next.GetCharStr() ).c_str() );
+    }
+  }
+  return output;
+}
+
 void  IndexTexts()
 {
   for ( ; ; )
@@ -144,41 +177,30 @@ void  IndexTexts()
 
     if ( fb2Texts.Get( next ) )
     {
-      auto  ptitle = next.second.FindFirstTag( "book-title" );
-      auto  author = next.second.FindFirstTag( "author" );
+      auto  ttlStr = LoadString( next.second, { "book-title" } );
+      auto  a_name = LoadString( next.second, { "author", "first-name" } );
+      auto  a_surn = LoadString( next.second, { "author", "last-name" } );
+      auto  a_nick = LoadString( next.second, { "author", "nickname" } );
+      auto  author = mtc::charstr();
       auto  zmdata = mtc::zmap();
 
-    // get book title
-      if ( ptitle != nullptr && !ptitle->GetBlocks().empty() )
-      {
-        auto  ttlStr = ptitle->GetBlocks().front().GetWideStr();
+    // set book title
+      if ( ttlStr != "" )
+        zmdata["title"] = ttlStr;
 
-        if ( !ttlStr.empty() )
-          zmdata["title"] = ttlStr;
+    // set book author
+      if ( a_name != "" )
+        author = a_name;
+      if ( a_surn != "" )
+        author = author == "" ? a_surn : author + ' ' + a_surn;
+      if ( a_nick != "" )
+      {
+        if ( author == "" ) author = a_nick.c_str();
+          else author += " (" + a_nick + ")";
       }
 
-    // get book author
-      if ( author != nullptr && !author->GetBlocks().empty() )
-      {
-        auto  p_name = author->FindFirstTag( "first-name" );
-        auto  p_surn = author->FindFirstTag( "last-name" );
-        auto  p_nick = author->FindFirstTag( "nickname" );
-        auto  s_name = mtc::widestr();
-
-        if ( p_surn != nullptr && !p_surn->GetBlocks().empty() )
-        {
-          s_name = p_surn->GetBlocks().front().GetWideStr();
-
-          if ( p_name != nullptr && !p_name->GetBlocks().empty() )
-            s_name = mtc::widestr( p_name->GetBlocks().front().GetWideStr() ) + u' ' + s_name;
-        }
-          else
-        if ( p_nick != nullptr && !p_nick->GetBlocks().empty() )
-        {
-          s_name = p_nick->GetBlocks().front().GetWideStr();
-        }
-        zmdata["author"] = s_name;
-      }
+      if ( author != "" )
+        zmdata["author"] = author;
 
       libRusEq->Insert( { next.first, next.second, zmdata }, [&, length = next.second.GetLength()]( const mtc::zmap& )
         {
