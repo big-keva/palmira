@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поиск по libruseq</title>
+    <style>
+        * 
+        {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body 
+        {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .search-container 
+        {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        .search-header 
+        {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .search-header h1 
+        {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .search-form 
+        {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .search-input 
+        {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .search-input:focus 
+        {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-button 
+        {
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .search-button:hover 
+        {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .results-info 
+        {
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+            background: #f8f9fa;
+            padding: 12px 15px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .results-list 
+        {
+            list-style: none;
+        }
+
+        .result-item 
+        {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .result-item:hover 
+        {
+            transform: translateX(5px);
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-link 
+        {
+            display: block;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .result-link:hover 
+        {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        .result-path 
+        {
+            font-size: 12px;
+            color: #777;
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .result-relevance 
+        {
+            font-size: 12px;
+            color: #28a745;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .result-index
+        {
+            font-size: 12px;
+            color: #ccc;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .result-quote 
+        {
+            font-style: italic;
+            color: #555;
+            background: #f8f9fa;
+            padding: 12px;
+            border-left: 3px solid #667eea;
+            border-radius: 4px;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        /* Стили для выделения найденных слов */
+        .highlight 
+        {
+            background-color: #ffeb3b;
+            padding: 1px 4px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #000;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .ellipsis 
+        {
+            color: #999;
+            font-weight: bold;
+            margin: 0 2px;
+        }
+
+        .file-actions 
+        {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .action-button 
+        {
+            padding: 8px 16px;
+            background: linear-gradient(45deg, #6c757d, #5a6268);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover 
+        {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .action-button.download 
+        {
+            background: linear-gradient(45deg, #28a745, #1e7e34);
+        }
+
+        .action-button.preview 
+        {
+            background: linear-gradient(45deg, #17a2b8, #138496);
+        }
+
+        .action-button.path 
+        {
+            background: linear-gradient(45deg, #ffc107, #e0a800);
+        }
+
+        .loading 
+        {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .loading.active 
+        {
+            display: block;
+        }
+
+        .loading-spinner 
+        {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin 
+        {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error 
+        {
+            color: #dc3545;
+            padding: 15px;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .server-info 
+        {
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+        }
+
+        .instructions 
+        {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #31708f;
+            border-left: 4px solid #5bc0de;
+        }
+
+        @media (max-width: 768px) 
+        {
+            .search-form 
+            {
+                flex-direction: column;
+            }
+            
+            .search-button 
+            {
+                width: 100%;
+            }
+            
+            .file-actions 
+            {
+                flex-direction: column;
+            }
+            
+            .action-button 
+            {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <div class="search-header">
+            <h1>🔍 libruseq</h1>
+            <p>Поиск книжек на libruseq</p>
+        </div>
+        
+        <div class="instructions">
+            💡 Введите поисковый запрос для поиска по документам на удалённом сервере. 
+            Результаты появятся автоматически через 250 мс после остановки ввода.
+        </div>
+        
+        <form class="search-form" id="searchForm">
+            <input 
+                type="text" 
+                class="search-input" 
+                id="searchInput" 
+                placeholder="Введите поисковый запрос для поиска по документам..." 
+                autocomplete="off"
+                aria-label="Поисковый запрос"
+            >
+            <button type="submit" class="search-button">🔍 Найти</button>
+        </form>
+
+        <div class="error" id="errorMessage" style="display: none;" role="alert"></div>
+
+        <div class="loading" id="loadingIndicator">
+            <div class="loading-spinner"></div>
+            <p>Ищем документы...</p>
+        </div>
+
+        <div class="results-info" id="resultsInfo" style="display: none;">
+            🎯 Найдено документов: <strong><span id="foundCount">0</span></strong> 
+            ⏱️ Время поиска: <strong><span id="elapsedTime">0</span> мс</strong>
+        </div>
+
+        <ul class="results-list" id="resultsList"></ul>
+        
+        <div class="server-info" id="serverInfo">
+            Подключение к серверу: <span id="serverStatus">Не подключено</span>
+        </div>
+    </div>
+
+    <script>
+        // Конфигурация сервера - измените эти параметры под ваш сервер
+        const SERVER_CONFIG = 
+        {
+            // Базовый URL сервера (измените на адрес вашего сервера)
+            //baseUrl: 'http://176.123.169.159:57571',
+            baseUrl: 'http://localhost:57571',
+            
+            // Пути к эндпоинтам API
+            endpoints: 
+            {
+                search: '/search',
+                download: '/download',
+                preview: '/preview',
+                path: '/path'
+            },
+            
+            // Настройки запросов
+            requestTimeout: 20000, // 10 секунд
+            retryAttempts: 2
+        };
+
+        class RemoteFileSearch 
+        {
+            constructor() 
+            {
+                this.searchInput = document.getElementById('searchInput');
+                this.searchForm = document.getElementById('searchForm');
+                this.resultsList = document.getElementById('resultsList');
+                this.resultsInfo = document.getElementById('resultsInfo');
+                this.foundCount = document.getElementById('foundCount');
+                this.elapsedTime = document.getElementById('elapsedTime');
+                this.errorMessage = document.getElementById('errorMessage');
+                this.loadingIndicator = document.getElementById('loadingIndicator');
+                this.serverStatus = document.getElementById('serverStatus');
+                
+                this.timeoutId = null;
+                this.DEBOUNCE_DELAY = 250;
+                this.isConnected = false;
+                
+                this.initializeEvents();
+                this.checkServerConnection();
+            }
+            
+            initializeEvents() 
+            {
+                this.searchForm.addEventListener('submit', (e) => 
+                {
+                    e.preventDefault();
+                    this.performSearch();
+                });
+                
+                this.searchInput.addEventListener('input', () => 
+                {
+                    this.debounceSearch();
+                });
+            }
+            
+            // Проверка подключения к серверу
+            async checkServerConnection() 
+            {
+                try 
+                {
+                    this.serverStatus.textContent = 'Проверка...';
+                    this.serverStatus.style.color = '#ffc107';
+                    
+                    // Простая проверка доступности сервера
+                    const response = await fetch(`${SERVER_CONFIG.baseUrl}/health`, 
+                    {
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' },
+                        signal: AbortSignal.timeout(3000)
+                    }).catch(() => null);
+                    
+                    if (response && response.ok) 
+                    {
+                        this.isConnected = true;
+                        this.serverStatus.textContent = '✓ Подключено';
+                        this.serverStatus.style.color = '#28a745';
+                    }
+                    else 
+                    {
+                        this.serverStatus.textContent = '✗ Недоступен';
+                        this.serverStatus.style.color = '#dc3545';
+                        this.showError('Сервер недоступен. Проверьте подключение к сети.');
+                    }
+                } 
+                catch (error) 
+                {
+                    this.serverStatus.textContent = '✗ Ошибка подключения';
+                    this.serverStatus.style.color = '#dc3545';
+                    console.warn('Сервер недоступен:', error.message);
+                }
+            }
+            
+            debounceSearch() 
+            {
+                clearTimeout(this.timeoutId);
+                this.timeoutId = setTimeout(() => 
+                {
+                    this.performSearch();
+                }, this.DEBOUNCE_DELAY);
+            }
+            
+            async performSearch() 
+            {
+                const query = this.searchInput.value.trim();
+                
+                if (!query) 
+                {
+                    this.clearResults();
+                    return;
+                }
+                
+                if (!this.isConnected) 
+                {
+                    this.showError('Сервер недоступен. Проверьте подключение.');
+                    return;
+                }
+                
+                this.showLoading();
+                this.hideError();
+                
+                try 
+                {
+                    const response = await this.sendSearchRequest(query);
+                    this.displayResults(response);
+                } 
+                catch (error) 
+                {
+                    this.showError(`Ошибка поиска: ${error.message}`);
+                }
+                finally 
+                {
+                    this.hideLoading();
+                }
+            }
+            
+            async sendSearchRequest(query) 
+            {
+                const requestBody = JSON.stringify({ string: query });
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), SERVER_CONFIG.requestTimeout);
+                
+                try 
+                {
+                    const response = await fetch(`${SERVER_CONFIG.baseUrl}${SERVER_CONFIG.endpoints.search}`, 
+                    {
+                        method: 'POST',
+                        headers: 
+                        {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: requestBody,
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) 
+                    {
+                        throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    return await response.json();
+                } 
+                catch (error) 
+                {
+                    clearTimeout(timeoutId);
+                    
+                    if (error.name === 'AbortError') 
+                    {
+                        throw new Error('Таймаут запроса. Сервер не ответил вовремя.');
+                    }
+                    
+                    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) 
+                    {
+                        throw new Error('Не удалось подключиться к серверу. Проверьте сеть.');
+                    }
+                    
+                    throw error;
+                }
+            }
+            
+            displayResults(data) 
+            {
+                this.clearResults();
+
+                if (data.timer && data.timer.elapsed) 
+                {
+                    this.elapsedTime.textContent = data.timer.elapsed;
+                }
+
+                if (data.found === 0) 
+                {
+                    this.foundCount.textContent = '0';
+                    this.resultsInfo.style.display = 'block';
+                    this.showError('По вашему запросу ничего не найдено.');
+                    return;
+                }
+                
+                this.foundCount.textContent = data.found;
+                
+                data.items.forEach(item => 
+                {
+                    const listItem = this.createResultItem(item);
+                    this.resultsList.appendChild(listItem);
+                });
+
+                this.resultsInfo.style.display = 'block';
+            }
+            
+            createResultItem(item) 
+            {
+                const li = document.createElement('li');
+                li.className = 'result-item';
+                
+                // Название файла с иконкой
+                const title = document.createElement('div');
+                title.className = 'result-link';
+                title.textContent = `📄 ${this.formatFileName(item.id)}`;
+                title.onclick = () => this.downloadFile(item.id);
+                
+                // Полный путь к файлу
+                const path = document.createElement('div');
+                path.className = 'result-path';
+                path.textContent = item.id;
+                path.title = item.id;
+                
+                // Релевантность
+                const relevance = document.createElement('div');
+                relevance.className = 'result-relevance';
+                relevance.textContent = `Релевантность: ${item.range.toFixed(2)}`;
+                
+                // Индекс
+                const aindex = document.createElement('div');
+		aindex.className = 'result-index';
+                aindex.textContent = `Индекс: ${item.index}`;
+                
+                // Цитата с обработкой сложной структуры
+                const quote = document.createElement('div');
+                quote.className = 'result-quote';
+                
+                if (item.quote) 
+                {
+                    const quoteContent = this.processQuoteStructure(item.quote);
+                    quote.appendChild(quoteContent);
+                } 
+                else 
+                {
+                    quote.textContent = 'Цитата не доступна';
+                }
+                
+                // Кнопки действий для удалённого сервера
+                const actions = document.createElement('div');
+                actions.className = 'file-actions';
+                
+                // Кнопка скачивания
+                const downloadButton = document.createElement('button');
+                downloadButton.className = 'action-button download';
+                downloadButton.innerHTML = '⬇️ Скачать';
+                downloadButton.onclick = (e) => 
+                {
+                    e.stopPropagation();
+                    this.downloadFile(item.id);
+                };
+                
+                // Кнопка предпросмотра (если поддерживается сервером)
+                const previewButton = document.createElement('button');
+                previewButton.className = 'action-button preview';
+                previewButton.innerHTML = '👁️ Предпросмотр';
+                previewButton.onclick = (e) => 
+                {
+                    e.stopPropagation();
+                    this.previewFile(item.id);
+                };
+                
+                // Кнопка копирования пути
+                const copyPathButton = document.createElement('button');
+                copyPathButton.className = 'action-button path';
+                copyPathButton.innerHTML = '📋 Путь';
+                copyPathButton.onclick = (e) => 
+                {
+                    e.stopPropagation();
+                    this.copyToClipboard(item.id);
+                };
+                
+                actions.appendChild(downloadButton);
+                actions.appendChild(previewButton);
+                actions.appendChild(copyPathButton);
+                
+                li.appendChild(title);
+                li.appendChild(path);
+                li.appendChild(relevance);
+                li.appendChild(aindex);
+                li.appendChild(quote);
+                li.appendChild(actions);
+                
+                return li;
+            }
+            
+            // Обработка сложной структуры цитаты (оставляем из предыдущей версии)
+            processQuoteStructure(quoteData)
+            {
+                const container = document.createElement('span');
+                
+                if (Array.isArray(quoteData))
+                {
+                    let previousItemType = null;
+                    
+                    quoteData.forEach((item, index) =>
+                    {
+                        let currentItemType = this.getItemType(item);
+                        
+                        if (index > 0)
+                        {
+                            this.addSeparator(container, previousItemType, currentItemType);
+                        }
+                        
+                        if (typeof item === 'string')
+                        {
+                            const processedText = this.processHighlightedText(item);
+                            container.appendChild(processedText);
+                        }
+                        else if (typeof item === 'object' && item !== null)
+                        {
+                            const key = Object.keys(item)[0];
+                            if (key)
+                            {
+                                const value = item[key];
+
+                                if (typeof value === 'string')
+                                {
+                                    const processedText = this.processHighlightedText(value);
+                                    container.appendChild(processedText);
+                                }
+                                else if (Array.isArray(value))
+                                {
+                                    const nestedContent = this.processQuoteStructure(value);
+                                    container.appendChild(nestedContent);
+                                }
+                            }
+                        }
+                        
+                        previousItemType = currentItemType;
+                    });
+                }
+                else if (typeof quoteData === 'string')
+                {
+                    const processedText = this.processHighlightedText(quoteData);
+                    container.appendChild(processedText);
+                }
+                
+                return container;
+            }
+            
+            getItemType(item)
+            {
+                if (typeof item === 'string')
+                {
+                    return 'string';
+                }
+                else if (typeof item === 'object' && item !== null)
+                {
+                    return 'object';
+                }
+                return 'unknown';
+            }
+            
+            addSeparator(container, previousType, currentType)
+            {
+                if (previousType === 'string' && currentType === 'string')
+                {
+                    const ellipsisSpan = document.createElement('span');
+                    ellipsisSpan.className = 'ellipsis';
+                    ellipsisSpan.textContent = '…';
+                    container.appendChild(ellipsisSpan);
+                }
+                else
+                {
+                    const lineBreak = document.createElement('br');
+                    container.appendChild(lineBreak);
+                }
+            }
+            
+            processHighlightedText(text) 
+            {
+                const container = document.createElement('span');
+                
+                if (typeof text !== 'string') 
+                {
+                    container.textContent = String(text);
+                    return container;
+                }
+                
+                const startMark = '\x07';
+                const endMark = '\x08';
+                
+                let inHighlight = false;
+                let buffer = '';
+                
+                for (let i = 0; i < text.length; i++) 
+                {
+                    const char = text[i];
+                    
+                    if (char === startMark && !inHighlight) 
+                    {
+                        if (buffer) 
+                        {
+                            const normalSpan = document.createElement('span');
+                            normalSpan.textContent = buffer;
+                            container.appendChild(normalSpan);
+                            buffer = '';
+                        }
+                        inHighlight = true;
+                    } 
+                    else if (char === endMark && inHighlight) 
+                    {
+                        if (buffer) 
+                        {
+                            const highlightSpan = document.createElement('span');
+                            highlightSpan.className = 'highlight';
+                            highlightSpan.textContent = buffer;
+                            container.appendChild(highlightSpan);
+                            buffer = '';
+                        }
+                        inHighlight = false;
+                    } 
+                    else 
+                    {
+                        buffer += char;
+                    }
+                }
+                
+                if (buffer) 
+                {
+                    const finalSpan = document.createElement('span');
+                    if (inHighlight) 
+                    {
+                        finalSpan.className = 'highlight';
+                    }
+                    finalSpan.textContent = buffer;
+                    container.appendChild(finalSpan);
+                }
+                
+                return container;
+            }
+            
+            // Скачивание файла с удалённого сервера
+            downloadFile(filePath) 
+            {
+                try 
+                {
+                    const encodedPath = encodeURIComponent(filePath);
+                    const downloadUrl = `${SERVER_CONFIG.baseUrl}${SERVER_CONFIG.endpoints.download}?path=${encodedPath}`;
+                    
+                    // Открываем в новом окне или скачиваем
+                    window.open(downloadUrl, '_blank');
+                    
+                    // Альтернативный способ - создание скрытой ссылки
+                    /*
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = this.formatFileName(filePath);
+                    link.target = '_blank';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    */
+                } 
+                catch (error) 
+                {
+                    this.showError(`Не удалось скачать файл: ${error.message}`);
+                }
+            }
+            
+            // Предпросмотр файла (если поддерживается сервером)
+            previewFile(filePath) 
+            {
+                try 
+                {
+                    const encodedPath = encodeURIComponent(filePath);
+                    const previewUrl = `${SERVER_CONFIG.baseUrl}${SERVER_CONFIG.endpoints.preview}?path=${encodedPath}`;
+                    window.open(previewUrl, '_blank');
+                } 
+                catch (error) 
+                {
+                    this.showError(`Не удалось открыть предпросмотр: ${error.message}`);
+                }
+            }
+            
+            // Копирование пути в буфер обмена
+            async copyToClipboard(text) 
+            {
+                try 
+                {
+                    await navigator.clipboard.writeText(text);
+                    this.showError('Путь скопирован в буфер обмена!', 'success');
+                } 
+                catch (error) 
+                {
+                    // Fallback для старых браузеров
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    this.showError('Путь скопирован в буфер обмена!', 'success');
+                }
+            }
+            
+            showLoading() 
+            {
+                this.loadingIndicator.classList.add('active');
+            }
+            
+            hideLoading() 
+            {
+                this.loadingIndicator.classList.remove('active');
+            }
+            
+            showError(message, type = 'error') 
+            {
+                this.errorMessage.textContent = message;
+                this.errorMessage.style.display = 'block';
+                this.errorMessage.style.backgroundColor = type === 'success' ? '#d4edda' : '#f8d7da';
+                this.errorMessage.style.borderColor = type === 'success' ? '#c3e6cb' : '#f5c6cb';
+                this.errorMessage.style.color = type === 'success' ? '#155724' : '#721c24';
+                
+                if (type === 'success') 
+                {
+                    setTimeout(() => this.hideError(), 2000);
+                }
+            }
+            
+            hideError() 
+            {
+                this.errorMessage.style.display = 'none';
+            }
+            
+            formatFileName(path) 
+            {
+                return path.split(/[\\/]/).pop() || path;
+            }
+            
+            clearResults() 
+            {
+                this.resultsInfo.style.display = 'none';
+                this.resultsList.innerHTML = '';
+                this.hideError();
+            }
+        }
+        
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => 
+        {
+            new RemoteFileSearch();
+        });
+    </script>
+</body>
+</html>
