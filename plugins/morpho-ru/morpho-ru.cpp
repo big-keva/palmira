@@ -22,7 +22,7 @@ struct Lemmatizer final: structo::ILemmatizer
     if ( options & structo::lex_lemma )
     {
       SLemmInfoW  lemmas[0x20];
-      auto        nlemma = mlma->Lemmatize( { str, len }, lemmas, {}, gInfos );
+      auto        nlemma = mlma->Lemmatize( { str, len }, lemmas, {}, gInfos, sfIgnoreCapitals );
 
       if ( nlemma > 0 )
       {
