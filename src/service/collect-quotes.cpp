@@ -7,10 +7,10 @@ namespace collect {
 
   enum: size_t
   {
-    max_BM25Term_count = 0x100,
+    max_BM25Term_count = 0x20,
 
-    max_EntrySet_count = 0x40,
-    max_EntryPos_count = 0x100,
+    max_EntrySet_count = 0x4,
+    max_EntryPos_count = 0x80,
 
     max_BM25_Abstract_size = sizeof(Abstract) + max_BM25Term_count * sizeof(Abstract::BM25Term),
     max_Rich_Abstract_size = sizeof(Abstract) + max_EntrySet_count * sizeof(Abstract::EntrySet)
@@ -69,26 +69,50 @@ namespace collect {
         auto  entend = entptr + max_EntrySet_count;
         auto  posptr = (Abstract::EntryPos*)entend;
         auto  posend = posptr + max_EntryPos_count;
+        auto  srcbeg = source.entries.pbeg;
+        auto  pworst = entptr;
 
         output->entries.pbeg = entptr;
 
-        for ( auto beg = source.entries.pbeg; beg < source.entries.pend && entptr != entend && posptr != posend; ++beg )
-        {
-          *entptr = { beg->limits, beg->weight, beg->center, { posptr, posptr } };
+      // select no more than max_EntrySet_count elements
+        while ( srcbeg != source.entries.pend && entptr != entend )
+          if ( (*entptr++ = *srcbeg++).weight < pworst->weight )
+            pworst = entptr - 1;
 
-          for ( auto pos = beg->spread.pbeg; pos != beg->spread.pend && posptr != posend; )
-            *posptr++ = *pos++;
+      // if there are more items, replace worst elements with betters
+        for ( ; srcbeg != source.entries.pend; ++srcbeg )
+          if ( srcbeg->weight > pworst->weight )
+          {
+            *pworst = *srcbeg;
 
-          std::sort( (Abstract::EntryPos*)entptr->spread.pbeg, posptr, []( const Abstract::EntryPos& p1, const Abstract::EntryPos& p2 )
-            {  return p1.offset < p2.offset;  } );
-
-          (*entptr++).spread.pend = posptr;
-        }
+            for ( auto p = entend - max_EntrySet_count; p != entend; ++p )
+              if ( p->weight < pworst->weight )
+                pworst = p;
+          }
 
         output->entries.pend = entptr;
 
-        std::sort( (Abstract::EntrySet*)output->entries.pbeg, entptr, []( const Abstract::EntrySet& e1, const Abstract::EntrySet& e2 )
-           {  return e1.limits.uMin < e2.limits.uMin;  } );
+      // sort elements found by order
+        if ( entptr == entend )
+        {
+          std::sort( entend - max_EntrySet_count, entend, []( const Abstract::EntrySet& le, const Abstract::EntrySet& re )
+            {  return le.limits.uMin < re.limits.uMin;  } );
+        }
+
+      // copy word references
+        for ( entend -= max_EntrySet_count; entend != entptr; ++entend )
+        {
+          auto  in_pos = entend->spread.pbeg;
+          auto  in_end = entend->spread.pend;
+
+          entend->spread.pbeg = posptr;
+            while ( in_pos != in_end && posptr != posend )
+              *posptr++ = *in_pos++;
+          entend->spread.pend = posptr;
+
+          std::sort( (Abstract::EntryPos*)entend->spread.pbeg, posptr, []( const Abstract::EntryPos& p1, const Abstract::EntryPos& p2 )
+            {  return p1.offset < p2.offset;  } );
+        }
 
         break;
       }
