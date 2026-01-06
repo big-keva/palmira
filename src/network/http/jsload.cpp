@@ -1,4 +1,5 @@
 # include "loader.hpp"
+# include <structo/queries/parser.hpp>
 # include <remottp/src/server/rest.hpp>
 # include <DeliriX/DOM-load.hpp>
 
@@ -11,8 +12,7 @@ namespace json    {
   static  auto  Remove( Args&, const http::Request&, const mtc::zmap& ) -> Args&;
   template <class Args>
   static  auto  Update( Args&, const http::Request&, const mtc::zmap& ) -> Args&;
-  template <class Args>
-  static  auto  Search( Args&, const http::Request&, const mtc::zmap& ) -> Args&;
+  static  auto  Search( palmira::SearchArgs&, const http::Request&, const mtc::zmap& ) -> palmira::SearchArgs&;
   static  auto  LoadJs( mtc::IByteStream* ) -> mtc::zmap;
 
   auto  Load( palmira::AccessArgs& arg, const http::Request& req, mtc::IByteStream* src ) -> palmira::AccessArgs&
@@ -39,6 +39,11 @@ namespace json    {
         {  DeliriX::load_as::Json( &arg.GetTextAPI(), [&](){  return in.getnext();  } );  } } } );
 
     return Update( arg, req, jsData );
+  }
+
+  auto  Load( palmira::SearchArgs& arg, const http::Request& req, mtc::IByteStream* src ) -> palmira::SearchArgs&
+  {
+    return Search( arg, req, LoadJs( src ) );
   }
 
   template <class Args>
@@ -79,6 +84,27 @@ namespace json    {
     return Remove( arg, req, jsn );
   }
 
+  auto  Search( palmira::SearchArgs& search, const http::Request& req, const mtc::zmap& jsn ) -> palmira::SearchArgs&
+  {
+    auto  get_id = req.GetUri().parameters().get( "id", "undefined" );
+    auto  sz_req = jsn.get_charstr( "string" );
+    auto  ws_req = jsn.get_widestr( "string" );
+    auto  zm_req = jsn.get_zmap   ( "query" );
+
+    if ( get_id != "undefined" )
+      return search.query = mtc::zmap{ { "id", get_id } }, search;
+
+    if ( sz_req != nullptr )  search.query = structo::queries::ParseQuery( *sz_req );
+      else
+    if ( ws_req != nullptr )  search.query = structo::queries::ParseQuery( *ws_req );
+      else
+    if ( zm_req != nullptr )  search.query = *zm_req;
+      else
+    throw std::invalid_argument( "request contains neither 'query' nor 'string'" );
+
+    return search;
+  }
+
   auto  LoadJs( mtc::IByteStream* src ) -> mtc::zmap
   {
     auto  output = mtc::zmap();
@@ -86,7 +112,7 @@ namespace json    {
       { "id",       "charstr" },
       { "metadata", mtc::zmap{ { "ctime", "word64" } } } };
 
-    return mtc::json::Parse( src, output, revive) , output;
+    return mtc::json::Parse( src, output, revive ) , output;
   }
 
 }}
