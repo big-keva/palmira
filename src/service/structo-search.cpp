@@ -94,6 +94,18 @@ namespace palmira {
     lingProc( lp ),
     contents( cs )
   {
+    auto  fdsEnt = ctxIndex->GetEntity( { "##__index_mappings__##", 22 } );
+    auto  extras = mtc::api<const mtc::IByteBuffer>();
+
+    if ( fdsEnt != nullptr && (extras = fdsEnt->GetExtra()) != nullptr )
+    {
+      auto  indata = mtc::array_zmap();
+
+      if ( ::FetchFrom( mtc::sourcebuf( extras->GetPtr(), extras->GetLen() ).ptr(), indata ) == nullptr )
+        throw std::invalid_argument( "failed to deserialize fields configuration @" __FILE__ ":" LINE_STRING );
+
+      fieldMan = context::LoadFields( indata );
+    }
   }
 
   long  StructoSearch::Attach()
@@ -191,7 +203,8 @@ namespace palmira {
       getdoc = ctxIndex->SetEntity( insert.objectId, contents( pwBody->GetLemmas(), pwBody->GetMarkup(), fieldMan ).ptr(),
         { serial.first.get(), serial.second }, { enBeef.data(), enBeef.size() } );
 
-      return Immediate( UpdateReport{ 0, "OK", { { "metadata", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
+      return modified = true, Immediate( UpdateReport{ 0, "OK", {
+        { "metadata", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
     }
     catch ( const std::bad_function_call& xp )        {  return Immediate( UpdateReport{ EFAULT, xp.what() }, notify );  }
     catch ( const std::invalid_argument& xp )         {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
@@ -209,7 +222,8 @@ namespace palmira {
       if ( (getdoc = ctxIndex->SetExtras( update.objectId, { serial.first.get(), serial.second } )) == nullptr )
         return Immediate( UpdateReport{ ENOENT, "document not found" }, notify );
 
-      return Immediate( UpdateReport{ 0, "OK", { { "metadata", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
+      return modified = true, Immediate( UpdateReport{ 0, "OK", {
+        { "metadata", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
     }
     catch ( const std::invalid_argument& xp )         {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
     catch ( const DeliriX::load_as::ParseError& xp )  {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
@@ -220,7 +234,7 @@ namespace palmira {
     try
     {
       if ( ctxIndex->DelEntity( remove.objectId ) )
-        return Immediate( UpdateReport( 0, "OK" ), notify );
+        return modified = true, Immediate( UpdateReport( 0, "OK" ), notify );
       return Immediate( UpdateReport( ENOENT, "document not found" ), notify );
     }
     catch ( const std::invalid_argument& xp )         {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
@@ -296,9 +310,11 @@ namespace palmira {
       auto  fields = SaveFields( fieldMan );
       auto  serial = std::vector<char>( GetBufLen( fields ) );
 
-      ::Serialize( serial.data(), fields.data(), fields.size() );
+      ::Serialize( serial.data(), fields );
 
-      ctxIndex->SetEntity( { "\0\0__index_mappings__\0\0", 22 }, {}, { serial.data(), serial.size() } );
+      ctxIndex->SetEntity( { "##__index_mappings__##", 22 }, {}, { serial.data(), serial.size() } );
+
+      modified = false;
     }
     ctxIndex->Commit();
   }
