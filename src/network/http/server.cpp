@@ -41,9 +41,11 @@ namespace remoapi
     {  return req.GetHeaders().get( "Content-Type").substr( 0, 16 ) == "application/json";  }
   auto  IsDump( const http::Request& req ) -> bool
     {  return req.GetHeaders().get( "Content-Type").substr( 0, 24 ) == "application/octet-stream";  }
+  auto  IsHead( const http::Request& req ) -> bool
+    {  return req.GetHeaders().get( "Content-Type") == "" && req.GetMethod() == http::Method::GET;  }
 
-  void  OutputHTML( mtc::IByteStream*, http::StatusCode, const char* msgstr );
-  void  OutputJSON( mtc::IByteStream*, http::StatusCode, const mtc::zmap& report );
+  void  OutputHTML( mtc::IByteStream*, const http::Respond&, const char* msgstr );
+  void  OutputJSON( mtc::IByteStream*, const http::Respond&, const mtc::zmap& report );
 
   template <class Args, mtc::api<palmira::IService::IPending> (palmira::IService::*Method)
     ( const Args&, palmira::IService::NotifyFn )>
@@ -69,18 +71,23 @@ namespace remoapi
           else
         if ( IsDump( req ) )  zmap::Load( args, req, stream );
           else
-        throw std::logic_error( "Content-Type is not supported @" __FILE__ ":" LINE_STRING );
+        if ( IsHead( req ) )  json::Load( args, req, nullptr );
+          else
+        throw std::logic_error( "Unexpected request method @" __FILE__ ":" LINE_STRING );
 
-        OutputJSON( out, http::StatusCode::Ok, (service->*Method)( args, []( const mtc::zmap& ){} )->Wait() );
+        OutputJSON( out, { http::StatusCode::Ok, { { "Access-Control-Allow-Origin", "*" } } },
+          (service->*Method)( args, []( const mtc::zmap& ){} )->Wait() );
       }
       catch ( const mtc::json::parse::error& xp )
       {
-        OutputJSON( out, http::StatusCode::Ok, palmira::StatusReport( EINVAL,
-          mtc::strprintf( "error parsing request body, line %d: %s", xp.get_json_lineid(), xp.what() ) ) );
+        OutputJSON( out, { http::StatusCode::Ok, { { "Access-Control-Allow-Origin", "*" } } },
+          palmira::StatusReport( EINVAL, mtc::strprintf( "error parsing request body, line %d: %s",
+            xp.get_json_lineid(), xp.what() ) ) );
       }
       catch ( std::invalid_argument& xp )
       {
-        OutputHTML( out, http::StatusCode::BadRequest, xp.what() );
+        OutputHTML( out, { http::StatusCode::BadRequest,
+          { { "Access-Control-Allow-Origin", "*" } } }, xp.what() );
       }
     }
   };
@@ -111,6 +118,21 @@ namespace remoapi
   {
     server.SetMaxTimeout( 3 * 60 );
 
+    server.RegisterHandler( "/health", http::Method::GET, [](
+      mtc::IByteStream*     output,
+      const http::Request&  hthead,
+      mtc::IByteStream*     htbody,
+      std::function<bool()> cancel )
+    {
+      (void)hthead;
+      (void)htbody;
+      (void)cancel;
+      OutputJSON( output, { http::StatusCode::Ok, {
+        { "Access-Control-Allow-Origin", "*" },
+        { "Connection", "keep-alive" } } }, {
+        { "status", palmira::Status( 0, "OK" ) } } );
+    } );
+
     server.RegisterHandler( "/delete", http::Method::GET,   ActionCall<palmira::RemoveArgs, &palmira::IService::Remove>{ serach } );
     server.RegisterHandler( "/remove", http::Method::GET,   ActionCall<palmira::RemoveArgs, &palmira::IService::Remove>{ serach } );
     server.RegisterHandler( "/delete", http::Method::POST,  ActionCall<palmira::RemoveArgs, &palmira::IService::Remove>{ serach } );
@@ -121,26 +143,30 @@ namespace remoapi
 
     server.RegisterHandler( "/insert", http::Method::POST,  ActionCall<palmira::InsertArgs, &palmira::IService::Insert>{ serach } );
 
+    server.RegisterHandler( "/search", http::Method::GET,   ActionCall<palmira::SearchArgs, &palmira::IService::Search>{ serach } );
+    server.RegisterHandler( "/search", http::Method::POST,  ActionCall<palmira::SearchArgs, &palmira::IService::Search>{ serach } );
   }
 
   // helpers section
 
-  void  OutputHTML( mtc::IByteStream* output, http::StatusCode status, const char* msgstr )
+  void  OutputHTML( mtc::IByteStream* output, const http::Respond& result, const char* msgstr )
   {
-    Output( output, http::Respond( status, { { "Content-Type", "text/html" } } ),
+    Output( output, http::Respond( result, { { "Content-Type", "text/html" } } ),
       mtc::strprintf( "<html>\n"
       "<head><title>%u %s</title></head>\n"
       "<body>%s</body>\n"
-      "</html>\n", unsigned(status), http::to_string( status ), msgstr ).c_str() );
+      "</html>\n", unsigned(result.GetStatusCode()), http::to_string( result.GetStatusCode() ), msgstr ).c_str() );
   }
 
-  void  OutputJSON( mtc::IByteStream* output, http::StatusCode status, const mtc::zmap& report )
+  void  OutputJSON( mtc::IByteStream* output, const http::Respond& result, const mtc::zmap& report )
   {
     auto  serial = std::vector<char>();
+    auto  extRes = http::Respond( result,
+      { { "Content-Type", "application/json" } } );
+
     mtc::json::Print( &serial, report, mtc::json::print::decorated() );
 
-    Output( output, http::Respond( status, { { "Content-Type", "application/json" } } ),
-      serial.data(), serial.size() );
+    Output( output, result, serial.data(), serial.size() );
   }
 
   auto  CreateServer( mtc::api<palmira::IService> serv, uint16_t port ) -> mtc::api<palmira::IServer>

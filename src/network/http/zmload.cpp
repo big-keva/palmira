@@ -10,8 +10,6 @@ namespace zmap    {
   static  auto  Remove( Args&, const http::Request&, const mtc::zmap& ) -> Args&;
   template <class Args>
   static  auto  Update( Args&, const http::Request&, const mtc::zmap& ) -> Args&;
-  template <class Args>
-  static  auto  Search( Args&, const http::Request&, const mtc::zmap& ) -> Args&;
   static  auto  ZmLoad( mtc::IByteStream* ) -> mtc::zmap;
 
   auto  Load( palmira::AccessArgs& arg, const http::Request& req, mtc::IByteStream* src ) -> palmira::AccessArgs&
@@ -77,6 +75,11 @@ namespace zmap    {
     }
 
     return Update( arg, req, zmdata ).SetDocText( std::move( intext ) );
+  }
+
+  auto  Load( palmira::SearchArgs& arg, const http::Request& req, mtc::IByteStream* src ) -> palmira::SearchArgs&
+  {
+    return arg;
   }
 
   template <class Args>
