@@ -289,8 +289,8 @@ namespace palmira {
           return output;
         };
       auto  collect = collect::Documents()
-        .SetFirst( search.order.get_word32( "first", 1 ) )
-        .SetCount( search.order.get_word32( "count", 10 ) )
+        .SetFirst( search.order.get_int32( "first", 1 ) )
+        .SetCount( search.order.get_int32( "count", 10 ) )
         .SetQuote( quotate ).Create();
       auto  request = queries::BuildRichQuery( search.query, search.terms, ctxIndex, lingProc, fieldMan );
 
