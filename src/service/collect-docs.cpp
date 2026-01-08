@@ -3,6 +3,7 @@
 # include "structo/compat.hpp"
 # include <stdexcept>
 # include <cmath>
+#include <mtc/json.h>
 
 namespace palmira {
 namespace collect {
@@ -81,32 +82,32 @@ namespace collect {
 
   void  Documents::impl::Search( mtc::api<IQuery> query )
   {
-    uint32_t  id = uint32_t(-1);
+    uint32_t  id = 0;
 
     for ( pQuery = query; (id = query->SearchDoc( id + 1 )) != uint32_t(-1); )
     {
-      auto    tuples = query->GetTuples( id );
+      auto  tuples = query->GetTuples( id );
 
       if ( tuples.dwMode != Abstract::None )
       {
+        auto  weight = ranker( id, tuples );
+
         ++nFound;
 
         if ( nCount < nLimit )
         {
-          new ( Entities() + nCount++ ) Entity{ id, ranker( id, tuples ) };
+          new ( Entities() + nCount++ ) Entity{ id, weight };
             quoBox.Set( id, tuples );
         }
           else
         {
-          auto  weight = ranker( id, tuples );
-
-          // check if worst is defined; detect worst
+        // check if worst is defined; detect worst
           if ( pWorst == nullptr )
             for ( auto beg = (pWorst = Entities()) + 1, end = Entities() + nCount; beg < end; ++beg )
-              if ( isLess( pWorst->id, pWorst->weight, id, weight ) )
+              if ( isLess( pWorst->id, pWorst->weight, beg->id, beg->weight ) )
                 pWorst = beg;
 
-          // если лучше худшего, то заместить
+        // если лучше худшего, то заместить
           if ( isLess( id, weight, pWorst->id, pWorst->weight ) )
           {
             quoBox.Set( id, tuples, pWorst->id );
@@ -159,19 +160,22 @@ namespace collect {
     return report;
   }
 
-  auto  Documents::data::GetRange( uint32_t, const Abstract& tuples ) -> double
+  auto  Documents::data::GetRange( uint32_t id, const Abstract& tuples ) -> double
   {
     double  weight;
 
     switch ( tuples.dwMode )
     {
       case Abstract::Rich:
-        weight = 0.0;
+        {
+          const Abstract::EntrySet* best = nullptr;
 
-        for ( auto p = tuples.entries.pbeg; p < tuples.entries.pend; ++p )
-          weight = std::max( weight, p->weight );
-        return weight / log( 2 + tuples.nWords );
+          for ( auto p = tuples.entries.pbeg; p < tuples.entries.pend; ++p )
+            if ( best == nullptr || best->weight < p->weight )
+              weight = (best = p)->weight;
 
+          return weight/* / log10( 2 + tuples.nWords )*/;
+        }
       case Abstract::BM25:
         weight = 1.0;
 
