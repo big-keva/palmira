@@ -94,6 +94,9 @@ namespace json    {
     if ( get_id != "undefined" )
       return search.query = mtc::zmap{ { "id", get_id } }, search;
 
+    search.order["first"] = jsn.get_int32( "first", 1 );
+    search.order["count"] = jsn.get_int32( "count", 10 );
+
     if ( sz_req != nullptr )  search.query = structo::queries::ParseQuery( *sz_req );
       else
     if ( ws_req != nullptr )  search.query = structo::queries::ParseQuery( *ws_req );
