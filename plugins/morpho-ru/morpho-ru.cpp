@@ -27,18 +27,22 @@ struct Lemmatizer final: structo::ILemmatizer
       if ( nlemma > 0 )
       {
         std::sort( lemmas, lemmas + nlemma, []( const SLemmInfoW& l, const SLemmInfoW& r )
-          {  return l.pgrams->idForm < r.pgrams->idForm;  } );
+          {
+            int   rescmp = l.pgrams->idForm - r.pgrams->idForm;
 
-        if ( lemmas[nlemma - 1].pgrams->idForm == 0xff )
-          while ( nlemma > 1 && lemmas[nlemma - 2].pgrams->idForm == 0xff )
-            --nlemma;
+            return rescmp != 0 ? rescmp < 0 : l.nlexid < r.nlexid;
+          } );
 
         for ( int idl = 0; idl < nlemma; ++idl )
         {
           uint8_t  aforms[0x100];
+          bool     is_inv = false;
 
-          for ( unsigned idf = 0; idf < lemmas[idl].ngrams; ++idf )
-            aforms[idf] = lemmas[idl].pgrams[idf].idForm;
+          for ( auto idf = 0U; idf < lemmas[idl].ngrams; ++idf )
+            is_inv |= (aforms[idf] = lemmas[idl].pgrams[idf].idForm) == 0xff;
+
+          if ( is_inv && idl > 0 )
+            break;
 
           out->AddTerm( lemmas[idl].nlexid, 1.0 / nlemma, aforms, lemmas[idl].ngrams );
         }
