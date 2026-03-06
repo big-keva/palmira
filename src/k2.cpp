@@ -14,6 +14,7 @@
 # include <mtc/json.h>
 # include <sys/resource.h>
 # include <cstdio>
+# include <sys/stat.h>
 
 auto  GetJsonQuery( mtc::IByteStream* src ) -> mtc::zmap
 {
@@ -40,11 +41,8 @@ auto  BuildService( const mtc::config& cfg ) -> mtc::api<palmira::IService>
     throw std::invalid_argument( "no 'index_path' parameter found @" __FILE__ ":" LINE_STRING );
 
   return palmira::StructoService()
-    .Set( structo::indexer::layered::Index()
-      .Set(
-        Open(
-          structo::storage::posixFS::StoragePolicies::Open( ixpath ) ) )
-      .Create() )
+    .Set( structo::indexer::layered::Index(
+      Open( structo::storage::posixFS::StoragePolicies::Open( ixpath ) ) ).Create() )
     .Set( structo::context::GetRichContents )
     .Set( structo::context::Processor() )
   .Create();
@@ -83,6 +81,8 @@ bool  CheckExt( const std::string& stpath, const std::initializer_list<const cha
 }
 
 mtc::ThreadPool   indexQueue;
+
+# if defined(_WIN32)
 
 void  IndexDir( mtc::api<palmira::IService> service, const std::string dir, std::atomic_long* counter = nullptr )
 {
@@ -128,6 +128,58 @@ void  IndexDir( mtc::api<palmira::IService> service, const std::string dir, std:
   if ( --*counter == 0 )
     fputs( "recursive directory indexing completed\n", stdout );
 }
+
+# else
+
+void  IndexDir( mtc::api<palmira::IService> service, const std::string dir, std::atomic_long* counter = nullptr )
+{
+  auto  thedir = mtc::directory::Open( (!dir.empty() && dir.back() != '/' ? dir + '/' : dir).c_str() );
+  auto  rCount = std::atomic_long( 1 );
+
+  // increment atomic counter
+  if ( counter != nullptr ) ++*counter;
+    else counter = &rCount;
+
+  for ( auto dirent = thedir.Get(); dirent.defined(); dirent = thedir.Get() )
+    if ( *dirent.string() != '.' )
+    {
+      auto  stpath = mtc::strprintf( "%s%s", dirent.folder(), dirent.string() );
+
+      if ( dirent.attrib() & mtc::directory::attr_dir )
+      {
+        struct stat dirstt;
+
+        if ( stat( stpath.c_str(), &dirstt ) == 0 && !S_ISLNK( dirstt.st_mode ) )
+          IndexDir( service, stpath, counter );
+      }
+        else
+      if ( CheckExt( stpath, { "h", "hpp", "c", "cpp", "cxx", "txt" } ) )
+      {
+        auto  getdoc = service->Search( palmira::SearchArgs{
+          mtc::zmap{
+            { "id", stpath } },
+          { { "first", int32_t(1) },
+            { "count", int32_t(1) } } } )->Wait();
+
+        if ( getdoc.get_word32( "found", 0 ) == 0 )
+        {
+          auto  insertTask = [stpath, service]()
+          {
+            auto  intext = LoadText( stpath );
+
+            if ( intext.GetBlocks().size() != 0 )
+              service->Insert( { stpath, intext } );
+          };
+          while ( !indexQueue.Insert( insertTask, std::chrono::seconds( 1 ) ) )
+            (void)NULL;
+        }
+      }
+    }
+  if ( --*counter == 0 )
+    fputs( "recursive directory indexing completed\n", stdout );
+}
+
+# endif
 
 int   main(int, char**)
 {

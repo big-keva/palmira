@@ -37,8 +37,8 @@ namespace palmira {
     auto  LoadMetadata( const mtc::api<const mtc::IByteBuffer>& ) const -> mtc::zmap;
 
   public:
-    StructoSearch( mtc::api<IContentsIndex>, context::Processor&&, FnContents = context::GetMiniContents );
-    StructoSearch( mtc::api<IContentsIndex>, const context::Processor&, FnContents = context::GetMiniContents );
+    StructoSearch( mtc::api<IContentsIndex>, const context::Processor&,
+      const context::FieldManager&, FnContents = context::GetMiniContents );
 
   private:
     auto  get_string( const mtc::zval& ) const -> mtc::charstr;
@@ -78,21 +78,16 @@ namespace palmira {
     mtc::api<IContentsIndex>  ctxIndex;
     context::Processor        langProc;
     FnContents                contents = context::GetMiniContents;
+    context::FieldManager     fieldMan;
   };
 
   // StructoSearch implementation
 
-  StructoSearch::StructoSearch( mtc::api<IContentsIndex> ix, context::Processor&& lp, FnContents cs ):
-    ctxIndex( ix ),
-    lingProc( std::move( lp ) ),
-    contents( cs )
-  {
-  }
-
-  StructoSearch::StructoSearch( mtc::api<IContentsIndex> ix, const context::Processor& lp, FnContents cs ):
-    ctxIndex( ix ),
-    lingProc( lp ),
-    contents( cs )
+  StructoSearch::StructoSearch(
+    mtc::api<IContentsIndex>      ix,
+    const context::Processor&     lp,
+    const context::FieldManager&  fm,
+    FnContents                    cs ): ctxIndex( ix ), lingProc( lp ), contents( cs )
   {
     auto  fdsEnt = ctxIndex->GetEntity( { "##__index_mappings__##", 22 } );
     auto  extras = mtc::api<const mtc::IByteBuffer>();
@@ -104,8 +99,10 @@ namespace palmira {
       if ( ::FetchFrom( mtc::sourcebuf( extras->GetPtr(), extras->GetLen() ).ptr(), indata ) == nullptr )
         throw std::invalid_argument( "failed to deserialize fields configuration @" __FILE__ ":" LINE_STRING );
 
-      fieldMan = context::LoadFields( indata );
+      fieldMan = JoinFields( context::LoadFields( indata ), fm );
     }
+      else
+    fieldMan = fm;
   }
 
   long  StructoSearch::Attach()
@@ -200,8 +197,10 @@ namespace palmira {
       }
 
     // create text contents and index document
-      getdoc = ctxIndex->SetEntity( insert.objectId, contents( pwBody->GetLemmas(), pwBody->GetMarkup(), fieldMan ).ptr(),
-        { serial.first.get(), serial.second }, { enBeef.data(), enBeef.size() } );
+      getdoc = ctxIndex->SetEntity( insert.objectId,
+        contents( pwBody->GetLemmas(), pwBody->GetMarkup(), fieldMan ),
+        { serial.first.get(), serial.second },
+        { enBeef.data(), enBeef.size() } );
 
       return modified = true, Immediate( UpdateReport{ 0, "OK", {
         { "metadata", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
@@ -273,18 +272,40 @@ namespace palmira {
 
           if ( bundle != nullptr )
           {
-            auto  dump = mtc::zmap( mtc::zmap::dump( bundle->GetPtr() ) );
-            auto  mkup = dump.get_array_char( "ft" );
-            auto  buff = std::vector<char>();
-            auto  text = mtc::span<const char>();
+            const char* data;
+            auto        mkup = mtc::span<const char>();
+            auto        buff = std::vector<char>();
+            auto        text = mtc::span<const char>();
+            uint32_t    size;
 
-          // if image is packed, unpack it, else use plain image
-            if ( dump.get_array_char( "im" ) != nullptr ) text = *dump.get_array_char( "im" );
+          // check for formats
+            if ( (data = mtc::zmap::serial::find( bundle->GetPtr(), "ft" )) != nullptr )
+            {
+              if ( *data++ != mtc::zval::z_array_char )
+                throw std::runtime_error( "invalid object package format" );
+              data = ::FetchFrom( data, size );
+                mkup = { data, size };
+            }
+          // check compressed image
+            if ( (data = mtc::zmap::serial::find( bundle->GetPtr(), "ip" )) != nullptr )
+            {
+              if ( *data++ != mtc::zval::z_array_char )
+                throw std::runtime_error( "invalid object package format" );
+              data = ::FetchFrom( data, size );
+                text = (buff = Unpack( { data, size } ));
+            }
               else
-            if ( dump.get_array_char( "ip" ) != nullptr ) text = buff = Unpack( *dump.get_array_char( "ip" ) );
+          // check uncompressed image
+            if ( (data = mtc::zmap::serial::find( bundle->GetPtr(), "im" )) != nullptr )
+            {
+              if ( *data++ != mtc::zval::z_array_char )
+                throw std::runtime_error( "invalid object package format" );
+              data = ::FetchFrom( data, size );
+                text = { data, size };
+            }
 
             if ( !text.empty() )
-              enquote::QuoteMachine( fieldMan ).Structured()( ZmapAsText( output ), text, *mkup, abstr );
+              enquote::QuoteMachine( fieldMan ).Structured()( ZmapAsText( output ), text, mkup, abstr );
           }
           return output;
         };
@@ -384,13 +405,25 @@ namespace palmira {
       return *this;
   }
 
+  auto  StructoService::Set( const context::FieldManager& fds ) -> StructoService&
+  {
+    if ( init == nullptr )
+      init = std::make_shared<data>();
+    init->fieldMan = fds;
+      return *this;
+  }
+
   auto  StructoService::Create() -> mtc::api<IService>
   {
     if ( init->contents == nullptr )
       throw std::invalid_argument( "invalid (null) contents creation callback" );
     if ( init->ctxIndex == nullptr )
       throw std::invalid_argument( "invalid (null) contents index" );
-    return new StructoSearch( init->ctxIndex, init->langProc, init->contents );
+    return new StructoSearch(
+      init->ctxIndex,
+      init->langProc,
+      init->fieldMan,
+      init->contents );
   }
 
 }

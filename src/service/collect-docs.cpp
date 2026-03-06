@@ -160,9 +160,9 @@ namespace collect {
     return report;
   }
 
-  auto  Documents::data::GetRange( uint32_t id, const Abstract& tuples ) -> double
+  auto  Documents::data::GetRange( uint32_t /*id*/, const Abstract& tuples ) -> double
   {
-    double  weight;
+    double  weight = 0.0;
 
     switch ( tuples.dwMode )
     {
@@ -179,7 +179,7 @@ namespace collect {
       case Abstract::BM25:
         weight = 1.0;
 
-        for ( auto p = tuples.factors.beg; p < tuples.factors.end; ++p )
+        for ( auto p = tuples.factors.pbeg; p < tuples.factors.pend; ++p )
           weight *= (1.0 - p->dblIDF);
         return tuples.nWords != 0 ? (1.0 - weight) / log( 2 + tuples.nWords ) : 1.0 - weight;
 

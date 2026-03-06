@@ -57,10 +57,10 @@ namespace collect {
       {
         auto  nterms = std::min( source.factors.size(), size_t(max_BM25Term_count) );
 
-        output->factors.beg = (Abstract::BM25Term*)(output + 1);
-        output->factors.end = output->factors.beg + nterms;
+        output->factors.pbeg = (Abstract::BM25Term*)(output + 1);
+        output->factors.pend = output->factors.pbeg + nterms;
 
-        std::copy( source.factors.beg, source.factors.beg + nterms, (Abstract::BM25Term*)output->factors.beg );
+        std::copy( source.factors.pbeg, source.factors.pbeg + nterms, (Abstract::BM25Term*)output->factors.pbeg );
         break;
       }
       case Abstract::Rich:

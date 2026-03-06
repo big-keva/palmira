@@ -47,20 +47,19 @@ namespace palmira
     throw std::invalid_argument( "neither generic index name nor index policy was found" );
   }
 
-  auto  OpenIndex( const mtc::config& config ) -> mtc::api<structo::IContentsIndex>
+  auto  OpenContentsIndex( const mtc::config& config ) -> mtc::api<IContentsIndex>
   {
     if ( config.empty() )
       throw std::invalid_argument( "section 'index' not found in configuration file" );
 
-    return structo::indexer::layered::Index()
-      .Set( OpenStorage( config ) )
-      .Set( structo::indexer::dynamic::Settings()
+    return indexer::layered::Index( OpenStorage( config ) )
+      .Set( indexer::dynamic::Settings()
         .SetMaxEntities( 1024 )
         .SetMaxAllocate( 1024 * 1024 * 1024 ) )
       .Create();
   }
 
-  auto  GetContentsType( const mtc::config& config ) -> FnContents
+  auto  GetMakeContents( const mtc::config& config ) -> FnContents
   {
     auto  ctType = config.get_charstr( "contents" );
 
@@ -76,14 +75,20 @@ namespace palmira
     throw std::invalid_argument( mtc::strprintf( "unknown index contents type '%s'", ctType.c_str() ) );
   }
 
+  auto  LoadIndexFields( const mtc::config& config ) -> context::FieldManager
+  {
+    return context::LoadFields( config.to_zmap(), "fields" );
+  }
+
   auto  CreateStructo( const mtc::config& config ) -> mtc::api<IService>
   {
     auto  create = StructoService();
 
     return create
       .Set( InitLanguages( config ) )
-      .Set( OpenIndex( config.get_section( "index" ) ) )
-      .Set( GetContentsType( config ) )
+      .Set( OpenContentsIndex( config.get_section( "index" ) ) )
+      .Set( GetMakeContents( config ) )
+      .Set( LoadIndexFields( config ) )
       .Create();
   }
 
