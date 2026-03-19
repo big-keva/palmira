@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.1)
 project(palmira)
 
+find_package(MoonyCode REQUIRED)
+
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 
@@ -36,16 +38,11 @@ include_directories(
 	./
 	contrib)
 
-add_subdirectory(contrib/moonycode)
 add_subdirectory(contrib/mtc)
 add_subdirectory(contrib/DeliriX)
 add_subdirectory(contrib/structo)
-add_subdirectory(contrib/libmorph)
-# add_subdirectory(contrib/stemka)
 
 add_subdirectory(plugins/morpho-ru)
-# add_subdirectory(plugins/stemka-ru)
-# add_subdirectory(plugins/stemka-ua)
 
 if(gRPC_API_ENABLED)
 	include(src/network/grpc/cmake/grpc.cmake)
