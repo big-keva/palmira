@@ -16,4 +16,4 @@ add_executable(
 target_link_libraries(
   test-palmira-plugins-morpho-ru morpho-ru)
 
-target_link_libraries(morpho-ru morphrus-static fuzzyrus-static moonycode mtc)
+target_link_libraries(morpho-ru ${MorphRus_LIBRARY} ${MoonyCode_LIBRARY} mtc)
