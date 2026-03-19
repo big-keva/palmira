@@ -1,6 +1,6 @@
 # include <structo/lang-api.hpp>
-# include <libmorph/rus/include/mlma1049.h>
-# include <libmorph/rus/include/mlfa1049.h>
+# include <libmorph/api.hpp>
+# include <libmorph/rus.h>
 # include <moonycode/codes.h>
 
 # define EXPORTED_API __attribute__((__visibility__("default")))
@@ -11,8 +11,8 @@ struct Lemmatizer final: structo::ILemmatizer
 
   Lemmatizer()
   {
-    mlmaruLoadWcAPI( &mlma );
-    mlfaruLoadWcAPI( &mlfa );
+    mlmaruGetAPI( LIBMORPH_API_4_MAGIC ":utf-16", (void**)&mlma );
+    mlfaruGetAPI( LIBFUZZY_API_4_MAGIC ":utf-16", (void**)&mlfa );
   }
 
   int   Lemmatize( IWord* out, unsigned options, const widechar* str, size_t len ) override
@@ -24,6 +24,19 @@ struct Lemmatizer final: structo::ILemmatizer
       SLemmInfoW  lemmas[0x20];
       auto        nlemma = mlma->Lemmatize( { str, len }, lemmas, {}, gInfos, sfIgnoreCapitals );
 
+      // check for verb imperatives and clean if not only one present
+      if ( nlemma > 1 )
+      {
+        for ( int i = 0; i < nlemma; ++i )
+          if ( (lemmas[i].pgrams->wdInfo & 0x3f) <= 6 && lemmas[i].pgrams->idForm == 2 )
+          {
+            memcpy( lemmas + 1, lemmas + i + 1, (nlemma - i - 1) * sizeof(SLemmInfoW) );
+              --nlemma;
+            break;
+          }
+      }
+
+      // check non-flective forms and suppress if flectives are present
       if ( nlemma > 0 )
       {
         std::sort( lemmas, lemmas + nlemma, []( const SLemmInfoW& l, const SLemmInfoW& r )
@@ -54,21 +67,26 @@ struct Lemmatizer final: structo::ILemmatizer
       auto        nstems = mlfa->Lemmatize( { str, len }, astems, {}, gInfos );
       widechar    slower[0x40];
       float       wtotal = 0.0;
+      float       before = 1.0;
 
       if ( nstems > 0 )
       {
         if ( codepages::strtolower( slower, std::size(slower), str, len ) == size_t(-1) )
           return 0;
 
-        std::sort( astems, astems + nstems, []( const SStemInfoW& l, const SStemInfoW& r )
-          {  return l.weight > r.weight;  } );
-
+      // get total weight
         for ( auto ids = 0; ids < nstems; ++ids )
           wtotal += astems[ids].weight;
 
+      // limit selection to:
+      // - 80% of coverage;
+      // - next element is 15% worse than previous
         wtotal *= 0.8;
 
-        for ( auto ids = 0; ids < nstems && wtotal > 0.0 && astems[ids].weight > 0.1; wtotal -= astems[ids++].weight )
+        for ( auto ids = 0; ids < nstems
+          && wtotal > 0.0
+          && astems[ids].weight > 0.1
+          && before * 0.8 <= astems[ids].weight; wtotal -= (before = astems[ids++].weight) )
         {
           uint8_t  aforms[0x100];
 
@@ -84,8 +102,8 @@ struct Lemmatizer final: structo::ILemmatizer
   }
 
 public:
-  IMlmaWc*  mlma;
-  IMlfaWc*  mlfa;
+  IMlmaWcXX*  mlma;
+  IMlfaWcXX*  mlfa;
 
 };
 
