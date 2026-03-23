@@ -10,6 +10,6 @@ add_library(stemka-ua SHARED
 	src/stemming-ukr.cpp
 	src/language-api.cpp)
 
-target_link_libraries(stemka-ua stemka moonycode)
+target_link_libraries(stemka-ua stemka ${MoonyCode_LIB})
 
 add_subdirectory(tests)

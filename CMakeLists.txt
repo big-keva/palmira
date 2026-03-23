@@ -133,7 +133,7 @@ target_link_libraries(palmira
 	structo
 	DeliriX
 	remottp
-	moonycode
+	${MoonyCode_LIB}
 	mtc
 	tinyxml2
 	minizip
@@ -147,7 +147,7 @@ target_link_libraries(k2
 	structo
 	DeliriX
 	watchFs
-	moonycode
+	${MoonyCode_LIB}
 	mtc
 	tinyxml2
 	minizip

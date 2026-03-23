@@ -7,4 +7,4 @@ add_executable(test-stemka-ua
 
 add_dependencies(test-stemka-ua stemka-ua)
 
-target_link_libraries(test-stemka-ua stemka structo moonycode mtc)
+target_link_libraries(test-stemka-ua stemka structo ${MoonyCode_LIB} mtc)
