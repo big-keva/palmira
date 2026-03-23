@@ -1,9 +1,9 @@
 # if !defined( __palmira_src_service_collect_hpp__ )
 # define __palmira_src_service_collect_hpp__
-//# include "structo/text-api.hpp"
 # include "structo/contents.hpp"
 # include "structo/queries.hpp"
 # include "structo/compat.hpp"
+# include <mtc/threadPool.hpp>
 # include <mtc/zmap.h>
 
 namespace palmira {
@@ -29,15 +29,16 @@ namespace collect {
   public:
     Documents() = default;
 
-    using IsLessFn = std::function<bool  ( uint32_t, double, uint32_t, double )>;
+    using DifferFn = std::function<int( uint32_t, double, uint32_t, double )>;
     using RankerFn = std::function<double( uint32_t, const Abstract& )>;
     using QuotesFn = std::function<mtc::array_zval( uint32_t, const Abstract& )>;
 
-    auto  SetFirst( uint32_t ) -> Documents&;
-    auto  SetCount( uint32_t ) -> Documents&;
-    auto  SetOrder( IsLessFn ) -> Documents&;   // default by range
-    auto  SetRange( RankerFn ) -> Documents&;
-    auto  SetQuote( QuotesFn ) -> Documents&;
+    auto  SetFirst( uint32_t          nFirst ) -> Documents&;
+    auto  SetCount( uint32_t          nCount ) -> Documents&;
+    auto  SetOrder( DifferFn          fnComp ) -> Documents&;   // default by range
+    auto  SetRange( RankerFn          ranker ) -> Documents&;
+    auto  SetQuote( QuotesFn          quotes ) -> Documents&;
+    auto  SetAsync( mtc::ThreadPool*  actors ) -> Documents&;
 
     auto  Create() -> mtc::api<ICollector>;
   };

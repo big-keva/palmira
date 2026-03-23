@@ -309,9 +309,13 @@ namespace palmira {
           }
           return output;
         };
+
+        mtc::ThreadPool actors;
+
       auto  collect = collect::Documents()
         .SetFirst( search.order.get_int32( "first", 1 ) )
         .SetCount( search.order.get_int32( "count", 10 ) )
+        .SetAsync( &actors )
         .SetQuote( quotate ).Create();
       auto  request = queries::BuildRichQuery( search.query, search.terms, ctxIndex, lingProc, fieldMan );
 
