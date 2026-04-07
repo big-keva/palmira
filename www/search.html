@@ -144,6 +144,18 @@
             text-decoration: underline;
         }
 
+        .result-author
+        {
+            display: block;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
         .result-path 
         {
             font-size: 12px;
@@ -160,6 +172,7 @@
 
         .result-relevance 
         {
+            display: inline-block;
             font-size: 12px;
             color: #28a745;
             margin-bottom: 12px;
@@ -168,15 +181,18 @@
 
         .result-index
         {
+            display: inline-block;
             font-size: 12px;
             color: #ccc;
             margin-bottom: 12px;
+            margin-left: 2em;
             font-weight: 600;
         }
 
         .result-quote 
         {
             font-style: italic;
+            font-size: 14px;
             color: #555;
             background: #f8f9fa;
             padding: 12px;
@@ -204,11 +220,75 @@
             margin: 0 2px;
         }
 
-        .file-actions 
+        /* Стили для пагинации */
+        .pagination 
         {
             display: flex;
+            justify-content: center;
+            align-items: center;
             gap: 10px;
-            flex-wrap: wrap;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .pagination-info 
+        {
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .pagination-button 
+        {
+            padding: 8px 16px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .pagination-button:hover:not(:disabled) 
+        {
+            transform: translateY(-2px);
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.4);
+        }
+
+        .pagination-button:disabled 
+        {
+            background: linear-gradient(45deg, #cccccc, #aaaaaa);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .pagination-jump 
+        {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .page-input 
+        {
+            width: 60px;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .page-input:focus 
+        {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
         }
 
         .action-button 
@@ -222,27 +302,6 @@
             font-size: 14px;
             font-weight: 500;
             transition: all 0.3s ease;
-        }
-
-        .action-button:hover 
-        {
-            transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
-        }
-
-        .action-button.download 
-        {
-            background: linear-gradient(45deg, #28a745, #1e7e34);
-        }
-
-        .action-button.preview 
-        {
-            background: linear-gradient(45deg, #17a2b8, #138496);
-        }
-
-        .action-button.path 
-        {
-            background: linear-gradient(45deg, #ffc107, #e0a800);
         }
 
         .loading 
@@ -298,17 +357,6 @@
             text-align: center;
         }
 
-        .instructions 
-        {
-            background: #e8f4fd;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            color: #31708f;
-            border-left: 4px solid #5bc0de;
-        }
-
         @media (max-width: 768px) 
         {
             .search-form 
@@ -321,15 +369,21 @@
                 width: 100%;
             }
             
-            .file-actions 
-            {
-                flex-direction: column;
-            }
-            
             .action-button 
             {
                 width: 100%;
                 text-align: center;
+            }
+            
+            .pagination 
+            {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .pagination-jump 
+            {
+                margin-top: 10px;
             }
         }
     </style>
@@ -339,11 +393,6 @@
         <div class="search-header">
             <h1>🔍 libruseq</h1>
             <p>Поиск книжек на libruseq</p>
-        </div>
-        
-        <div class="instructions">
-            💡 Введите поисковый запрос для поиска по документам на удалённом сервере. 
-            Результаты появятся автоматически через 250 мс после остановки ввода.
         </div>
         
         <form class="search-form" id="searchForm">
@@ -368,9 +417,28 @@
         <div class="results-info" id="resultsInfo" style="display: none;">
             🎯 Найдено документов: <strong><span id="foundCount">0</span></strong> 
             ⏱️ Время поиска: <strong><span id="elapsedTime">0</span> мс</strong>
+            📄 Показано: <strong><span id="shownCount">0</span></strong>
+            📍 Страница: <strong><span id="currentPage">1</span></strong> из <strong><span id="totalPages">1</span></strong>
         </div>
 
         <ul class="results-list" id="resultsList"></ul>
+        
+        <div class="pagination" id="pagination" style="display: none;">
+            <button class="pagination-button" id="firstPageBtn" title="Первая страница">««</button>
+            <button class="pagination-button" id="prevPageBtn" title="Предыдущая страница">‹ Назад</button>
+            
+            <div class="pagination-info">
+                Страница <span id="pageNumber">1</span> из <span id="totalPagesPagination">1</span>
+            </div>
+            
+            <button class="pagination-button" id="nextPageBtn" title="Следующая страница">Вперед ›</button>
+            
+            <div class="pagination-jump">
+                <span>Перейти:</span>
+                <input type="number" class="page-input" id="pageJumpInput" min="1" value="1">
+                <button class="pagination-button" id="jumpPageBtn">OK</button>
+            </div>
+        </div>
         
         <div class="server-info" id="serverInfo">
             Подключение к серверу: <span id="serverStatus">Не подключено</span>
@@ -378,25 +446,27 @@
     </div>
 
     <script>
-        // Конфигурация сервера - измените эти параметры под ваш сервер
+        // Конфигурация сервера
         const SERVER_CONFIG = 
         {
-            // Базовый URL сервера (измените на адрес вашего сервера)
-            //baseUrl: 'http://176.123.169.159:57571',
             baseUrl: 'http://localhost:57571',
             
-            // Пути к эндпоинтам API
             endpoints: 
             {
                 search: '/search',
-                download: '/download',
-                preview: '/preview',
                 path: '/path'
             },
             
             // Настройки запросов
-            requestTimeout: 20000, // 10 секунд
-            retryAttempts: 2
+            requestTimeout: 20000,
+            retryAttempts: 2,
+            
+            // Настройки пагинации
+            pagination: 
+            {
+                itemsPerPage: 10,
+                maxVisiblePages: 5
+            }
         };
 
         class RemoteFileSearch 
@@ -409,13 +479,44 @@
                 this.resultsInfo = document.getElementById('resultsInfo');
                 this.foundCount = document.getElementById('foundCount');
                 this.elapsedTime = document.getElementById('elapsedTime');
+                this.shownCount = document.getElementById('shownCount');
+                this.currentPage = document.getElementById('currentPage');
+                this.totalPages = document.getElementById('totalPages');
+                
                 this.errorMessage = document.getElementById('errorMessage');
                 this.loadingIndicator = document.getElementById('loadingIndicator');
                 this.serverStatus = document.getElementById('serverStatus');
                 
-                this.timeoutId = null;
+                // Элементы пагинации
+                this.pagination = document.getElementById('pagination');
+                this.firstPageBtn = document.getElementById('firstPageBtn');
+                this.prevPageBtn = document.getElementById('prevPageBtn');
+                this.nextPageBtn = document.getElementById('nextPageBtn');
+                this.pageNumber = document.getElementById('pageNumber');
+                this.totalPagesPagination = document.getElementById('totalPagesPagination');
+                this.pageJumpInput = document.getElementById('pageJumpInput');
+                this.jumpPageBtn = document.getElementById('jumpPageBtn');
+                
+                // Таймеры для правильного debounce
+                this.debounceTimer = null;
+                this.lastTypingTime = 0;
+                this.isTyping = false;
                 this.DEBOUNCE_DELAY = 250;
+                
+                // Состояние для отслеживания изменений
+                this.lastSearchValue = '';
+                
+                // Контроллеры для отмены запросов
+                this.currentRequestController = null;
+                this.requestSequence = 0;
+                
                 this.isConnected = false;
+                
+                // Состояние пагинации
+                this.currentQuery = '';
+                this.currentFirstItem = 1;
+                this.totalFound = 0;
+                this.itemsPerPage = SERVER_CONFIG.pagination.itemsPerPage;
                 
                 this.initializeEvents();
                 this.checkServerConnection();
@@ -426,13 +527,137 @@
                 this.searchForm.addEventListener('submit', (e) => 
                 {
                     e.preventDefault();
-                    this.performSearch();
+                    this.performSearch(1);
                 });
                 
+                // Отслеживаем только событие input для изменений
                 this.searchInput.addEventListener('input', () => 
                 {
-                    this.debounceSearch();
+                    this.handleInputChange();
                 });
+                
+                // Обработчики пагинации
+                this.firstPageBtn.addEventListener('click', () => 
+                {
+                    this.goToPage(1);
+                });
+                
+                this.prevPageBtn.addEventListener('click', () => 
+                {
+                    this.goToPage(this.getCurrentPage() - 1);
+                });
+                
+                this.nextPageBtn.addEventListener('click', () => 
+                {
+                    this.goToPage(this.getCurrentPage() + 1);
+                });
+                
+                this.jumpPageBtn.addEventListener('click', () => 
+                {
+                    const page = parseInt(this.pageJumpInput.value);
+                    if (page >= 1 && page <= this.getTotalPages()) 
+                    {
+                        this.goToPage(page);
+                    }
+                    else 
+                    {
+                        this.showError(`Введите номер страницы от 1 до ${this.getTotalPages()}`);
+                    }
+                });
+                
+                this.pageJumpInput.addEventListener('keypress', (e) => 
+                {
+                    if (e.key === 'Enter') 
+                    {
+                        this.jumpPageBtn.click();
+                    }
+                });
+            }
+            
+            // Обработка изменений в поле ввода
+            handleInputChange() 
+            {
+                const currentValue = this.searchInput.value.trim();
+                
+                // Проверяем, действительно ли изменилось значение
+                if (currentValue !== this.lastSearchValue) 
+                {
+                    // Обновляем последнее значение
+                    this.lastSearchValue = currentValue;
+                    
+                    // Отменяем текущий запрос, так как значение изменилось
+                    this.cancelCurrentRequest();
+                    
+                    // Обновляем время последнего ввода
+                    this.lastTypingTime = Date.now();
+                    this.isTyping = true;
+                    
+                    // Сбрасываем предыдущий таймер
+                    if (this.debounceTimer) 
+                    {
+                        clearTimeout(this.debounceTimer);
+                        this.debounceTimer = null;
+                    }
+                    
+                    // Устанавливаем новый таймер для debounce
+                    this.debounceTimer = setTimeout(() => 
+                    {
+                        this.checkTypingFinished();
+                    }, this.DEBOUNCE_DELAY);
+                }
+            }
+            
+            // Проверка, закончил ли пользователь ввод
+            checkTypingFinished() 
+            {
+                const now = Date.now();
+                const timeSinceLastTyping = now - this.lastTypingTime;
+                
+                if (timeSinceLastTyping >= this.DEBOUNCE_DELAY) 
+                {
+                    this.isTyping = false;
+                    this.debounceSearch();
+                }
+                else 
+                {
+                    // Если прошло недостаточно времени, ждем еще
+                    this.debounceTimer = setTimeout(() => 
+                    {
+                        this.checkTypingFinished();
+                    }, this.DEBOUNCE_DELAY - timeSinceLastTyping);
+                }
+            }
+            
+            // Основная функция debounce - запускает поиск
+            debounceSearch() 
+            {
+                // Очищаем предыдущий таймер
+                if (this.debounceTimer) 
+                {
+                    clearTimeout(this.debounceTimer);
+                }
+                
+                // Запускаем поиск, если пользователь закончил ввод
+                const currentValue = this.searchInput.value.trim();
+                if (currentValue) 
+                {
+                    this.performSearch(1);
+                }
+                else 
+                {
+                    this.clearResults();
+                }
+            }
+            
+            // Отмена текущего запроса
+            cancelCurrentRequest() 
+            {
+                if (this.currentRequestController) 
+                {
+                    this.currentRequestController.abort();
+                    this.currentRequestController = null;
+                    console.log('Предыдущий запрос отменен');
+                }
             }
             
             // Проверка подключения к серверу
@@ -443,13 +668,18 @@
                     this.serverStatus.textContent = 'Проверка...';
                     this.serverStatus.style.color = '#ffc107';
                     
-                    // Простая проверка доступности сервера
+                    // Создаем отдельный контроллер для проверки подключения
+                    const healthController = new AbortController();
+                    const healthTimeoutId = setTimeout(() => healthController.abort(), 3000);
+                    
                     const response = await fetch(`${SERVER_CONFIG.baseUrl}/health`, 
                     {
                         method: 'GET',
                         headers: { 'Accept': 'application/json' },
-                        signal: AbortSignal.timeout(3000)
+                        signal: healthController.signal
                     }).catch(() => null);
+                    
+                    clearTimeout(healthTimeoutId);
                     
                     if (response && response.ok) 
                     {
@@ -472,16 +702,7 @@
                 }
             }
             
-            debounceSearch() 
-            {
-                clearTimeout(this.timeoutId);
-                this.timeoutId = setTimeout(() => 
-                {
-                    this.performSearch();
-                }, this.DEBOUNCE_DELAY);
-            }
-            
-            async performSearch() 
+            async performSearch(firstItem = 1) 
             {
                 const query = this.searchInput.value.trim();
                 
@@ -497,32 +718,89 @@
                     return;
                 }
                 
+                this.currentQuery = query;
+                this.currentFirstItem = firstItem;
+                this.requestSequence++;
+                
+                const currentSequence = this.requestSequence;
+                
+                // Отменяем предыдущий запрос только если это новый запрос
+                // (не при переходе по пагинации того же запроса)
+                if (firstItem === 1) 
+                {
+                    this.cancelCurrentRequest();
+                }
+                
+                // Создаем новый контроллер для текущего запроса
+                this.currentRequestController = new AbortController();
+                
                 this.showLoading();
                 this.hideError();
                 
                 try 
                 {
-                    const response = await this.sendSearchRequest(query);
-                    this.displayResults(response);
+                    const response = await this.sendSearchRequest(
+                        query, 
+                        firstItem, 
+                        this.itemsPerPage,
+                        this.currentRequestController.signal,
+                        currentSequence
+                    );
+                    
+                    // Проверяем, не был ли запрос заменен более новым
+                    if (currentSequence === this.requestSequence) 
+                    {
+                        this.displayResults(response);
+                    }
+                    else 
+                    {
+                        console.log('Результаты запроса проигнорированы, так как есть более новый запрос');
+                    }
                 } 
                 catch (error) 
                 {
-                    this.showError(`Ошибка поиска: ${error.message}`);
+                    // Игнорируем ошибки отмены запроса
+                    if (error.name !== 'AbortError') 
+                    {
+                        // Проверяем, не был ли запрос заменен более новым
+                        if (currentSequence === this.requestSequence) 
+                        {
+                            this.showError(`Ошибка поиска: ${error.message}`);
+                        }
+                    }
                 }
                 finally 
                 {
-                    this.hideLoading();
+                    // Скрываем индикатор загрузки только если это последний запрос
+                    if (currentSequence === this.requestSequence) 
+                    {
+                        this.hideLoading();
+                    }
                 }
             }
             
-            async sendSearchRequest(query) 
+            async sendSearchRequest(query, first, count, signal, sequence) 
             {
-                const requestBody = JSON.stringify({ string: query });
+                const requestBody = JSON.stringify({ 
+                    string: query,
+                    first: first,
+                    count: count
+                });
+                
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), SERVER_CONFIG.requestTimeout);
                 
+                // Объединяем сигналы: от таймаута и от пользовательской отмены
+                const abortHandler = () => 
+                {
+                    controller.abort();
+                };
+                signal.addEventListener('abort', abortHandler);
+                
                 try 
                 {
+                    console.log(`Отправка запроса #${sequence}: "${query.substring(0, 50)}${query.length > 50 ? '...' : ''}"`);
+                    
                     const response = await fetch(`${SERVER_CONFIG.baseUrl}${SERVER_CONFIG.endpoints.search}`, 
                     {
                         method: 'POST',
@@ -536,21 +814,31 @@
                     });
                     
                     clearTimeout(timeoutId);
+                    signal.removeEventListener('abort', abortHandler);
                     
                     if (!response.ok) 
                     {
                         throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}`);
                     }
                     
+                    console.log(`Получен ответ для запроса #${sequence}`);
                     return await response.json();
                 } 
                 catch (error) 
                 {
                     clearTimeout(timeoutId);
+                    signal.removeEventListener('abort', abortHandler);
                     
                     if (error.name === 'AbortError') 
                     {
-                        throw new Error('Таймаут запроса. Сервер не ответил вовремя.');
+                        if (signal.aborted) 
+                        {
+                            throw new Error('Запрос отменен');
+                        }
+                        else 
+                        {
+                            throw new Error('Таймаут запроса. Сервер не ответил вовремя.');
+                        }
                     }
                     
                     if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) 
@@ -574,20 +862,86 @@
                 if (data.found === 0) 
                 {
                     this.foundCount.textContent = '0';
+                    this.shownCount.textContent = '0';
                     this.resultsInfo.style.display = 'block';
+                    this.pagination.style.display = 'none';
                     this.showError('По вашему запросу ничего не найдено.');
                     return;
                 }
                 
-                this.foundCount.textContent = data.found;
+                this.totalFound = data.found;
+                this.foundCount.textContent = this.totalFound;
                 
-                data.items.forEach(item => 
+                // Обновляем информацию о текущей странице
+                const currentPage = this.getCurrentPage();
+                const totalPages = this.getTotalPages();
+                const shownItems = data.items ? data.items.length : 0;
+                
+                this.currentPage.textContent = currentPage;
+                this.totalPages.textContent = totalPages;
+                this.shownCount.textContent = shownItems;
+                this.pageNumber.textContent = currentPage;
+                this.totalPagesPagination.textContent = totalPages;
+                this.pageJumpInput.value = currentPage;
+                this.pageJumpInput.max = totalPages;
+                
+                // Обновляем элементы пагинации
+                this.updatePaginationControls();
+                
+                if (data.items && data.items.length > 0) 
                 {
-                    const listItem = this.createResultItem(item);
-                    this.resultsList.appendChild(listItem);
-                });
+                    data.items.forEach(item => 
+                    {
+                        const listItem = this.createResultItem(item);
+                        this.resultsList.appendChild(listItem);
+                    });
+                }
 
                 this.resultsInfo.style.display = 'block';
+                this.pagination.style.display = 'flex';
+            }
+            
+            // Обновление состояния кнопок пагинации
+            updatePaginationControls() 
+            {
+                const currentPage = this.getCurrentPage();
+                const totalPages = this.getTotalPages();
+                
+                // Первая страница и предыдущая
+                this.firstPageBtn.disabled = currentPage <= 1;
+                this.prevPageBtn.disabled = currentPage <= 1;
+                
+                // Следующая страница
+                this.nextPageBtn.disabled = currentPage >= totalPages;
+                
+                // Обновляем подсказки
+                this.firstPageBtn.title = currentPage <= 1 ? 'Вы на первой странице' : 'Первая страница';
+                this.prevPageBtn.title = currentPage <= 1 ? 'Вы на первой странице' : 'Предыдущая страница';
+                this.nextPageBtn.title = currentPage >= totalPages ? 'Вы на последней странице' : 'Следующая страница';
+            }
+            
+            // Переход на указанную страницу
+            goToPage(page) 
+            {
+                if (page < 1) page = 1;
+                if (page > this.getTotalPages()) page = this.getTotalPages();
+                
+                const first = (page - 1) * this.itemsPerPage + 1;
+                
+                // Не отменяем запрос при переходе по пагинации того же запроса
+                this.performSearch(first);
+            }
+            
+            // Получение текущей страницы (1-based)
+            getCurrentPage() 
+            {
+                return Math.ceil(this.currentFirstItem / this.itemsPerPage);
+            }
+            
+            // Получение общего количества страниц
+            getTotalPages() 
+            {
+                return Math.ceil(this.totalFound / this.itemsPerPage);
             }
             
             createResultItem(item) 
@@ -598,8 +952,13 @@
                 // Название файла с иконкой
                 const title = document.createElement('div');
                 title.className = 'result-link';
-                title.textContent = `📄 ${this.formatFileName(item.id)}`;
+                title.textContent = `📄 ${item.extra.title}`;
                 title.onclick = () => this.downloadFile(item.id);
+                
+                // Автор
+                const author = document.createElement('div');
+                author.className = 'result-author';
+                author.textContent = item.extra.author;
                 
                 // Полный путь к файлу
                 const path = document.createElement('div');
@@ -612,10 +971,17 @@
                 relevance.className = 'result-relevance';
                 relevance.textContent = `Релевантность: ${item.range.toFixed(2)}`;
                 
-                // Индекс
+                // Индекс в общем списке результатов
                 const aindex = document.createElement('div');
-		aindex.className = 'result-index';
-                aindex.textContent = `Индекс: ${item.index}`;
+                aindex.className = 'result-index';
+                if (item.originalIndex) 
+                {
+                    aindex.textContent = `Позиция в результатах: ${item.originalIndex}`;
+                }
+                else 
+                {
+                    aindex.textContent = `Индекс: ${item.index}`;
+                }
                 
                 // Цитата с обработкой сложной структуры
                 const quote = document.createElement('div');
@@ -623,7 +989,7 @@
                 
                 if (item.quote) 
                 {
-                    const quoteContent = this.processQuoteStructure(item.quote);
+                    const quoteContent = this.processComplexQuote(item.quote);
                     quote.appendChild(quoteContent);
                 } 
                 else 
@@ -631,98 +997,52 @@
                     quote.textContent = 'Цитата не доступна';
                 }
                 
-                // Кнопки действий для удалённого сервера
-                const actions = document.createElement('div');
-                actions.className = 'file-actions';
-                
-                // Кнопка скачивания
-                const downloadButton = document.createElement('button');
-                downloadButton.className = 'action-button download';
-                downloadButton.innerHTML = '⬇️ Скачать';
-                downloadButton.onclick = (e) => 
-                {
-                    e.stopPropagation();
-                    this.downloadFile(item.id);
-                };
-                
-                // Кнопка предпросмотра (если поддерживается сервером)
-                const previewButton = document.createElement('button');
-                previewButton.className = 'action-button preview';
-                previewButton.innerHTML = '👁️ Предпросмотр';
-                previewButton.onclick = (e) => 
-                {
-                    e.stopPropagation();
-                    this.previewFile(item.id);
-                };
-                
-                // Кнопка копирования пути
-                const copyPathButton = document.createElement('button');
-                copyPathButton.className = 'action-button path';
-                copyPathButton.innerHTML = '📋 Путь';
-                copyPathButton.onclick = (e) => 
-                {
-                    e.stopPropagation();
-                    this.copyToClipboard(item.id);
-                };
-                
-                actions.appendChild(downloadButton);
-                actions.appendChild(previewButton);
-                actions.appendChild(copyPathButton);
-                
                 li.appendChild(title);
+                li.appendChild(author);
                 li.appendChild(path);
                 li.appendChild(relevance);
                 li.appendChild(aindex);
                 li.appendChild(quote);
-                li.appendChild(actions);
                 
                 return li;
             }
             
-            // Обработка сложной структуры цитаты (оставляем из предыдущей версии)
-            processQuoteStructure(quoteData)
+            // Обработка сложной структуры цитаты
+            processComplexQuote(quoteData)
             {
                 const container = document.createElement('span');
                 
                 if (Array.isArray(quoteData))
                 {
-                    let previousItemType = null;
+                    let previousItemWasString = false;
                     
                     quoteData.forEach((item, index) =>
                     {
-                        let currentItemType = this.getItemType(item);
+                        const processedItem = this.processQuoteItem(item);
                         
+                        // Добавляем разделитель между элементами
                         if (index > 0)
                         {
-                            this.addSeparator(container, previousItemType, currentItemType);
-                        }
-                        
-                        if (typeof item === 'string')
-                        {
-                            const processedText = this.processHighlightedText(item);
-                            container.appendChild(processedText);
-                        }
-                        else if (typeof item === 'object' && item !== null)
-                        {
-                            const key = Object.keys(item)[0];
-                            if (key)
+                            const currentIsString = typeof item === 'string' || 
+                                                   (typeof item === 'object' && item !== null && 
+                                                    typeof Object.values(item)[0] === 'string');
+                            
+                            if (previousItemWasString && currentIsString)
                             {
-                                const value = item[key];
-
-                                if (typeof value === 'string')
-                                {
-                                    const processedText = this.processHighlightedText(value);
-                                    container.appendChild(processedText);
-                                }
-                                else if (Array.isArray(value))
-                                {
-                                    const nestedContent = this.processQuoteStructure(value);
-                                    container.appendChild(nestedContent);
-                                }
+                                const ellipsisSpan = document.createElement('span');
+                                ellipsisSpan.className = 'ellipsis';
+                                ellipsisSpan.textContent = '…';
+                                container.appendChild(ellipsisSpan);
+                            }
+                            else
+                            {
+                                const lineBreak = document.createElement('br');
+                                container.appendChild(lineBreak);
                             }
                         }
                         
-                        previousItemType = currentItemType;
+                        container.appendChild(processedItem);
+                        previousItemWasString = typeof item === 'string';
                     });
                 }
                 else if (typeof quoteData === 'string')
@@ -730,39 +1050,51 @@
                     const processedText = this.processHighlightedText(quoteData);
                     container.appendChild(processedText);
                 }
+                else if (typeof quoteData === 'object' && quoteData !== null)
+                {
+                    const processedItem = this.processQuoteItem(quoteData);
+                    container.appendChild(processedItem);
+                }
                 
                 return container;
             }
             
-            getItemType(item)
+            // Обработка одного элемента цитаты
+            processQuoteItem(item)
             {
+                const container = document.createElement('span');
+                
                 if (typeof item === 'string')
                 {
-                    return 'string';
+                    const processedText = this.processHighlightedText(item);
+                    container.appendChild(processedText);
                 }
                 else if (typeof item === 'object' && item !== null)
                 {
-                    return 'object';
+                    Object.entries(item).forEach(([key, value]) =>
+                    {
+                        if (Array.isArray(value))
+                        {
+                            const arrayContainer = this.processComplexQuote(value);
+                            container.appendChild(arrayContainer);
+                        }
+                        else if (typeof value === 'string')
+                        {
+                            const processedText = this.processHighlightedText(value);
+                            container.appendChild(processedText);
+                        }
+                        else if (typeof value === 'object' && value !== null)
+                        {
+                            const nestedItem = this.processQuoteItem(value);
+                            container.appendChild(nestedItem);
+                        }
+                    });
                 }
-                return 'unknown';
+                
+                return container;
             }
             
-            addSeparator(container, previousType, currentType)
-            {
-                if (previousType === 'string' && currentType === 'string')
-                {
-                    const ellipsisSpan = document.createElement('span');
-                    ellipsisSpan.className = 'ellipsis';
-                    ellipsisSpan.textContent = '…';
-                    container.appendChild(ellipsisSpan);
-                }
-                else
-                {
-                    const lineBreak = document.createElement('br');
-                    container.appendChild(lineBreak);
-                }
-            }
-            
+            // Обработка текста с символами выделения \x07 и \x08
             processHighlightedText(text) 
             {
                 const container = document.createElement('span');
@@ -775,13 +1107,48 @@
                 
                 const startMark = '\x07';
                 const endMark = '\x08';
+                const ellipsisChar = '\u2026';
                 
                 let inHighlight = false;
                 let buffer = '';
                 
-                for (let i = 0; i < text.length; i++) 
+                let startIndex = 0;
+                if (text.startsWith(ellipsisChar))
+                {
+                    const ellipsisSpan = document.createElement('span');
+                    ellipsisSpan.className = 'ellipsis';
+                    ellipsisSpan.textContent = ellipsisChar;
+                    container.appendChild(ellipsisSpan);
+                    startIndex = ellipsisChar.length;
+                }
+                
+                for (let i = startIndex; i < text.length; i++) 
                 {
                     const char = text[i];
+                    
+                    if (i <= text.length - ellipsisChar.length && 
+                        text.substring(i, i + ellipsisChar.length) === ellipsisChar)
+                    {
+                        if (buffer) 
+                        {
+                            const span = document.createElement('span');
+                            if (inHighlight) 
+                            {
+                                span.className = 'highlight';
+                            }
+                            span.textContent = buffer;
+                            container.appendChild(span);
+                            buffer = '';
+                        }
+                        
+                        const ellipsisSpan = document.createElement('span');
+                        ellipsisSpan.className = 'ellipsis';
+                        ellipsisSpan.textContent = ellipsisChar;
+                        container.appendChild(ellipsisSpan);
+                        
+                        i += ellipsisChar.length - 1;
+                        continue;
+                    }
                     
                     if (char === startMark && !inHighlight) 
                     {
@@ -834,38 +1201,11 @@
                     const encodedPath = encodeURIComponent(filePath);
                     const downloadUrl = `${SERVER_CONFIG.baseUrl}${SERVER_CONFIG.endpoints.download}?path=${encodedPath}`;
                     
-                    // Открываем в новом окне или скачиваем
                     window.open(downloadUrl, '_blank');
-                    
-                    // Альтернативный способ - создание скрытой ссылки
-                    /*
-                    const link = document.createElement('a');
-                    link.href = downloadUrl;
-                    link.download = this.formatFileName(filePath);
-                    link.target = '_blank';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    */
                 } 
                 catch (error) 
                 {
                     this.showError(`Не удалось скачать файл: ${error.message}`);
-                }
-            }
-            
-            // Предпросмотр файла (если поддерживается сервером)
-            previewFile(filePath) 
-            {
-                try 
-                {
-                    const encodedPath = encodeURIComponent(filePath);
-                    const previewUrl = `${SERVER_CONFIG.baseUrl}${SERVER_CONFIG.endpoints.preview}?path=${encodedPath}`;
-                    window.open(previewUrl, '_blank');
-                } 
-                catch (error) 
-                {
-                    this.showError(`Не удалось открыть предпросмотр: ${error.message}`);
                 }
             }
             
@@ -879,7 +1219,6 @@
                 } 
                 catch (error) 
                 {
-                    // Fallback для старых браузеров
                     const textArea = document.createElement('textarea');
                     textArea.value = text;
                     document.body.appendChild(textArea);
@@ -927,6 +1266,7 @@
             clearResults() 
             {
                 this.resultsInfo.style.display = 'none';
+                this.pagination.style.display = 'none';
                 this.resultsList.innerHTML = '';
                 this.hideError();
             }
