@@ -67,7 +67,7 @@ struct Lemmatizer final: structo::ILemmatizer
       auto        nstems = mlfa->Lemmatize( { str, len }, astems, {}, gInfos );
       widechar    slower[0x40];
       float       wtotal = 0.0;
-      float       before = 1.0;
+      float       before = 0.0;
 
       if ( nstems > 0 )
       {
@@ -99,6 +99,18 @@ struct Lemmatizer final: structo::ILemmatizer
       }
     }
     return 0;
+  }
+
+  int   Wildcards( IWord* out, unsigned options, const widechar* str, size_t len ) override
+  {
+    return mlma->FindMatch( { str, len }, [&]( lexeme_t nlexid, int nforms, const SStrMatch* pforms ) -> int
+      {
+        formid_t  aforms[0x40];
+
+        for ( auto i = 0; i < nforms; ++i )
+          aforms[i] = pforms[i].id;
+        return out->AddTerm( nlexid, 1.0, aforms, nforms ), 0;
+      } ) ;
   }
 
 public:
