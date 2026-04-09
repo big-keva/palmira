@@ -1,7 +1,12 @@
 project(morpho_ru)
 
-find_package(MoonyCode REQUIRED)
-find_package(MorphRus REQUIRED)
+if("${MoonyCode_LIB}" STREQUAL "")
+  find_package(MoonyCode REQUIRED)
+endif()
+
+if("${MorphRus_LIB}" STREQUAL "" OR "${FuzzyRus_LIB}" STREQUAL "")
+  find_package(MorphRus REQUIRED)
+endif()
 
 add_compile_options(-static-libstdc++ -fvisibility=hidden -fPIC)
 

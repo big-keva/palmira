@@ -2,6 +2,7 @@
 # include <libmorph/api.hpp>
 # include <libmorph/rus.h>
 # include <moonycode/codes.h>
+# include <mtc/bitset.h>
 
 # define EXPORTED_API __attribute__((__visibility__("default")))
 
@@ -101,15 +102,22 @@ struct Lemmatizer final: structo::ILemmatizer
     return 0;
   }
 
-  int   Wildcards( IWord* out, unsigned options, const widechar* str, size_t len ) override
+  int   Wildcards( IWord* out, unsigned /*options*/, const widechar* str, size_t len ) override
   {
     return mlma->FindMatch( { str, len }, [&]( lexeme_t nlexid, int nforms, const SStrMatch* pforms ) -> int
       {
-        formid_t  aforms[0x40];
+        uint64_t  uforms[4] = { 0, 0, 0, 0 };
+        formid_t  fidset[0x100];
+        formid_t* fidptr = fidset;
 
-        for ( auto i = 0; i < nforms; ++i )
-          aforms[i] = pforms[i].id;
-        return out->AddTerm( nlexid, 1.0, aforms, nforms ), 0;
+        for ( auto p = pforms, e = pforms + nforms; p != e; ++p )
+          mtc::bitset_set( uforms, p->id );
+
+        for ( auto u = 0; u < 0x100; ++u )
+          if ( mtc::bitset_get( uforms, u ) )
+            *fidptr++ = formid_t(u);
+
+        return out->AddTerm( nlexid, 1.0, fidset, fidptr - fidset ), 0;
       } ) ;
   }
 
