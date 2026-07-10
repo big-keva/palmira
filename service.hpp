@@ -3,6 +3,7 @@
 # include "DeliriX/DOM-text.hpp"
 # include <mtc/interfaces.h>
 # include <mtc/zmap.h>
+# include <type_traits>
 
 namespace palmira {
 
@@ -14,6 +15,18 @@ namespace palmira {
     TimingArgs( const mtc::zmap& );
   };
 
+  template <typename T, typename = std::enable_if_t<std::is_base_of_v<TimingArgs, T>>>
+  T&  SetTimeout( T& args, double timeout )
+  {
+    return args.fTimeout = timeout, args;
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_base_of_v<TimingArgs, T>>>
+  T&& SetTimeout( T&& args, double timeout )
+  {
+    return args.fTimeout = timeout, std::move( args );
+  }
+  
   struct AccessArgs: TimingArgs
   {
     std::string objectId;
