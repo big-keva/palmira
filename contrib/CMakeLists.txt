@@ -1,0 +1,5 @@
+add_subdirectory(moonycode)
+add_subdirectory(mtc)
+add_subdirectory(libmorph)
+add_subdirectory(DeliriX)
+add_subdirectory(structo)
