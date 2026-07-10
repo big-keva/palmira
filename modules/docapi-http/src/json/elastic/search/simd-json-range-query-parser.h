@@ -23,30 +23,32 @@
 #include <string_view>
 #include <vector>
 //-------------------------------------------------------------------------//
-namespace docapi::json::elastic::search {
+namespace docapi::json::elastic::search
+{
 //-------------------------------------------------------------------------//
-  struct range_query {
-    //!< Keeps a name of field.
-    std::string field;
+struct range_query
+{
+  //!< Keeps a name of field.
+  std::string field;
 
-    std::optional<std::string> gt;
-    std::optional<std::string> gte;
-    std::optional<std::string> lt;
-    std::optional<std::string> lte;
+  std::optional<std::string> gt;
+  std::optional<std::string> gte;
+  std::optional<std::string> lt;
+  std::optional<std::string> lte;
 
-    std::string format;
-    std::string time_zone;
-    std::string relation;
+  std::string format;
+  std::string time_zone;
+  std::string relation;
 
-    double boost = 1.0;
-  };
+  double boost = 1.0;
+};
 //-------------------------------------------------------------------------//
-  /**
-   * Parses a range query.
-   * @param range_object [in] - A range object.
-   * @return A range query.
-   */
-  auto parse_range_query(simdjson::ondemand::object range_object) -> range_query;
+/**
+ * Parses a range query.
+ * @param range_object [in] - A range object.
+ * @return A range query.
+ */
+auto parse_range_query(simdjson::ondemand::object range_object) -> range_query;
 //-------------------------------------------------------------------------//
 } // namespace docapi::json::elastic::search
 //-------------------------------------------------------------------------//

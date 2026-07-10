@@ -7,36 +7,40 @@
 //-------------------------------------------------------------------------//
 #include "../../simd-json-errors.h"
 //-------------------------------------------------------------------------//
-namespace {
+namespace
+{
 //-------------------------------------------------------------------------//
-  TEST(SimdJsonParserSearchTest, ParseSimpleMatchQuery) {
-    const std::string body = R"json({"query": {"match": {"name": "brave"}}})json";
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+TEST(SimdJsonParserSearchTest, ParseSimpleMatchQuery)
+{
+  const std::string body = R"json({"query": {"match": {"name": "brave"}}})json";
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
 
-    ASSERT_EQ(request.indices.size(), 1U);
-    EXPECT_EQ(request.indices[0], "test");
+  ASSERT_EQ(request.indices.size(), 1U);
+  EXPECT_EQ(request.indices[0], "test");
 
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match);
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match);
 
-    const auto match = std::get<docapi::json::elastic::search::match_query>(request.query.value()->data);
+  const auto match = std::get<docapi::json::elastic::search::match_query>(
+      request.query.value()->data);
 
-    EXPECT_EQ(match.field, "name");
-    EXPECT_EQ(match.query, "brave");
+  EXPECT_EQ(match.field, "name");
+  EXPECT_EQ(match.query, "brave");
 
-    EXPECT_TRUE(match.operator_value.empty());
-    EXPECT_TRUE(match.analyzer.empty());
-    EXPECT_TRUE(match.fuzziness.empty());
-    EXPECT_TRUE(match.minimum_should_match.empty());
-    EXPECT_TRUE(match.zero_terms_query.empty());
+  EXPECT_TRUE(match.operator_value.empty());
+  EXPECT_TRUE(match.analyzer.empty());
+  EXPECT_TRUE(match.fuzziness.empty());
+  EXPECT_TRUE(match.minimum_should_match.empty());
+  EXPECT_TRUE(match.zero_terms_query.empty());
 
-    EXPECT_FALSE(match.lenient);
-    EXPECT_TRUE(match.auto_generate_synonyms_phrase_query);
-    EXPECT_DOUBLE_EQ(match.boost, 1.0);
-  }
+  EXPECT_FALSE(match.lenient);
+  EXPECT_TRUE(match.auto_generate_synonyms_phrase_query);
+  EXPECT_DOUBLE_EQ(match.boost, 1.0);
+}
 
-  TEST(SimdJsonParserSearchTest, ParseFullMatchQuery) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseFullMatchQuery)
+{
+  const std::string body =
       R"json({
         "from": 0,
         "size": 25,
@@ -57,31 +61,33 @@ namespace {
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
 
-    EXPECT_EQ(request.from, 0U);
-    EXPECT_EQ(request.size, 25U);
+  EXPECT_EQ(request.from, 0U);
+  EXPECT_EQ(request.size, 25U);
 
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match);
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match);
 
-    const auto match = std::get<docapi::json::elastic::search::match_query>(request.query.value()->data);
+  const auto match = std::get<docapi::json::elastic::search::match_query>(
+      request.query.value()->data);
 
-    EXPECT_EQ(match.field, "name");
-    EXPECT_EQ(match.query, "brave");
-    EXPECT_EQ(match.operator_value, "and");
-    EXPECT_EQ(match.analyzer, "standard");
-    EXPECT_EQ(match.fuzziness, "AUTO");
-    EXPECT_EQ(match.minimum_should_match, "75%");
-    EXPECT_EQ(match.zero_terms_query, "none");
+  EXPECT_EQ(match.field, "name");
+  EXPECT_EQ(match.query, "brave");
+  EXPECT_EQ(match.operator_value, "and");
+  EXPECT_EQ(match.analyzer, "standard");
+  EXPECT_EQ(match.fuzziness, "AUTO");
+  EXPECT_EQ(match.minimum_should_match, "75%");
+  EXPECT_EQ(match.zero_terms_query, "none");
 
-    EXPECT_TRUE(match.lenient);
-    EXPECT_FALSE(match.auto_generate_synonyms_phrase_query);
-    EXPECT_DOUBLE_EQ(match.boost, 1.5);
-  }
+  EXPECT_TRUE(match.lenient);
+  EXPECT_FALSE(match.auto_generate_synonyms_phrase_query);
+  EXPECT_DOUBLE_EQ(match.boost, 1.5);
+}
 
-  TEST(SimdJsonParserSearchTest, ParseMatchQueryWithScalarNumericValue) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseMatchQueryWithScalarNumericValue)
+{
+  const std::string body =
       R"json({
         "query": {
           "match": {
@@ -90,19 +96,21 @@ namespace {
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"users"});
+  auto request = docapi::json::elastic::parse_search_request(body, {"users"});
 
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match);
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match);
 
-    const auto match = std::get<docapi::json::elastic::search::match_query>(request.query.value()->data);
+  const auto match = std::get<docapi::json::elastic::search::match_query>(
+      request.query.value()->data);
 
-    EXPECT_EQ(match.field, "age");
-    EXPECT_EQ(match.query, "42");
-  }
+  EXPECT_EQ(match.field, "age");
+  EXPECT_EQ(match.query, "42");
+}
 
-  TEST(SimdJsonParserSearchTest, ParseMatchQueryWithScalarBooleanValue) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseMatchQueryWithScalarBooleanValue)
+{
+  const std::string body =
       R"json({
         "query": {
           "match": {
@@ -111,19 +119,21 @@ namespace {
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"users"});
+  auto request = docapi::json::elastic::parse_search_request(body, {"users"});
 
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match);
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match);
 
-    const auto match = std::get<docapi::json::elastic::search::match_query>(request.query.value()->data);
+  const auto match = std::get<docapi::json::elastic::search::match_query>(
+      request.query.value()->data);
 
-    EXPECT_EQ(match.field, "active");
-    EXPECT_EQ(match.query, "true");
-  }
+  EXPECT_EQ(match.field, "active");
+  EXPECT_EQ(match.query, "true");
+}
 
-  TEST(SimdJsonParserSearchTest, RejectInvalidMatchOperator) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, RejectInvalidMatchOperator)
+{
+  const std::string body =
       R"json({
         "query": {
           "match": {
@@ -135,11 +145,13 @@ namespace {
         }
       })json";
 
-    EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"test"}), docapi::json::parse_error);
-  }
+  EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"test"}),
+               docapi::json::parse_error);
+}
 
-  TEST(SimdJsonParserSearchTest, RejectInvalidZeroTermsQuery) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, RejectInvalidZeroTermsQuery)
+{
+  const std::string body =
       R"json({
         "query": {
           "match": {
@@ -151,38 +163,44 @@ namespace {
         }
       })json";
 
-    EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"test"}), docapi::json::parse_error);
-  }
+  EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"test"}),
+               docapi::json::parse_error);
+}
 
-  TEST(SimdJsonParserSearchTest, RejectEmptyMatchObject) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, RejectEmptyMatchObject)
+{
+  const std::string body =
       R"json({
         "query": {
           "match": {}
         }
       })json";
 
-    EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"test"}), docapi::json::parse_error);
-  }
+  EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"test"}),
+               docapi::json::parse_error);
+}
 
-  TEST(SimdJsonParserSearchTest, DetectMatchAll) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, DetectMatchAll)
+{
+  const std::string body =
       R"json({
         "query": {
           "match_all": {}
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
 
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match_all);
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match_all);
 
-    //<TODO> const auto match = std::get<docapi::json::elastic::search::match_query>(request.query.value().data);
-  }
+  //<TODO> const auto match =
+  //std::get<docapi::json::elastic::search::match_query>(request.query.value().data);
+}
 
-  TEST(SimdJsonParserSearchTest, DetectMatchNone) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, DetectMatchNone)
+{
+  const std::string body =
       R"json({
         "query": {
           "match_none": {
@@ -190,16 +208,18 @@ namespace {
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
 
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match_none);
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match_none);
 
-    //<TODO> const auto match = std::get<docapi::json::elastic::search::match_query>(request.query.value().data);
-  }
+  //<TODO> const auto match =
+  //std::get<docapi::json::elastic::search::match_query>(request.query.value().data);
+}
 
-  TEST(SimdJsonParserSearchTest, ParseSearchRequestExtendedFields) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseSearchRequestExtendedFields)
+{
+  const std::string body =
       R"json({
         "query": {
           "match": {
@@ -237,68 +257,70 @@ namespace {
         "min_score": 0.5
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
 
-    ASSERT_EQ(request.indices.size(), 1U);
-    EXPECT_EQ(request.indices[0], "test");
+  ASSERT_EQ(request.indices.size(), 1U);
+  EXPECT_EQ(request.indices[0], "test");
 
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match);
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::match);
 
-    const auto match = std::get<docapi::json::elastic::search::match_query>(request.query.value()->data);
+  const auto match = std::get<docapi::json::elastic::search::match_query>(
+      request.query.value()->data);
 
-    EXPECT_EQ(match.field, "name");
-    EXPECT_EQ(match.query, "brave");
+  EXPECT_EQ(match.field, "name");
+  EXPECT_EQ(match.query, "brave");
 
-    EXPECT_EQ(request.from, 0U);
-    EXPECT_EQ(request.size, 25U);
+  EXPECT_EQ(request.from, 0U);
+  EXPECT_EQ(request.size, 25U);
 
-    EXPECT_TRUE(request.source.enabled);
+  EXPECT_TRUE(request.source.enabled);
 
-    ASSERT_EQ(request.source.includes.size(), 2U);
-    EXPECT_EQ(request.source.includes[0], "name");
-    EXPECT_EQ(request.source.includes[1], "title");
+  ASSERT_EQ(request.source.includes.size(), 2U);
+  EXPECT_EQ(request.source.includes[0], "name");
+  EXPECT_EQ(request.source.includes[1], "title");
 
-    ASSERT_EQ(request.source.excludes.size(), 1U);
-    EXPECT_EQ(request.source.excludes[0], "blob");
+  ASSERT_EQ(request.source.excludes.size(), 1U);
+  EXPECT_EQ(request.source.excludes[0], "blob");
 
-    ASSERT_EQ(request.sort.size(), 2U);
-    EXPECT_EQ(request.sort[0].field, "created_at");
-    EXPECT_EQ(request.sort[0].order, "desc");
-    EXPECT_EQ(request.sort[1].field, "_score");
-    EXPECT_EQ(request.sort[1].order, "asc");
+  ASSERT_EQ(request.sort.size(), 2U);
+  EXPECT_EQ(request.sort[0].field, "created_at");
+  EXPECT_EQ(request.sort[0].order, "desc");
+  EXPECT_EQ(request.sort[1].field, "_score");
+  EXPECT_EQ(request.sort[1].order, "asc");
 
-    ASSERT_EQ(request.stored_fields.size(), 1U);
-    EXPECT_EQ(request.stored_fields[0], "_none_");
+  ASSERT_EQ(request.stored_fields.size(), 1U);
+  EXPECT_EQ(request.stored_fields[0], "_none_");
 
-    ASSERT_EQ(request.fields.size(), 2U);
-    EXPECT_EQ(request.fields[0], "name");
-    EXPECT_EQ(request.fields[1], "title");
+  ASSERT_EQ(request.fields.size(), 2U);
+  EXPECT_EQ(request.fields[0], "name");
+  EXPECT_EQ(request.fields[1], "title");
 
-    ASSERT_EQ(request.docvalue_fields.size(), 1U);
-    EXPECT_EQ(request.docvalue_fields[0].field, "created_at");
-    EXPECT_EQ(request.docvalue_fields[0].format, "epoch_millis");
+  ASSERT_EQ(request.docvalue_fields.size(), 1U);
+  EXPECT_EQ(request.docvalue_fields[0].field, "created_at");
+  EXPECT_EQ(request.docvalue_fields[0].format, "epoch_millis");
 
-    ASSERT_EQ(request.search_after.size(), 2U);
-    EXPECT_EQ(request.search_after[0], "100");
-    EXPECT_EQ(request.search_after[1], "abc");
+  ASSERT_EQ(request.search_after.size(), 2U);
+  EXPECT_EQ(request.search_after[0], "100");
+  EXPECT_EQ(request.search_after[1], "abc");
 
-    EXPECT_TRUE(request.track_total_hits_enabled);
-    ASSERT_TRUE(request.track_total_hits_limit.has_value());
-    EXPECT_EQ(*request.track_total_hits_limit, 10000U);
+  EXPECT_TRUE(request.track_total_hits_enabled);
+  ASSERT_TRUE(request.track_total_hits_limit.has_value());
+  EXPECT_EQ(*request.track_total_hits_limit, 10000U);
 
-    EXPECT_TRUE(request.track_scores);
-    EXPECT_TRUE(request.version);
-    EXPECT_TRUE(request.seq_no_primary_term);
+  EXPECT_TRUE(request.track_scores);
+  EXPECT_TRUE(request.version);
+  EXPECT_TRUE(request.seq_no_primary_term);
 
-    EXPECT_EQ(request.terminate_after, 5000U);
+  EXPECT_EQ(request.terminate_after, 5000U);
 
-    EXPECT_TRUE(request.has_min_score);
-    EXPECT_DOUBLE_EQ(request.min_score, 0.5);
-  }
+  EXPECT_TRUE(request.has_min_score);
+  EXPECT_DOUBLE_EQ(request.min_score, 0.5);
+}
 
-  TEST(SimdJsonParserSearchTest, RejectInvalidSortOrder) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, RejectInvalidSortOrder)
+{
+  const std::string body =
       R"json({
         "sort": [
           {
@@ -309,23 +331,26 @@ namespace {
         ]
       })json";
 
-    EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"test"}), docapi::json::parse_error);
-  }
+  EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"test"}),
+               docapi::json::parse_error);
+}
 
-  TEST(SimdJsonParserSearchTest, ParseTrackTotalHitsFalse) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseTrackTotalHitsFalse)
+{
+  const std::string body =
       R"json({
         "track_total_hits": false
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
 
-    EXPECT_FALSE(request.track_total_hits_enabled);
-    EXPECT_FALSE(request.track_total_hits_limit.has_value());
-  }
+  EXPECT_FALSE(request.track_total_hits_enabled);
+  EXPECT_FALSE(request.track_total_hits_limit.has_value());
+}
 //-------------------------------------------------------------------------//
-  TEST(SimdJsonParserSearchTest, ParseSimpleTermQuery) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseSimpleTermQuery)
+{
+  const std::string body =
       R"json({
         "query": {
           "term": {
@@ -334,20 +359,22 @@ namespace {
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
 
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::term);
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::term);
 
-    const auto term = std::get<docapi::json::elastic::search::term_query>(request.query.value()->data);
+  const auto term = std::get<docapi::json::elastic::search::term_query>(
+      request.query.value()->data);
 
-    EXPECT_EQ(term.field, "name");
-    EXPECT_EQ(term.value, "brave");
-    EXPECT_DOUBLE_EQ(term.boost, 1.0);
-  }
+  EXPECT_EQ(term.field, "name");
+  EXPECT_EQ(term.value, "brave");
+  EXPECT_DOUBLE_EQ(term.boost, 1.0);
+}
 
-  TEST(SimdJsonParserSearchTest, ParseExtendedTermQuery) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseExtendedTermQuery)
+{
+  const std::string body =
       R"json({
         "query": {
           "term": {
@@ -359,19 +386,21 @@ namespace {
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::term);
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::term);
 
-    const auto term = std::get<docapi::json::elastic::search::term_query>(request.query.value()->data);
+  const auto term = std::get<docapi::json::elastic::search::term_query>(
+      request.query.value()->data);
 
-    EXPECT_EQ(term.field, "name");
-    EXPECT_EQ(term.value, "brave");
-    EXPECT_DOUBLE_EQ(term.boost, 2.5);
-  }
+  EXPECT_EQ(term.field, "name");
+  EXPECT_EQ(term.value, "brave");
+  EXPECT_DOUBLE_EQ(term.boost, 2.5);
+}
 
-  TEST(SimdJsonParserSearchTest, RejectTermWithoutValue) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, RejectTermWithoutValue)
+{
+  const std::string body =
       R"json({
         "query": {
           "term": {
@@ -382,11 +411,13 @@ namespace {
         }
       })json";
 
-    EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"test"}), docapi::json::parse_error);
-  }
+  EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"test"}),
+               docapi::json::parse_error);
+}
 
-  TEST(SimdJsonParserSearchTest, ParseTermScalarValue) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseTermScalarValue)
+{
+  const std::string body =
       R"json({
         "query": {
           "term": {
@@ -395,18 +426,20 @@ namespace {
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::term);
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::term);
 
-    const auto term = std::get<docapi::json::elastic::search::term_query>(request.query.value()->data);
+  const auto term = std::get<docapi::json::elastic::search::term_query>(
+      request.query.value()->data);
 
-    EXPECT_EQ(term.field, "age");
-    EXPECT_EQ(term.value, "42");
-  }
+  EXPECT_EQ(term.field, "age");
+  EXPECT_EQ(term.value, "42");
+}
 
-  TEST(SimdJsonParserSearchTest, ParseTermsQuery) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseTermsQuery)
+{
+  const std::string body =
       R"json({
         "query": {
           "terms": {
@@ -415,21 +448,23 @@ namespace {
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::terms);
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::terms);
 
-    const auto terms = std::get<docapi::json::elastic::search::terms_query>(request.query.value()->data);
+  const auto terms = std::get<docapi::json::elastic::search::terms_query>(
+      request.query.value()->data);
 
-    EXPECT_EQ(terms.field, "status");
-    ASSERT_EQ(terms.values.size(), 3U);
-    EXPECT_EQ(terms.values[0], "new");
-    EXPECT_EQ(terms.values[1], "active");
-    EXPECT_EQ(terms.values[2], "blocked");
-  }
+  EXPECT_EQ(terms.field, "status");
+  ASSERT_EQ(terms.values.size(), 3U);
+  EXPECT_EQ(terms.values[0], "new");
+  EXPECT_EQ(terms.values[1], "active");
+  EXPECT_EQ(terms.values[2], "blocked");
+}
 //-------------------------------------------------------------------------//
-  TEST(SimdJsonParserSearchTest, ParseRangeQuery) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseRangeQuery)
+{
+  const std::string body =
       R"json({
         "query": {
           "range": {
@@ -442,23 +477,25 @@ namespace {
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"users"});
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::range);
+  auto request = docapi::json::elastic::parse_search_request(body, {"users"});
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::range);
 
-    const auto range = std::get<docapi::json::elastic::search::range_query>(request.query.value()->data);
+  const auto range = std::get<docapi::json::elastic::search::range_query>(
+      request.query.value()->data);
 
-    EXPECT_EQ(range.field, "age");
-    ASSERT_TRUE(range.gte.has_value());
-    ASSERT_TRUE(range.lt.has_value());
+  EXPECT_EQ(range.field, "age");
+  ASSERT_TRUE(range.gte.has_value());
+  ASSERT_TRUE(range.lt.has_value());
 
-    EXPECT_EQ(*range.gte, "18");
-    EXPECT_EQ(*range.lt, "65");
-    EXPECT_DOUBLE_EQ(range.boost, 2.0);
-  }
+  EXPECT_EQ(*range.gte, "18");
+  EXPECT_EQ(*range.lt, "65");
+  EXPECT_DOUBLE_EQ(range.boost, 2.0);
+}
 
-  TEST(SimdJsonParserSearchTest, RejectRangeWithoutBounds) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, RejectRangeWithoutBounds)
+{
+  const std::string body =
       R"json({
         "query": {
           "range": {
@@ -469,11 +506,13 @@ namespace {
         }
       })json";
 
-    EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"users"}), docapi::json::parse_error);
-  }
+  EXPECT_THROW(docapi::json::elastic::parse_search_request(body, {"users"}),
+               docapi::json::parse_error);
+}
 //-------------------------------------------------------------------------//
-  TEST(SimdJsonParserSearchTest, ParseBoolQuery) {
-    const std::string body =
+TEST(SimdJsonParserSearchTest, ParseBoolQuery)
+{
+  const std::string body =
       R"json({
         "query": {
           "bool": {
@@ -502,24 +541,25 @@ namespace {
         }
       })json";
 
-    auto request = docapi::json::elastic::parse_search_request(body, {"test"});
-    ASSERT_TRUE(request.query.has_value());
-    EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::bool_query);
+  auto request = docapi::json::elastic::parse_search_request(body, {"test"});
+  ASSERT_TRUE(request.query.has_value());
+  EXPECT_EQ(request.query.value()->kind, docapi::json::query_kinds::bool_query);
 
-    const auto bool_query = std::get<docapi::json::elastic::search::bool_query_t>(request.query.value()->data);
+  const auto bool_query = std::get<docapi::json::elastic::search::bool_query_t>(
+      request.query.value()->data);
 
-    ASSERT_NE(bool_query, nullptr);
+  ASSERT_NE(bool_query, nullptr);
 
-    ASSERT_EQ(bool_query->must.size(), 1U);
-    ASSERT_EQ(bool_query->filter.size(), 1U);
-    ASSERT_EQ(bool_query->must_not.size(), 1U);
+  ASSERT_EQ(bool_query->must.size(), 1U);
+  ASSERT_EQ(bool_query->filter.size(), 1U);
+  ASSERT_EQ(bool_query->must_not.size(), 1U);
 
-    EXPECT_EQ(bool_query->minimum_should_match, 1U);
-    EXPECT_DOUBLE_EQ(bool_query->boost, 2.0);
+  EXPECT_EQ(bool_query->minimum_should_match, 1U);
+  EXPECT_DOUBLE_EQ(bool_query->boost, 2.0);
 
-    EXPECT_EQ(bool_query->must[0]->kind, docapi::json::query_kinds::match);
-    EXPECT_EQ(bool_query->filter[0]->kind, docapi::json::query_kinds::term);
-    EXPECT_EQ(bool_query->must_not[0]->kind, docapi::json::query_kinds::term);
-  }
+  EXPECT_EQ(bool_query->must[0]->kind, docapi::json::query_kinds::match);
+  EXPECT_EQ(bool_query->filter[0]->kind, docapi::json::query_kinds::term);
+  EXPECT_EQ(bool_query->must_not[0]->kind, docapi::json::query_kinds::term);
+}
 //-------------------------------------------------------------------------//
 } // namespace

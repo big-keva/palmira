@@ -21,9 +21,10 @@
 //-------------------------------------------------------------------------//
 #include <service.hpp>
 //-------------------------------------------------------------------------//
-namespace docapi::json::elastic {
+namespace docapi::json::elastic
+{
 //-------------------------------------------------------------------------//
-  auto parse_index_request(std::string_view body, const mtc::zmap &params) -> palmira::InsertArgs;
+auto parse_index_request(std::string_view body, const mtc::zmap &params) -> palmira::InsertArgs;
 //-------------------------------------------------------------------------//
 } // namespace docapi::json::elastic
 //-------------------------------------------------------------------------//

@@ -22,17 +22,19 @@
 //-------------------------------------------------------------------------//
 #include <simdjson.h>
 //-------------------------------------------------------------------------//
-namespace docapi::json {
+namespace docapi::json
+{
 //-------------------------------------------------------------------------//
-  struct parse_error final : public std::runtime_error {
-    /**
-     * Constructor.
-     * @param message [in] - Error message.
-     */
-    explicit parse_error(const std::string &message);
-  };
+struct parse_error final : public std::runtime_error
+{
+  /**
+   * Constructor.
+   * @param message [in] - Error message.
+   */
+  explicit parse_error(const std::string &message);
+};
 //-------------------------------------------------------------------------//
-  auto throw_if_error(simdjson::error_code error, std::string_view context) -> void;
+auto throw_if_error(simdjson::error_code error, std::string_view context) -> void;
 //-------------------------------------------------------------------------//
 } // namespace docapi::json
 //-------------------------------------------------------------------------//

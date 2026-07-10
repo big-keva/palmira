@@ -25,31 +25,35 @@
 //-------------------------------------------------------------------------//
 #include "search/simd-json-source-parser.h"
 //-------------------------------------------------------------------------//
-namespace docapi::json::elastic {
+namespace docapi::json::elastic
+{
 //-------------------------------------------------------------------------//
-  struct mget_doc {
-    //!< Keeps a name of index.
-    std::string index;
-    //!< Keeps a document id.
-    std::string id;
-    //!< Keeps a routing.
-    std::string routing;
-    //!< Keeps a source filter.
-    search::source_filter source;
-  };
+struct mget_doc
+{
+  //!< Keeps a name of index.
+  std::string index;
+  //!< Keeps a document id.
+  std::string id;
+  //!< Keeps a routing.
+  std::string routing;
+  //!< Keeps a source filter.
+  search::source_filter source;
+};
 
-  struct mget_request {
-    //!< Keeps a list of documents.
-    std::vector<mget_doc> docs;
-  };
+struct mget_request
+{
+  //!< Keeps a list of documents.
+  std::vector<mget_doc> docs;
+};
 //-------------------------------------------------------------------------//
-  /**
-   * Parses mget request.
-   * @param body
-   * @param default_index
-   * @return
-   */
-  auto parse_mget_request(std::string_view body, std::string_view default_index) -> mget_request;
+/**
+ * Parses mget request.
+ * @param body
+ * @param default_index
+ * @return
+ */
+auto parse_mget_request(std::string_view body, std::string_view default_index)
+    -> mget_request;
 //-------------------------------------------------------------------------//
 } // namespace docapi::json::elastic
 //-------------------------------------------------------------------------//

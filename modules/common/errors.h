@@ -19,38 +19,38 @@
 //-------------------------------------------------------------------------//
 #include <mtc/zmap.h>
 //-------------------------------------------------------------------------//
-namespace palmira::modules {
+namespace palmira::modules
+{
 //-------------------------------------------------------------------------//
-  class palmira_error : public std::runtime_error {
-    using base_class = std::runtime_error;
-    //!< Keeps error code.
-    int ecode = 0;
+class palmira_error : public std::runtime_error
+{
+  using base_class = std::runtime_error;
+  //!< Keeps error code.
+  int ecode = 0;
 
-  public:
-    /**
-     * Constructor.
-     * @param msg [in] - Error message.
-     */
-    explicit palmira_error(const char *msg);
+public:
+  /**
+   * Constructor.
+   * @param msg [in] - Error message.
+   */
+  explicit palmira_error(const char *msg);
 
-    /**
-     * Constructor.
-     * @param code [in] - Error code.
-     * @param msg [in] - Error message.
-     */
-    explicit palmira_error(int code, const char *msg);
+  /**
+   * Constructor.
+   * @param code [in] - Error code.
+   * @param msg [in] - Error message.
+   */
+  explicit palmira_error(int code, const char *msg);
 
-    /**
-     * Gets error code.
-     * @return Error code.
-     * @throw None.
-     */
-    [[nodiscard]] auto code() const noexcept -> int {
-      return this->ecode;
-    }
-  };
+  /**
+   * Gets error code.
+   * @return Error code.
+   * @throw None.
+   */
+  [[nodiscard]] auto code() const noexcept -> int { return this->ecode; }
+};
 //-------------------------------------------------------------------------//
-  auto check_errors(const mtc::zmap &zmap) -> void;
+auto check_errors(const mtc::zmap &zmap) -> void;
 //-------------------------------------------------------------------------//
 } // namespace palmira::modules
 //-------------------------------------------------------------------------//
