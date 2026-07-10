@@ -13,7 +13,7 @@ namespace collect {
  /*
   * size limit for one section in parallel processing
   */
-  constexpr uint32_t  max_thread_section = 0x4000;
+  constexpr uint32_t  max_thread_section = 0x8000;
 
  /*
   * Коллекция настроек коллектора
@@ -127,22 +127,16 @@ namespace collect {
       auto                    mxLock = mtc::make_unique_lock( mxWait );
       std::condition_variable cvWait;
       std::atomic_long        nParts = 0;   // executor threads
-      int  nloops = 0;
-      int  nquery = 0;
-      std::atomic_int  nmerge = 0;
-      std::atomic nfound = 0;
 
       //
       // share query execution to parts
       //
       for ( uint32_t uLower = 0; uLower < rBound; uLower += max_thread_section )
       {
-        ++nloops;
         auto  subQuery = query->Duplicate( { uLower, uLower + max_thread_section } );
 
         if ( subQuery != nullptr )
         {
-          ++nquery;
           ++nParts;
 
           async->Insert( [&, this, subQuery, subStore = mtc::api( Create( *this ) )]()
@@ -150,8 +144,6 @@ namespace collect {
             if ( subStore->Search( linear, subQuery ) )
               this->Insert( *subStore.ptr() );
 
-            ++nmerge;
-            nfound += subStore->nFound;
             if ( --nParts == 0 )
               cvWait.notify_all();
           } );
@@ -367,13 +359,11 @@ namespace collect {
     return params->quoter = quotes, *this;
   }
 
-  auto  Documents::SetAsync( mtc::ThreadPool* actors ) -> Documents&
+  auto  Documents::SetAsync( mtc::ThreadPool& actors ) -> Documents&
   {
     if ( params == nullptr )
       params = std::make_shared<data>();
-    if ( actors == nullptr )
-      throw std::invalid_argument( "'actor' has to be a valid mtc::ThreadsPool object @" __FILE__ ":" LINE_STRING );
-    return params->async = actors, *this;
+    return params->async = &actors, *this;
   }
 
   auto  Documents::Create() -> mtc::api<ICollector>
