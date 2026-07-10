@@ -11,6 +11,11 @@ option(USE_BUILTIN_REST "Enable builtin RestAPI library" ON)
 
 set(REGISTER_MODULES {};)
 
+# Set output folders
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin CACHE PATH "Single Directory for all")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib CACHE PATH "Single Directory for all")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib CACHE PATH "Single Directory for all")
+
 if(MSVC)
   add_compile_options(-D_CRT_SECURE_NO_WARNINGS)
   set(XXX_SUF -win)
@@ -51,6 +56,9 @@ add_subdirectory(contrib/structo)
 add_subdirectory(contrib/hopcalc)
 
 add_subdirectory(plugins/morpho-ru)
+
+set_target_properties(DeliriX PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(mtc PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 set(NETWORK_SOURCE_DIR ${PROJECT_SOURCE_DIR}/network)
 

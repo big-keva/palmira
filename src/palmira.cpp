@@ -220,5 +220,6 @@ int   main( int argc, char* argv[] )
 
   search->Commit();
 
+  std::fprintf(stdout, "The process stopped\n");
   return 0;
 }

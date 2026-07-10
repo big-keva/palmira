@@ -1,0 +1,2 @@
+# Dependencies
+* libsimdjson-dev
