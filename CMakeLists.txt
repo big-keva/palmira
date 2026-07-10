@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5)
 project(palmira)
 
-find_package(MoonyCode REQUIRED)
+set(I_AM_KEVA ON)
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
@@ -39,8 +39,25 @@ include_directories(
 	contrib)
 
 add_subdirectory(contrib/mtc)
+
+if(I_AM_KEVA)
+  add_subdirectory(contrib/moonycode)
+    set(MoonyCode_LIB moonycode-objset)
+
+  message(STATUS "Found ${MoonyCode_LIB}" )
+
+  add_subdirectory(contrib/libmorph)
+    set(MorphRus_LIB  morphrus-objset)
+    set(FuzzyRus_LIB  fuzzyrus-objset)
+endif()
+
+if("${MoonyCode_LIB}" STREQUAL "")
+  find_package(MoonyCode REQUIRED)
+endif()
+
 add_subdirectory(contrib/DeliriX)
 add_subdirectory(contrib/structo)
+add_subdirectory(contrib/hopcalc)
 
 add_subdirectory(plugins/morpho-ru)
 
@@ -109,8 +126,8 @@ add_library(tripoli
 
 	src/service/structo-create.cpp
 	src/service/structo-search.cpp
-	src/service/collect-docs.cpp
 	src/service/collect-quotes.cpp
+	src/service/collect-docs.cpp
 
 	src/toolset/plugins.cpp
 	src/toolset/toolset.cpp
