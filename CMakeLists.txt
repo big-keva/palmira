@@ -15,7 +15,7 @@ endif()
 option(SANITIZE_ENABLED "Enable sanitize" OFF)
 option(PROFILER_ENABLED "Enable profile" OFF)
 option(gRPC_API_ENABLED "Enable gRPC support" OFF)
-option(HTTP_API_ENABLED "Enable HTTP/1.1 support" ON)
+option(HTTP_API_ENABLED "Enable HTTP/1.1 support" OFF)
 
 # add_compile_options(-DDEBUG_TOOLS)
 #
@@ -60,6 +60,10 @@ add_subdirectory(contrib/structo)
 add_subdirectory(contrib/hopcalc)
 
 add_subdirectory(plugins/morpho-ru)
+
+set(NETWORK_SOURCE_DIR ${PROJECT_SOURCE_DIR}/network)
+
+add_subdirectory(network/restAPI)
 
 if(gRPC_API_ENABLED)
 	include(src/network/grpc/cmake/grpc.cmake)
@@ -138,18 +142,18 @@ add_library(watchFs
 
 add_executable(palmira
 	src/palmira.cpp
-	src/netServer.cpp)
+	src/servers.cpp)
 
 add_executable(k2
 	src/k2.cpp)
 
 target_link_libraries(palmira
 	${GRPC_LIBS}
-	httpapi
+#	httpapi
 	tripoli
 	structo
 	DeliriX
-	remottp
+#	remottp
 	${MoonyCode_LIB}
 	mtc
 	tinyxml2
