@@ -5,16 +5,14 @@
         },
         "contents": "Mini"
     },
-    "modules": {
-        "files": [
-            {
-                "name": "docapi-http",
-                "file": "cmake-build-debug/lib/libdocapi-http.so",
-                "listen_port": 9200,
-                "workers": 2,
-                "max_body_size": "5M",
-                "request_timeout": "2s"
-            },
-        ]
+
+    "api": {
+        "type": "elastic",
+        "name": "Elastic",
+        "port": 9200,
+        "path": "/home/bulganin-va/projects/palmira/cmake-build-debug/lib/libelastic.so",
+        "workers": 2,
+        "max_body_size": "5M",
+        "request_timeout": "2s"
     }
 }

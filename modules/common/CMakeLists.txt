@@ -1,8 +1,0 @@
-set(PROJECT_NAME modules-common)
-project(${PROJECT_NAME})
-
-file(GLOB_RECURSE SOURCE_FILES src/*.cpp)
-add_library(${PROJECT_NAME} ${SOURCE_FILES})
-
-set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_include_directories(${PROJECT_NAME} PUBLIC $<INSTALL_INTERFACE:${PROJECT_SOURCE_DIR}>)

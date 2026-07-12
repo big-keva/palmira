@@ -81,6 +81,7 @@ add_library(tripoli
   src/toolset/toolset.cpp
   src/toolset/modules.cpp
   src/toolset/service.cpp)
+set_target_properties(tripoli PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 add_library(watchFs
 	src/watchFs/watchFs${XXX_SUF}.cpp)
