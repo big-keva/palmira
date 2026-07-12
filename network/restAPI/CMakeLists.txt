@@ -1,0 +1,42 @@
+project(restAPI)
+
+include_directories(contrib)
+
+set(TARGET
+  palmira-rest)
+
+set(SOURCE
+  src/client.cpp
+  src/jsload.cpp
+  src/server.cpp
+  src/unpack.cpp
+  src/zmload.cpp)
+
+if(MSVC)
+  set(EXPORT_TABLE ${NETWORK_SOURCE_DIR}/network.msvc.def)
+else()
+  set(SYMBOLS_FILE ${NETWORK_SOURCE_DIR}/network.unix.def)
+
+  add_compile_options(-W -Wall -Wextra)
+  add_compile_options(-fPIC)
+
+  if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(-fno-stack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0)
+  else()
+    add_compile_options(-fstack-protector-all -g)
+  endif()
+
+  set(CMAKE_SHARED_LINKER_FLAGS
+    "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--dynamic-list=${SYMBOLS_FILE} -static-libgcc -static-libstdc++" )
+endif()
+
+add_library(${TARGET} SHARED ${SOURCE})
+
+target_link_libraries(${TARGET}
+  remottp
+  structo
+  DeliriX
+  moonycode
+  mtc)
+
+add_subdirectory(contrib/remottp)

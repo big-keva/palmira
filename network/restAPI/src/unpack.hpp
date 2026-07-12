@@ -4,7 +4,7 @@
 # include <remottp/request.hpp>
 # include <mtc/iStream.h>
 
-namespace remoapi
+namespace restAPI
 {
   auto  Inflate( const http::Message&, mtc::IByteStream* ) -> mtc::api<mtc::IByteStream>;
   auto  Deflate( const std::vector<char>& src ) -> std::vector<char>;

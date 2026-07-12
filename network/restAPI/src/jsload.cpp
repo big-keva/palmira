@@ -3,7 +3,7 @@
 # include <remottp/src/server/rest.hpp>
 # include <DeliriX/DOM-load.hpp>
 
-namespace remoapi {
+namespace restAPI {
 namespace json    {
 
   template <class Args>

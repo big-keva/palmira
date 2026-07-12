@@ -1,7 +1,7 @@
 # include "loader.hpp"
 # include <DeliriX/DOM-load.hpp>
 
-namespace remoapi {
+namespace restAPI {
 namespace zmap    {
 
   template <class Args>

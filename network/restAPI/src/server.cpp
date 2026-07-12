@@ -1,5 +1,5 @@
-# include "../server.hpp"
-# include "../reports.hpp"
+# include <server.hpp>
+# include <reports.hpp>
 # include "loader.hpp"
 # include "unpack.hpp"
 # include <DeliriX/DOM-load.hpp>
@@ -8,12 +8,13 @@
 # include <remottp/src/server/rest.hpp>
 # include <mtc/recursive_shared_mutex.hpp>
 # include <condition_variable>
+#include <mtc/config.h>
 
 template <>
 inline  std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
   {  return o->insert( o->end(), (const char*)p, l + (const char*)p ), o;  }
 
-namespace remoapi
+namespace restAPI
 {
 
   class Server final: public palmira::IServer
@@ -169,9 +170,17 @@ namespace remoapi
     Output( output, result, serial.data(), serial.size() );
   }
 
-  auto  CreateServer( mtc::api<palmira::IService> serv, uint16_t port ) -> mtc::api<palmira::IServer>
-  {
-    return new Server( serv, port );
-  }
+}
 
+extern "C"  int   CreateServer(
+  palmira::IServer**  output,       // target IServer pointer
+  palmira::IService*  search,       // cource IService object
+  const mtc::config&  config )      // configuration path anchor
+{
+  (void)config;
+
+  if ( output == nullptr || search == nullptr )
+    return EINVAL;
+  (*output = new restAPI::Server( search, 3210 ))->Attach();
+    return 0;
 }

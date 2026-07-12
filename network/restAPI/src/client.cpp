@@ -1,4 +1,4 @@
-# include "../../../network/http-client.hpp"
+# include "../http-client.hpp"
 # include "../../../reports.hpp"
 # include "../../../toolset.hpp"
 # include "unpack.hpp"
@@ -15,7 +15,7 @@ template <>
 inline  std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
   {  return o->insert( o->end(), (const char*)p, l + (const char*)p ), o;  }
 
-namespace remoapi
+namespace restAPI
 {
 
   class Client::impl final: public palmira::IService

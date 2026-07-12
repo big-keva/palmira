@@ -1,7 +1,7 @@
 # include "unpack.hpp"
 # include <zlib.h>
 
-namespace remoapi
+namespace restAPI
 {
 
   class StreamOnVector final: public mtc::IByteStream, protected std::vector<char>

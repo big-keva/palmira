@@ -4,7 +4,7 @@
 # include <remottp/request.hpp>
 # include <mtc/iStream.h>
 
-namespace remoapi
+namespace restAPI
 {
   namespace json
   {
