@@ -1,4 +1,4 @@
-# include "netServer.hpp"
+# include "servers.hpp"
 # include "../service/structo-search.hpp"
 # include "../plugins.hpp"
 # include "structo/context/x-contents.hpp"
@@ -37,31 +37,9 @@ void  SignalProc( int /*sig*/ )
     signalFunc();
 }
 
-template <class ... Exceptions, class Action>
-int   Protected( Action action );
-
-template <class Exp, class ... Exceptions, class Action>
-int   Protected( Action action )
-{
-  try
-  {  return Protected<Exceptions...>( action );  }
-  catch ( const Exp& xp )
-  {  return fprintf( stderr, "%s\n", xp.what() ), EFAULT;  }
-}
-
-template <class Action>
-int   Protected( Action action )
-{  return action();  }
-
-template <class ... Exceptions, class Action, class ... Args>
-int   Protected( Action action, Args ... args )
-{
-  return Protected<Exceptions...>( action, args... );
-}
-
 int   main( int argc, char* argv[] )
 {
-  auto  server = mtc::api<palmira::IServer>();
+  auto  netset = std::vector<mtc::api<palmira::IServer>>();
   auto  search = mtc::api<palmira::IService>();
   auto  config = mtc::config();
 
@@ -94,7 +72,7 @@ int   main( int argc, char* argv[] )
 
 // create server
   try
-    {  server = CreateInetServer( search, config );  }
+    {  netset = palmira::servers::GetServers( search, config );  }
   catch ( const std::invalid_argument& xp )
     {  return fprintf( stderr, "Invalid argument: %s\n", xp.what() ), EINVAL;  }
 
@@ -109,10 +87,10 @@ int   main( int argc, char* argv[] )
   sigaction( SIGTERM, &sa, nullptr );
   sigaction( SIGQUIT, &sa, nullptr );
 
-  signalFunc = [server](){  fprintf( stderr, "got stop\n" );  server->Stop();  };
+  signalFunc = [server = netset.front()](){  fprintf( stderr, "got stop\n" );  server->Stop();  };
 
-  server->Start();
-  server->Wait();
+  netset.front()->Start();
+  netset.front()->Wait();
 
   search->Commit();
 
