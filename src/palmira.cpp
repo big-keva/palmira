@@ -199,7 +199,7 @@ int   main( int argc, char* argv[] )
 // create server
   try
     {  server = palmira::servers::GetServers( search, config );  }
-  catch ( const std::invalid_argument& xp )
+  catch ( const std::exception& xp )
     {  return fprintf( stderr, "Invalid argument: %s\n", xp.what() ), EINVAL;  }
 
 // install signals handler

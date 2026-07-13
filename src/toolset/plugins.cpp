@@ -57,13 +57,24 @@ namespace palmira
       throw std::invalid_argument( "invalid library path" );
 
     mtc::interlocked( mtc::make_unique_lock( liblocker ), [&]() -> void
+    {
+      try
       {
         auto  loaded = libraries.find( stbuff );
 
         if ( loaded == libraries.end() )
           libraries.insert( { stbuff, module = mtc::SharedLibrary::Load( stbuff ) } );
         else module = loaded->second;
-      } );
+      }
+      catch (const mtc::SharedLibrary::error &exc)
+      {
+        std::fprintf(stderr, "%s\n", exc.what());
+      }
+      catch (const std::exception &exc)
+      {
+        std::fprintf(stderr, "%s\n", exc.what());
+      }
+    });
 
     return module.Find( name, mtc::enable_exceptions );
   }

@@ -10,7 +10,7 @@
         "type": "elastic",
         "name": "Elastic",
         "port": 9200,
-        "path": "/home/bulganin-va/projects/palmira/cmake-build-debug/lib/libelastic.so",
+        "module": "/home/bulganin-va/projects/palmira/cmake-build-debug/lib/libelasticAPI.so",
         "workers": 2,
         "max_body_size": "5M",
         "request_timeout": "2s"

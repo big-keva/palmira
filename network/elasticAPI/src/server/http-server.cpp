@@ -37,7 +37,7 @@ namespace elastic
 //-------------------------------------------------------------------------//
   } // namespace
 //-------------------------------------------------------------------------//
-  HttpServer::HttpServer(mtc::api<palmira::IService> srv, const mtc::config &cfg)
+  HttpServer::HttpServer(palmira::IService *srv, const mtc::config &cfg)
       : config(cfg), service(std::move(srv)),
         executer(std::max(1U, config.get_int32("workers", 1) == 0
           ? std::thread::hardware_concurrency() - 1

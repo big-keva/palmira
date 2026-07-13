@@ -4,17 +4,25 @@
 //-------------------------------------------------------------------------//
 #include "http-server.h"
 //-------------------------------------------------------------------------//
-auto createServer(mtc::api<palmira::IService> service, const mtc::config &config) -> mtc::api<palmira::IServer>
+auto CreateServer(palmira::IServer **server, palmira::IService *service, const mtc::config &config) -> int
 {
   try
   {
-    return new elastic::HttpServer(std::move(service), not config.empty() ? config.to_zmap() : mtc::zmap{});
+    if (*server != nullptr)
+    {
+      // Releasing allocated resources.
+      (*server)->Detach();
+    }
+    *server = new elastic::HttpServer(service, config.to_zmap());
+
+    // Incrementing a reference.
+    (*server)->Attach();
   }
   catch (const std::exception &exc)
   {
-    std::fprintf(stderr, "%s\n", exc.what());
+    return std::fprintf(stderr, "%s\n", exc.what()), -EINVAL;
   }
-  return nullptr;
+  return 0;
 }
 
 extern "C" auto getListenPort() -> std::uint16_t

@@ -94,7 +94,7 @@ namespace elastic
      * @param service [in] - A search service.
      * @param config [in] - A server configuration.
      */
-    explicit HttpServer(mtc::api<palmira::IService> service, const mtc::config &config);
+    explicit HttpServer(palmira::IService *service, const mtc::config &config);
 
     /**
      * Destructor.
