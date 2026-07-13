@@ -2,8 +2,8 @@
 
 #include <mtc/config.h>
 
-#include "../server.hpp"
-#include "../service.hpp"
+#include "../../server.hpp"
+#include "../../service.hpp"
 
 namespace elasticapi
 {

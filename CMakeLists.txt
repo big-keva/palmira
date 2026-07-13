@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
-project(palmira)
+set(PROJECT_NAME palmira)
+project(${PROJECT_NAME})
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
@@ -86,14 +87,11 @@ set_target_properties(tripoli PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_library(watchFs
 	src/watchFs/watchFs${XXX_SUF}.cpp)
 
-add_executable(palmira
+add_executable(${PROJECT_NAME}
 	src/palmira.cpp
 	src/servers.cpp)
 
-add_executable(k2
-	src/k2.cpp)
-
-target_link_libraries(palmira
+target_link_libraries(${PROJECT_NAME}
 	${MODULE_LIBS}
 	tripoli
 	structo
@@ -105,6 +103,11 @@ target_link_libraries(palmira
 	z
 	pthread
 	dl)
+
+#[[
+add_executable(k2 src/k2.cpp)
+add_executable(k2
+    src/k2.cpp)
 
 target_link_libraries(k2
 	${MODULE_LIBS}
@@ -119,6 +122,7 @@ target_link_libraries(k2
 	z
 	pthread
 	dl)
+]]
 
-add_subdirectory(utils)
-add_subdirectory(tests)
+# add_subdirectory(utils)
+# add_subdirectory(tests)
