@@ -39,7 +39,7 @@ void  SignalProc( int /*sig*/ )
 
 int   main( int argc, char* argv[] )
 {
-  auto  netset = std::vector<mtc::api<palmira::IServer>>();
+  auto  server = mtc::api<palmira::IServer>();
   auto  search = mtc::api<palmira::IService>();
   auto  config = mtc::config();
 
@@ -72,7 +72,7 @@ int   main( int argc, char* argv[] )
 
 // create server
   try
-    {  netset = palmira::servers::GetServers( search, config );  }
+    {  server = palmira::servers::GetServers( search, config );  }
   catch ( const std::invalid_argument& xp )
     {  return fprintf( stderr, "Invalid argument: %s\n", xp.what() ), EINVAL;  }
 
@@ -87,10 +87,10 @@ int   main( int argc, char* argv[] )
   sigaction( SIGTERM, &sa, nullptr );
   sigaction( SIGQUIT, &sa, nullptr );
 
-  signalFunc = [server = netset.front()](){  fprintf( stderr, "got stop\n" );  server->Stop();  };
+  signalFunc = [server](){  fprintf( stderr, "got stop\n" );  server->Stop();  };
 
-  netset.front()->Start();
-  netset.front()->Wait();
+  server->Start();
+  server->Wait();
 
   search->Commit();
 

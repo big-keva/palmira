@@ -27,7 +27,7 @@ namespace palmira::servers
   *
   * initialize all the servers listed in "api" key of config
   */
-  auto  GetServers( mtc::api<IService>, const mtc::config& ) -> std::vector<mtc::api<IServer>>;
+  auto  GetServers( mtc::api<IService>, const mtc::config& ) -> mtc::api<IServer>;
 
 }
 
