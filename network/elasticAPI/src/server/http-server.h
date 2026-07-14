@@ -38,6 +38,8 @@
 #include "../http/http-req.h"
 #include "../http/http-resp.h"
 //-------------------------------------------------------------------------//
+#include "../json/simd-json-errors.h"
+//-------------------------------------------------------------------------//
 #include "../docapi/docapi-req.h"
 #include "../docapi/docapi-resp.h"
 //-------------------------------------------------------------------------//
@@ -245,6 +247,10 @@ namespace elastic
                 });
             });
           }
+          catch (const elastic::json::parse_error &exc)
+          {
+            http::send_error_response(resp_ctx.get(), http::status_codes::BAD_REQUEST, "payload_bad_request", exc.what());
+          }
           catch (const std::exception &exc)
           {
             http::send_error_response(resp_ctx.get(), http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", exc.what());
@@ -318,7 +324,12 @@ namespace elastic
         try
         {
           // Parsing insert request.
-          auto args = json::docapi::parse_index_request(std::string_view(body), mtc::zmap{{"_index", index}, {"_id", id}, {"_params", params}, {"_started", started}});
+          auto args = json::docapi::parse_index_request(std::string_view(body), mtc::zmap{
+            {"_index", index},
+            {"_id", id},
+            {"_params", params},
+            {"_started", started}
+          });
 
           // Sending a document to search engine.
           auto resp = service->Insert(args, [&ctx, &loop, resp_ctx, &state](const mtc::zmap &resp)
@@ -343,6 +354,10 @@ namespace elastic
               http::send_json_response(resp_ctx.get(), reply);
             });
           });
+        }
+        catch (const elastic::json::parse_error &exc)
+        {
+          http::send_error_response(resp_ctx.get(), http::status_codes::BAD_REQUEST, "payload_bad_request", exc.what());
         }
         catch (const std::exception &exc)
         {
@@ -371,8 +386,7 @@ namespace elastic
 
     std::fprintf(stdout, "TRACE Received GET request: index=%s, id=%s\n", index.c_str(), id.c_str());
 
-    res->onAborted([resp_ctx]()
-    {
+    res->onAborted([resp_ctx]() {
       resp_ctx->aborted.store(true, std::memory_order_release);
     });
     auto body = std::make_shared<std::string>();
@@ -383,7 +397,6 @@ namespace elastic
     // Reading payload.
     res->onData([this, resp_ctx, index, id, params, routing, state, body, body_size, request_started](std::string_view chunk, bool last) mutable {
       const auto timeout = this->config.get_int32("request_timeout", request_timeout);
-
       if (state->aborted.load(std::memory_order_acquire))
       {
         return;
@@ -404,9 +417,7 @@ namespace elastic
       }
 
       //<!!!> uWebSockets response lives in original event-loop inside.
-      this->executer.enqueue(executer_types::search,
-                             [service = this->service, resp_ctx, index, id, params, routing, body = std::move(*body), started = request_started.time_since_epoch().count(), state, loop = uWS::Loop::get()](const executer_context &ctx) mutable
-      {
+      this->executer.enqueue(executer_types::search, [service = this->service, resp_ctx, index, id, params, routing, body = std::move(body), started = request_started.time_since_epoch().count(), state, loop = uWS::Loop::get()](const executer_context &ctx) mutable {
         try
         {
           if (service == nullptr)
@@ -415,13 +426,13 @@ namespace elastic
           }
 
           // Parsing a search request.
-          const auto req = not body.empty() ? json::docapi::parse_mget_request(body, index)
-                                              : json::docapi::parse_mget_request(index, id, mtc::zmap{
-                                                  {"_id", id},
-                                                  {"_index", index},
-                                                  {"_routing", routing.has_value() ? routing.value() : ""},
-                                                  {"_source", {}}
-                                                });
+          const auto req = not body->empty() ? json::docapi::parse_mget_request(body->c_str(), index)
+                                                       : json::docapi::parse_mget_request(index, id, mtc::zmap{
+                                                           {"_index", index},
+                                                           {"_id", id},
+                                                           {"_routing", routing.has_value() ? routing.value() : ""},
+                                                           {"_source", {}}
+                                                         });
 
           palmira::SearchArgs args;
           // Setting an order of searching.
@@ -431,7 +442,9 @@ namespace elastic
           };
 
           args.query = mtc::zmap{
-            {"id", id},
+            {"get", mtc::array_charstr{
+              id
+            }},
           };
 /*<TODO> Adding support a list of docs.
           mtc::array_zmap docs;
@@ -444,7 +457,7 @@ namespace elastic
 */
 
           // Forwarding a search request into search engine.
-          service->Search(args, [resp_ctx, index, ctx, state, loop](const mtc::zmap &resp) {
+          service->Search(args, [resp_ctx, index, id, ctx, state, loop](const mtc::zmap &resp) {
             auto reply = http::service_response{
               .status = http::status_codes::OK,
               .content_type = "application/json; charset=utf-8",
@@ -452,7 +465,11 @@ namespace elastic
             };
 
             // Making a response.
-            reply.body = http::docapi::make_search_response(mtc::zmap{{"resp", resp}, {"_index", index}});
+            reply.body = http::docapi::make_search_response(mtc::zmap{
+              {"resp", resp},
+              {"_index", index},
+              {"_id", id}
+            });
 
             loop->defer([resp_ctx, state, reply = std::move(reply)]() mutable {
               if (state->aborted.load(std::memory_order_acquire))

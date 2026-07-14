@@ -10,16 +10,10 @@
  *
  * - History:
  *
- * 2026-07-14:
- * - Добавлен запуск сервера через createServer().
- * - Добавлен минимальный HTTP/1.1 клиент на POSIX sockets.
- * - Добавлены проверки PUT, POST и GET Document API.
- * - Добавлено ожидание готовности TCP-порта сервера.
- *
  * ============================================================================
  */
 //-------------------------------------------------------------------------//
-#include "server.h" // Заменить на фактический публичный заголовок createServer/server_t.
+#include "../server.h"
 //-------------------------------------------------------------------------//
 #include <gtest/gtest.h>
 //-------------------------------------------------------------------------//
@@ -28,9 +22,11 @@
 #include <sys/socket.h>
 #include <unistd.h>
 //-------------------------------------------------------------------------//
+#include "service/structo-search.hpp"
+#include "src/http/http-req.h"
+
 #include <cerrno>
 #include <chrono>
-#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
@@ -44,12 +40,11 @@ namespace
 //-------------------------------------------------------------------------//
   using namespace std::chrono_literals;
 //-------------------------------------------------------------------------//
-  /**
-   * Результат выполнения HTTP-запроса.
-   */
+  //!< Результат выполнения HTTP-запроса.
   struct http_response
   {
-    int status_code = 0;
+    elastic::http::status_codes status_code = elastic::http::status_codes::OK;
+
     std::string status_line;
     std::string headers;
     std::string body;
@@ -60,10 +55,10 @@ namespace
    */
   class socket_handle final
   {
-    int descriptor_ = -1;
+    int descriptor = -1;
+
   public:
-    explicit socket_handle(int descriptor = -1) noexcept
-      : descriptor_(descriptor)
+    explicit socket_handle(int descriptor = -1) noexcept : descriptor(descriptor)
     {
     }
 
@@ -76,7 +71,7 @@ namespace
     socket_handle& operator=(const socket_handle&) = delete;
 
     socket_handle(socket_handle&& other) noexcept
-      : descriptor_(std::exchange(other.descriptor_, -1))
+      : descriptor(std::exchange(other.descriptor, -1))
     {
     }
 
@@ -85,7 +80,8 @@ namespace
       if (this != &other)
       {
         reset();
-        descriptor_ = std::exchange(other.descriptor_, -1);
+
+        this->descriptor = std::exchange(other.descriptor, -1);
       }
 
       return *this;
@@ -94,23 +90,23 @@ namespace
     [[nodiscard]]
     auto get() const noexcept -> int
     {
-      return descriptor_;
+      return this->descriptor;
     }
 
     [[nodiscard]]
     auto valid() const noexcept -> bool
     {
-      return descriptor_ >= 0;
+      return this->descriptor >= 0;
     }
 
     void reset(int descriptor = -1) noexcept
     {
-      if (descriptor_ >= 0)
+      if (this->descriptor >= 0)
       {
-        ::close(descriptor_);
+        ::close(this->descriptor);
       }
 
-      descriptor_ = descriptor;
+      this->descriptor = descriptor;
     }
   };
 //-------------------------------------------------------------------------//
@@ -150,9 +146,7 @@ namespace
     return ntohs(address.sin_port);
   }
 
-  /**
-   * Выполняет подключение к серверу.
-   */
+  //!< Connects to server.
   auto connect_to_server(std::uint16_t port) -> socket_handle
   {
     socket_handle socket(::socket(AF_INET, SOCK_STREAM, 0));
@@ -178,9 +172,7 @@ namespace
     return socket;
   }
 
-  /**
-   * Отправляет весь буфер с обработкой частичных send().
-   */
+  //!< Отправляет весь буфер с обработкой частичных send().
   void send_all(int descriptor, std::string_view data)
   {
     std::size_t offset = 0;
@@ -276,7 +268,7 @@ namespace
     const std::string status_code = response.status_line.substr(first_space + 1,
                                                               second_space == std::string::npos? std::string::npos : second_space - first_space - 1);
 
-    response.status_code = std::stoi(status_code);
+    response.status_code = static_cast<elastic::http::status_codes>(std::stoi(status_code));
 
     return response;
   }
@@ -343,11 +335,39 @@ namespace
   class DocumentApiHttpTest : public ::testing::Test
   {
   protected:
+    DocumentApiHttpTest()
+      : config{
+        {"service", mtc::zmap{
+          {"index", mtc::zmap{{"generic_name", "libelasticAPI.so"}}},
+          {"contents", "Mini"}}
+        },
+        {"api", mtc::zmap{
+            {"type", "elastic"},
+            {"name", "Elastic"},
+            {"port", 9200},
+            {"module", "libelasticAPI.so"},
+            {"workers", 2},
+            {"max_body_size", "5M"},
+            {"request_timeout", "2s"},
+        }}
+      },
+      port(config.get_section("api").get_int32("port", 9200)),
+      service(palmira::CreateStructo(config.get_section("service")))
+    {
+      mtc::zmap{
+            { "limit", mtc::zmap{
+              { "context", 5 },
+              { "query", mtc::zmap{
+                { "fuzzy", mtc::array_zval{"a", "b", "c"}}}}}}
+      };
+    }
+
+  protected:
     void SetUp() override
     {
       palmira::IServer *srv = nullptr;
-      this->port = find_free_tcp_port();
-      ASSERT_NE(CreateServer(&srv, this->service, mtc::config{}), 0);
+      ASSERT_EQ(CreateServer(&srv, this->service, this->config), 0);
+      this->server = srv;
 
       ASSERT_TRUE(this->server != nullptr) << "createServer() returned an empty server";
       ASSERT_NO_THROW(this->server->Start()) << "server Start() failed";
@@ -368,17 +388,17 @@ namespace
       if (this->server != nullptr)
       {
         this->server->Stop();
+        this->server->Detach();
       }
 
       if (this->wait_thread.joinable())
       {
         this->wait_thread.join();
       }
-
-      this->server->Detach();
     }
 
-    std::uint16_t port = 9200;
+    const mtc::config config;
+    const uint16_t port = 9200;
     mtc::api<palmira::IService> service;
     mtc::api<palmira::IServer> server;
     std::thread wait_thread;
@@ -386,35 +406,29 @@ namespace
 //-------------------------------------------------------------------------//
   TEST_F(DocumentApiHttpTest, PutGetAndPostDocument)
   {
-    /*
-     * PUT с заданным идентификатором.
-     */
+    // PUT с заданным идентификатором.
     const auto put_response = execute_http_request(this->port, "PUT", "/test-document-api/_doc/1", R"json({"name":"brave","age":42})json");
 
-    EXPECT_TRUE(put_response.status_code == 200 || put_response.status_code == 201)
+    EXPECT_TRUE(put_response.status_code == elastic::http::status_codes::OK || put_response.status_code == elastic::http::status_codes::CREATED)
       << put_response.status_line << std::endl
       << put_response.body;
     EXPECT_NE(put_response.body.find("\"_index\""), std::string::npos);
     EXPECT_NE(put_response.body.find("\"_id\""), std::string::npos);
 
-    /*
-     * GET ранее добавленного документа.
-     */
+    // GET ранее добавленного документа.
     const auto get_response = execute_http_request(this->port, "GET", "/test-document-api/_doc/1");
 
-    EXPECT_EQ(get_response.status_code, 200)
+    EXPECT_EQ(get_response.status_code, elastic::http::status_codes::OK)
       << get_response.status_line
       << std::endl
       << get_response.body;
     EXPECT_NE(get_response.body.find("\"found\":true"), std::string::npos);
     EXPECT_NE(get_response.body.find("\"name\":\"brave\""), std::string::npos);
 
-    /*
-     * POST без идентификатора. Сервер должен сгенерировать _id.
-     */
+    // POST без идентификатора. Сервер должен сгенерировать _id.
     const auto post_response = execute_http_request(this->port, "POST", "/test-document-api/_doc", R"json({"name":"generated-id-document"})json");
 
-    EXPECT_TRUE(post_response.status_code == 200 || post_response.status_code == 201)
+    EXPECT_TRUE(post_response.status_code == elastic::http::status_codes::OK || post_response.status_code == elastic::http::status_codes::CREATED)
       << post_response.status_line
       << std::endl
       << post_response.body;
@@ -426,7 +440,7 @@ namespace
   {
       const auto response = execute_http_request(this->port, "PUT", "/test-document-api/_doc/invalid-json", R"json({"name":)json");
 
-      EXPECT_EQ(response.status_code, 400)
+      EXPECT_EQ(response.status_code, elastic::http::status_codes::BAD_REQUEST)
         << response.status_line
         << std::endl
         << response.body;

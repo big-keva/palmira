@@ -32,6 +32,8 @@
 //-------------------------------------------------------------------------//
 #include <simdjson.h>
 //-------------------------------------------------------------------------//
+#include "simd-json-errors.h"
+//-------------------------------------------------------------------------//
 namespace elastic::json
 {
 //-------------------------------------------------------------------------//
@@ -99,17 +101,6 @@ namespace elastic::json
 //-------------------------------------------------------------------------//
   using json_visit_callback_t = std::function<bool(const json_visit_event &event)>;
 //-------------------------------------------------------------------------//
-  struct json_visit_error final : public std::runtime_error
-  {
-    /**
-     * Constructor.
-     * @param message [in] - Error message.
-     */
-    explicit json_visit_error(const std::string &message) : std::runtime_error(message)
-    {
-    }
-  };
-//-------------------------------------------------------------------------//
   namespace detail
   {
 //-------------------------------------------------------------------------//
@@ -117,7 +108,7 @@ namespace elastic::json
     {
       if (error)
       {
-        throw(json_visit_error(std::string(context) + ": " + simdjson::error_message(error)));
+        throw (parse_error(std::string(context) + ": " + simdjson::error_message(error)));
       }
     }
 

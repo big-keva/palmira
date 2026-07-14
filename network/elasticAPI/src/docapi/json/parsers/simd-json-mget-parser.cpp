@@ -67,9 +67,12 @@ namespace elastic::json::docapi
 //-------------------------------------------------------------------------//
   mget_request parse_mget_request(std::string_view body, std::string_view default_index)
   {
+    std::fprintf(stdout, "TRACE Received request payload: %s\n", body.data());
+
     mget_request request;
     simdjson::padded_string padded(body);
     auto &context = get_thread_parser_context();
+
     simdjson::ondemand::document document;
     throw_if_error(context.parser.iterate(padded).get(document), "failed to parse mget body");
 
@@ -113,7 +116,6 @@ namespace elastic::json::docapi
         for (auto id_result : ids)
         {
           simdjson::ondemand::value id_value;
-
           throw_if_error(std::move(id_result).get(id_value), "failed to read mget id");
 
           mget_doc doc;
@@ -127,7 +129,8 @@ namespace elastic::json::docapi
 
     if (request.docs.empty())
     {
-      throw(parse_error("mget request contains no documents"));
+      std::fprintf(stderr, "WARN mget request contains no documents\n");
+      //<???> throw (parse_error("mget request contains no documents"));
     }
 
     return request;

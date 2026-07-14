@@ -50,7 +50,7 @@ namespace elastic::http::docapi
 
   auto make_search_response(const mtc::zmap &ret) -> std::string
   {
-    std::ostringstream _ids;
+    std::ostringstream buffer;
 
     try
     {
@@ -64,14 +64,20 @@ namespace elastic::http::docapi
 
       if (resp.get_word32("found", 0) == 0)
       {// Not found document by id
-        return R"({"_index": ")" + resp.get_charstr("_index", "") + R"(","_id": ")" + resp.get_charstr("_id", "") + R"(","found": true})";
+        return R"({"_index": ")" + ret.get_charstr("_index", "") + R"(","_id": ")" + ret.get_charstr("_id", "") + R"(","found": false})";
       }
 
       // Getting a reference on items.
       const auto &items = resp.get_array_zmap("items", {});
       for (const auto &item : items)
       {
-        _ids << R"("_id": )" << R"(")" << item.get_charstr("id", "") << R"(")";
+        buffer << R"("_index": )" << R"(")" << item.get_zmap("extra", {}).get_charstr("_index", "") << R"(",)" <<
+                  R"("_id": )" << R"(")" << item.get_zmap("extra", {}).get_charstr("_id", "") << R"(",)" <<
+                  R"("_version": )" << R"(")" << item.get_zmap("extra", {}).get_int32("_version", -1) << R"(",)" <<
+                  R"("_seq_no": )" << R"(")" << item.get_zmap("extra", {}).get_int32("_seq_no", 0) << R"(",)" <<
+                  R"("_primary_term": )" << R"(")" << item.get_zmap("extra", {}).get_int32("_primary_term", 0) << R"(",)" <<
+                  R"("found": true,)" <<
+                  R"("_source": {})";
       }
     }
     catch (const std::exception &exc)
@@ -79,7 +85,7 @@ namespace elastic::http::docapi
       std::fprintf(stderr, "[ERROR] %s\n", exc.what());
     }
 
-    return R"({"_index": ")" + ret.get_charstr("_index", "") + R"(,)" + _ids.str() + R"(,"found": true})";
+    return R"({)" + buffer.str() + R"(})";
   }
 //-------------------------------------------------------------------------//
 } // namespace elastic::http::docapi

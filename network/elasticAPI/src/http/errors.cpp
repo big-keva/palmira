@@ -37,7 +37,7 @@ namespace elastic::http
   auto check_resp_on_error(const mtc::zmap &resp) -> void
   {
     const auto &status = resp.get_zmap("status", {});
-    const auto code = status.get_int32("code", -1);
+    const auto code = not status.empty() ? status.get_int32("code", -1) : 0;
     if (code != 0)
     {
       if (code == -1)

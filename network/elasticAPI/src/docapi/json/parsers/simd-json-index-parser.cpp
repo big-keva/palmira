@@ -24,8 +24,7 @@ namespace elastic::json::docapi
       }};
 
     // Parsing request body as JSON.
-    json::visit_json_cb(body, [&](const json::json_visit_event &event) -> bool
-    {
+    json::visit_json_cb(body, [&](const json::json_visit_event &event) -> bool {
       std::fprintf(stdout, "%s\n", event.as_str().c_str());
 
       // Adding a new block.

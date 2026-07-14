@@ -99,10 +99,14 @@ if (BUILD_TESTS)
 
     add_executable(${TEST_NAME} ${TEST_SOURCE_FILES})
     target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME}
+        tripoli
+        structo
+        mtc
         GTest::gtest
         GTest::gtest_main
         Threads::Threads
         simdjson::simdjson
+        z
     )
     target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
