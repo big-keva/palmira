@@ -177,10 +177,14 @@ extern "C"  int   CreateServer(
   palmira::IService*  search,       // cource IService object
   const mtc::config&  config )      // configuration path anchor
 {
-  (void)config;
+  auto  dwport = config.get_uint32( "port", unsigned(-1) );
 
   if ( output == nullptr || search == nullptr )
     return EINVAL;
-  (*output = new restAPI::Server( search, 3210 ))->Attach();
-    return 0;
+
+  if ( dwport == unsigned(-1) )
+    return EFAULT;
+
+  (*output = new restAPI::Server( search, dwport ))->Attach();
+    return (void)config, 0;
 }
