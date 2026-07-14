@@ -5,6 +5,7 @@
 # include <grpcpp/health_check_service_interface.h>
 # include <grpcpp/ext/proto_server_reflection_plugin.h>
 # include <grpcpp/grpcpp.h>
+#include <mtc/config.h>
 # include <mtc/recursive_shared_mutex.hpp>
 
 namespace grpcapi
@@ -191,9 +192,15 @@ namespace grpcapi
     cvwait.notify_one();
   }
 
-  auto  CreateServer( mtc::api<palmira::IService> serv, uint16_t port ) -> mtc::api<palmira::IServer>
+  extern "C"
+  int   CreateServer( palmira::IServer** ppiout, palmira::IService* search, const mtc::config& )
   {
-    return new Server( serv, port );
+    if ( ppiout == nullptr )
+      return EINVAL;
+    if ( search == nullptr )
+      return EINVAL;
+    (*ppiout = new Server( search, 57571 ))->Attach();
+      return 0;
   }
 
 }

@@ -1,5 +1,4 @@
 # include "../../../reports.hpp"
-# include "../../../network/grpc-client.hpp"
 # include "messages.hpp"
 # include <mtc/recursive_shared_mutex.hpp>
 # include <grpcpp/grpcpp.h>
