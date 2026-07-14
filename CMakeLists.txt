@@ -14,8 +14,6 @@ endif()
 
 option(SANITIZE_ENABLED "Enable sanitize" OFF)
 option(PROFILER_ENABLED "Enable profile" OFF)
-option(gRPC_API_ENABLED "Enable gRPC support" OFF)
-option(HTTP_API_ENABLED "Enable HTTP/1.1 support" OFF)
 
 # add_compile_options(-DDEBUG_TOOLS)
 #
@@ -63,66 +61,8 @@ add_subdirectory(plugins/morpho-ru)
 
 set(NETWORK_SOURCE_DIR ${PROJECT_SOURCE_DIR}/network)
 
+add_subdirectory(network/grpcAPI)
 add_subdirectory(network/restAPI)
-
-if(gRPC_API_ENABLED)
-	include(src/network/grpc/cmake/grpc.cmake)
-
-	set(PROTO ${PROJECT_SOURCE_DIR}/src/network/grpc/proto/grpcttp.proto)
-
-	set(PROTO_SRC "${CMAKE_CURRENT_BINARY_DIR}/grpcttp.pb.cc")
-	set(PROTO_HDR "${CMAKE_CURRENT_BINARY_DIR}/grpcttp.pb.h")
-	set(PROTO_GRPC_SRC "${CMAKE_CURRENT_BINARY_DIR}/grpcttp.grpc.pb.cc")
-	set(PROTO_GRPC_HDR "${CMAKE_CURRENT_BINARY_DIR}/grpcttp.grpc.pb.h")
-
-	set(PROTOBUF_PROTOC protoc)
-
-	set(GRPC_SRC
-		src/network/grpc/messages.cpp
-		src/network/grpc/server.cpp
-		src/network/grpc/client.cpp)
-
-	add_custom_command(
-		OUTPUT "${PROTO_SRC}" "${PROTO_HDR}" "${PROTO_GRPC_SRC}" "${PROTO_GRPC_HDR}"
-		COMMAND ${PROTOBUF_PROTOC}
-		ARGS
-			--grpc_out   "${CMAKE_CURRENT_BINARY_DIR}"
-			--cpp_out    "${CMAKE_CURRENT_BINARY_DIR}"
-			--proto_path "${PROJECT_SOURCE_DIR}/src/network/grpc/proto"
-			--plugin=protoc-gen-grpc=`which grpc_cpp_plugin`
-			"${PROTO}"
-		DEPENDS "${PROTO}")
-
-	include_directories("${CMAKE_CURRENT_BINARY_DIR}")
-
-	add_library(grpcapi
-		${GRPC_SRC}
-		${PROTO_SRC}
-		${PROTO_HDR}
-		${PROTO_GRPC_SRC}
-		${PROTO_GRPC_HDR})
-
-	target_link_libraries(grpcapi
-		absl::check
-		${_REFLECTION}
-		${_GRPC_GRPCPP}
-		${_PROTOBUF_LIBPROTOBUF})
-
-	set(GRPC_LIBS grpcapi)
-
-	add_compile_options(-DgRPC_API_ENABLED)
-endif()
-
-if(HTTP_API_ENABLED)
-	add_subdirectory(
-		contrib/remottp)
-	add_library(httpapi
-		src/network/http/jsload.cpp
-		src/network/http/zmload.cpp
-		src/network/http/unpack.cpp
-		src/network/http/server.cpp
-		src/network/http/client.cpp)
-endif()
 
 add_library(tripoli
 	src/objects/read-zip.cpp
