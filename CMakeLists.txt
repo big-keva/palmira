@@ -9,6 +9,7 @@ option(SANITIZE_ENABLED "Enable sanitize" OFF)
 option(PROFILER_ENABLED "Enable profile" OFF)
 
 option(USE_BUILTIN_REST "Enable builtin RestAPI library" ON)
+option(BUILD_MOONYCODE_ENABLED "Enable build moonycode module" OFF)
 
 set(REGISTER_MODULES {};)
 
@@ -52,6 +53,20 @@ include_directories(
   contrib)
 
 add_subdirectory(contrib/mtc)
+
+if (BUILD_MOONYCODE_ENABLED)
+	add_subdirectory(contrib/moonycode)
+	set(MoonyCode_LIB moonycode-objset)
+
+	message(STATUS "Found ${MoonyCode_LIB}" )
+
+	add_subdirectory(contrib/libmorph)
+	set(MorphRus_LIB  morphrus-objset)
+	set(FuzzyRus_LIB  fuzzyrus-objset)
+else ()
+	find_package(MoonyCode REQUIRED)
+endif (BUILD_MOONYCODE_ENABLED)
+
 add_subdirectory(contrib/DeliriX)
 add_subdirectory(contrib/structo)
 add_subdirectory(contrib/hopcalc)
@@ -105,7 +120,6 @@ target_link_libraries(${PROJECT_NAME}
 	dl)
 
 #[[
-add_executable(k2 src/k2.cpp)
 add_executable(k2
     src/k2.cpp)
 
