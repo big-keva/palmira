@@ -9,6 +9,8 @@ option(SANITIZE_ENABLED "Enable sanitize" OFF)
 option(PROFILER_ENABLED "Enable profile" OFF)
 
 option(USE_BUILTIN_REST "Enable builtin RestAPI library" ON)
+
+option(BUILD_MTC_ENABLED "Enable build mtc module" OFF)
 option(BUILD_MOONYCODE_ENABLED "Enable build moonycode module" OFF)
 
 set(REGISTER_MODULES {};)
@@ -52,12 +54,13 @@ include_directories(
   ./
   contrib)
 
-add_subdirectory(contrib/mtc)
+if (BUILD_MTC_ENABLED)
+	add_subdirectory(contrib/mtc)
+endif (BUILD_MTC_ENABLED)
 
+set(MoonyCode_LIB moonycode-objset)
 if (BUILD_MOONYCODE_ENABLED)
 	add_subdirectory(contrib/moonycode)
-	set(MoonyCode_LIB moonycode-objset)
-
 	message(STATUS "Found ${MoonyCode_LIB}" )
 
 	add_subdirectory(contrib/libmorph)
