@@ -3,7 +3,7 @@ project(restAPI)
 include_directories(contrib)
 
 set(TARGET
-  palmira-rest)
+  palmira-restAPI)
 
 set(SOURCE
   src/client.cpp
@@ -30,13 +30,17 @@ else()
     "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--dynamic-list=${SYMBOLS_FILE} -static-libgcc -static-libstdc++" )
 endif()
 
-add_library(${TARGET} SHARED ${SOURCE})
+if(USE_BUILTIN_REST)
+  add_library(${TARGET} STATIC ${SOURCE} src/static.cpp)
+else()
+  add_library(${TARGET} SHARED ${SOURCE} src/shared.cpp)
 
-target_link_libraries(${TARGET}
-  remottp
-  structo
-  DeliriX
-  moonycode
-  mtc)
+  target_link_libraries(${TARGET}
+    remottp
+    structo
+    DeliriX
+    moonycode
+    mtc)
+endif()
 
 add_subdirectory(contrib/remottp)

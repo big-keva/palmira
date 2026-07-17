@@ -1,12 +1,7 @@
 # include "../servers.hpp"
 # include "../plugins.hpp"
+# include "../toolset.hpp"
 # include <thread>
-
-template <>
-inline  std::string*  Serialize( std::string* o, const void* p, size_t l )
-{
-  return o->append( (const char*)p, l ), o;
-}
 
 namespace palmira::servers
 {
@@ -41,6 +36,10 @@ namespace palmira::servers
   // check if module is defined
     if ( module.empty() )
       throw error( "undefined 'module' path" );
+
+  // check if module is built-in
+    if ( section.get_charstr( "module" ).substr( 0, 8 ) == "builtin:" )
+      module = section.get_charstr( "module" );
 
   // get configuration data
     if ( cfgval != nullptr )
@@ -128,11 +127,17 @@ namespace palmira::servers
 
   static  auto  LoadServer( mtc::api<IService> service, const char* mdpath, const mtc::config& cfgsec ) -> mtc::api<IServer>
   {
-    auto  create = (FnCreateServer)LoadModule( mdpath, "CreateServer" );   // throws mtc::SharedLibrary::error
     auto  server = mtc::api<IServer>();
-    int   nerror = create( server, service, cfgsec );
+    auto  create = FnCreateServer{};
+    int   nerror;
 
-    if ( nerror != 0 )
+    if ( strncmp( mdpath, "builtin:", 8 ) == 0 )  create = (FnCreateServer)GetModule( mdpath + 8, "CreateServer" );
+      else create = (FnCreateServer)LoadModule( mdpath, "CreateServer" );   // throws mtc::SharedLibrary::error
+
+    if ( create == nullptr )
+      throw error( mtc::strprintf( "could not load module %s", mdpath ) );
+
+    if ( (nerror = create( server, service, cfgsec )) != 0 )
       throw error( mtc::strprintf( "could not create module '%s' server, error code %d", mdpath, nerror ) );
 
     return server;

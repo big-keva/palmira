@@ -8,7 +8,7 @@
 # include <remottp/src/server/rest.hpp>
 # include <mtc/recursive_shared_mutex.hpp>
 # include <condition_variable>
-#include <mtc/config.h>
+# include <mtc/config.h>
 
 template <>
 inline  std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
