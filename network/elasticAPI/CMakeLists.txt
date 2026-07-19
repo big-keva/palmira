@@ -61,10 +61,7 @@ list(FILTER SOURCE_FILES EXCLUDE REGEX ".*\\.t\\.cpp$")
 # Building a module.
 add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_include_directories(${PROJECT_NAME}
-    PRIVATE ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
-    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src
-)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC Threads::Threads simdjson::simdjson PRIVATE
     tripoli

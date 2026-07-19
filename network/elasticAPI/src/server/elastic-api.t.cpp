@@ -284,7 +284,7 @@ namespace
     request.reserve(body.size() + 512);
 
     request += method;
-    request += " ";
+    request += ' ';
     request += target;
     request += " HTTP/1.1\r\n";
 
@@ -340,33 +340,26 @@ namespace
         {"service", mtc::zmap{
           {"index", mtc::zmap{{"generic_name", "libelasticAPI.so"}}},
           {"contents", "Mini"}}
-        },
-        {"api", mtc::zmap{
-            {"type", "elastic"},
-            {"name", "Elastic"},
-            {"port", 9200},
-            {"module", "libelasticAPI.so"},
-            {"workers", 2},
-            {"max_body_size", "5M"},
-            {"request_timeout", "2s"},
-        }}
+          },
+        {"config", mtc::zmap{
+          {"type", "elastic"},
+          {"name", "Elastic"},
+          {"port", 9292},
+          {"workers", 2},
+          {"max_body_size", "5M"},
+          {"request_timeout", "2s"}
+        }},
       },
-      port(config.get_section("api").get_int32("port", 9200)),
+      port(config.get_section("config").get_int32("port", 9200)),
       service(palmira::CreateStructo(config.get_section("service")))
     {
-      mtc::zmap{
-            { "limit", mtc::zmap{
-              { "context", 5 },
-              { "query", mtc::zmap{
-                { "fuzzy", mtc::array_zval{"a", "b", "c"}}}}}}
-      };
     }
 
   protected:
     void SetUp() override
     {
       palmira::IServer *srv = nullptr;
-      ASSERT_EQ(CreateServer(&srv, this->service, this->config), 0);
+      ASSERT_EQ(CreateServer(&srv, this->service, this->config.get_section("config")), 0);
       this->server = srv;
 
       ASSERT_TRUE(this->server != nullptr) << "createServer() returned an empty server";

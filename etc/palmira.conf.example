@@ -7,12 +7,13 @@
     },
 
     "api": {
-        "type": "elastic",
-        "name": "Elastic",
-        "port": 9200,
         "module": "/home/bulganin-va/projects/palmira/cmake-build-debug/lib/libelasticAPI.so",
-        "workers": 2,
-        "max_body_size": "5M",
-        "request_timeout": "2s"
+        "config": {
+            "name": "Elastic",
+            "port": 9300,
+            "workers": 2,
+            "max_body_size": "5M",
+            "request_timeout": "2s"
+        },
     }
 }

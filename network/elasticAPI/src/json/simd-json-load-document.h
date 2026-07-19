@@ -1,8 +1,8 @@
 /*!==========================================================================
 * \file
 * - Program:       elasticapi
-* - File:          simd-json-index-parser.h
-* - Created:       07/08/2026
+* - File:          simd-json-load-document.h
+* - Created:       07/19/2026
 * - Author:        Vitaly Bulganin
 * - Description:
 * - Comments:
@@ -14,8 +14,8 @@
 ===========================================================================*/
 #pragma once
 //-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_INDEX_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_INDEX_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+#ifndef __SIMD_JSON_LOAD_DOCUMENT_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+#define __SIMD_JSON_LOAD_DOCUMENT_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <string_view>
 #include <functional>
@@ -26,10 +26,15 @@
 //-------------------------------------------------------------------------//
 #include <DeliriX/text-API.hpp>
 //-------------------------------------------------------------------------//
-namespace elastic::json::docapi
+namespace elastic::json
 {
 //-------------------------------------------------------------------------//
-  auto parse_index_request(std::string_view body, const mtc::zmap &params) -> palmira::InsertArgs;
+  /**
+   * Loads JSON document into IText.
+   * @param body [in] - JSON value.
+   * @param onadd [in] - A callback method.
+   */
+  auto load_document(std::string_view body, std::function<mtc::api<DeliriX::IText>()> onadd) -> void;
 
   /**
    * Loads JSON document into IText.
@@ -38,6 +43,6 @@ namespace elastic::json::docapi
    */
   auto load_document(simdjson::ondemand::value value, std::function<mtc::api<DeliriX::IText>()> onadd) -> void;
 //-------------------------------------------------------------------------//
-} // namespace elastic::json::docapi
+} // namespace elastic::json
 //-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_INDEX_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+#endif // __SIMD_JSON_LOAD_DOCUMENT_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__

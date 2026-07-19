@@ -38,15 +38,16 @@ namespace elastic
   } // namespace
 //-------------------------------------------------------------------------//
   HttpServer::HttpServer(palmira::IService *srv, const mtc::config &cfg)
-      : config(cfg), service(std::move(srv)),
+      : config(cfg), service(srv),
         executer(std::max(1U, config.get_int32("workers", 1) == 0
           ? std::thread::hardware_concurrency() - 1
           : config.get_int32("workers", 1)))
   {
-    if (this->config.get_int32("port", 0) > 0)
+    if (not this->config.has_key("port"))
     {
-      g_listen_port = this->config.get_int32("listen_port", g_listen_port);
+      std::fprintf(stderr, "[WARN] Listening port not found. By default: %d\n", g_listen_port);
     }
+    g_listen_port = this->config.get_int32("port", g_listen_port);
 
     // Validating a configuration parameters.
     validate_config(this->config);
@@ -67,7 +68,9 @@ namespace elastic
       return;
     }
 
-    this->thread = std::thread([this]() { this->onloop(); });
+    this->thread = std::thread([this]() {
+      this->onloop();
+    });
   }
 
   void HttpServer::Stop()
@@ -144,8 +147,7 @@ namespace elastic
         this->register_routes<false>(app);
 
         // Listening the server.
-        app.listen(listen_host, getListenPort(), [this](auto *token)
-        {
+        app.listen(listen_host, getListenPort(), [this](auto *token) {
           this->onlisten(token);
         });
 

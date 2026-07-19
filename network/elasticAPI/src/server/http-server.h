@@ -129,41 +129,35 @@ namespace elastic
     auto onlisten(us_listen_socket_t *token) -> void;
   };
 //-------------------------------------------------------------------------//
-  template <bool SSL>
+  template<bool SSL>
   auto HttpServer::register_routes(uWS::TemplatedApp<SSL> &app) -> void
   {
     // Adds a new document and automatically generates a unique ID.
-    app.post("/:index/_doc", [this](auto *res, auto *req)
-    {
+    app.post("/:index/_doc", [this](auto *res, auto *req) {
       this->onpost<SSL>(res, req);
     });
     // Adds a new document with a specified ID or updates an existing document
     // with the same ID.
-    app.put("/:index/_doc/:id", [this](auto *res, auto *req)
-    {
+    app.put("/:index/_doc/:id", [this](auto *res, auto *req) {
       this->onput<SSL>(res, req);
     });
 
     // Adding a new document with a specified ID only if a document with that ID
     // does not already exist. If the document exists, the operation fails.
-    app.post("/:index/_create/:id", [this](auto *res, auto *req)
-    {
+    app.post("/:index/_create/:id", [this](auto *res, auto *req) {
       this->onpost<SSL>(res, req);
     });
 
-    app.put("/:index/_create/:id", [this](auto *res, auto *req)
-    {
+    app.put("/:index/_create/:id", [this](auto *res, auto *req) {
       this->onput<SSL>(res, req);
     });
 
     // Searching.
-    app.get("/:index/_doc/:id", [this](auto *res, auto *req)
-    {
+    app.get("/:index/_doc/:id", [this](auto *res, auto *req) {
       this->onget<SSL>(res, req);
     });
 
-    app.get("/:index/_source/:id", [this](auto *res, auto *req)
-    {
+    app.get("/:index/_source/:id", [this](auto *res, auto *req) {
       this->onget<SSL>(res, req);
     });
   }
@@ -176,9 +170,9 @@ namespace elastic
     auto body = std::make_shared<std::string>();
 
     const auto index = std::string(req->getParameter(0));
-    const auto id = req->getParameter(1).empty() ? elastic::make_uid() : std::string(req->getParameter(1));
+    const auto id = req->getParameter(1).empty() ? std::string{} : std::string(req->getParameter(1));
     const auto params = http::parse_query(req->getQuery());
-    const auto body_size = this->config.get_int64("max_body_size", max_body_size);
+    const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
 
     std::fprintf(stdout, "TRACE Received POST request: index=%s, id=%s\n", index.c_str(), id.c_str());
@@ -186,27 +180,24 @@ namespace elastic
     // Reserving resources.
     body->reserve(body_size);
 
-    res->onAborted([state]()
-    {
+    res->onAborted([state]() {
       state->aborted.store(true, std::memory_order_release);
     });
 
-    res->onData([this, resp_ctx, state, index, id, params, body, body_size, started = request_started.time_since_epoch().count()](std::string_view chunk, bool last) mutable
-    {
+    res->onData([this, resp_ctx, state, index, id, params, body, body_size, started = request_started.time_since_epoch().count()](std::string_view chunk, bool last) mutable {
       const auto timeout = this->config.get_int32("request_timeout", request_timeout);
 
       if (state->aborted.load(std::memory_order_acquire))
       {
         return;
       }
+
       if (body->size() + chunk.size() > body_size)
       {
         state->aborted.store(true, std::memory_order_release);
 
         // Replying error message.
-        http::send_error_response(
-            resp_ctx.get(), http::status_codes::INTERNAL_SERVER_ERROR,
-            "payload_too_large", "request body is too large");
+        http::send_error_response(resp_ctx.get(), http::status_codes::INTERNAL_SERVER_ERROR, "payload_too_large", "request body is too large");
         return;
       }
       body->append(chunk.data(), chunk.size());
@@ -217,16 +208,19 @@ namespace elastic
       }
 
       // Forwarding a request to search engine.
-      this->executer.enqueue(executer_types::insert, [loop = this->loop, service = this->service, resp_ctx, index, id, body = std::move(*body), params, timeout, &state, started](const executer_context &ctx) mutable -> void
-        {
+      this->executer.enqueue(executer_types::insert, [loop = this->loop, service = this->service, resp_ctx, index, id, body = std::move(*body), params, timeout, &state, started](const executer_context &ctx) mutable -> void {
           try
           {
             // Parsing insert request.
-            auto args = json::docapi::parse_index_request(std::string_view(body), mtc::zmap{{"_index", index}, {"_id", id}, {"_params", params}, {"_started", started}});
+            auto args = json::docapi::parse_index_request(std::string_view(body), mtc::zmap{
+              {"_index", index},
+              {"_id", id},
+              {"_params", params},
+              {"_started", started}
+            });
 
             // Sending a document to search engine.
-            service->Insert(args, [&ctx, &loop, resp_ctx, &state](const mtc::zmap &resp)
-            {
+            service->Insert(args, [&ctx, &loop, resp_ctx, &state](const mtc::zmap &resp) {
               auto reply = http::service_response{
                 .status = http::status_codes::OK,
                 .content_type = "application/json; charset=utf-8",
@@ -273,7 +267,7 @@ namespace elastic
     const auto index = std::string(req->getParameter(0));
     const auto id = req->getParameter(1).empty() ? std::string{} : std::string(req->getParameter(1));
     const auto params = http::parse_query(req->getQuery());
-    const auto body_size = this->config.get_int64("max_body_size", max_body_size);
+    const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
 
     std::fprintf(stdout, "TRACE Received PUT request: index=%s, id=%s\n", index.c_str(), id.c_str());
@@ -325,9 +319,9 @@ namespace elastic
         {
           // Parsing insert request.
           auto args = json::docapi::parse_index_request(std::string_view(body), mtc::zmap{
-            {"_index", index},
-            {"_id", id},
-            {"_params", params},
+            {"_index",   index},
+            {"_id",      id},
+            {"_params",  params},
             {"_started", started}
           });
 
@@ -381,7 +375,7 @@ namespace elastic
     const auto routing = http::get_query_param(params, "routing");
     const auto index = std::string(req->getParameter(0));
     const auto id = std::string(req->getParameter(1));
-    const auto body_size = this->config.get_int64("max_body_size", max_body_size);
+    const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
 
     std::fprintf(stdout, "TRACE Received GET request: index=%s, id=%s\n", index.c_str(), id.c_str());
