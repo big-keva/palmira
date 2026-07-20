@@ -41,7 +41,6 @@ namespace elastic::json
       for (auto field : obj)
       {
         auto key = field.unescaped_key().value();
-
         //  Loading a new document from value.
         load_document(static_cast<simdjson::ondemand::value>(field.value()), [&]() {
           return (tag != nullptr ? tag : onadd())->AddMarkupTag(key);

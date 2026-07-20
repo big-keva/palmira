@@ -231,8 +231,7 @@ namespace elastic
               // Making a response.
               reply.body = http::docapi::make_index_response(resp);
 
-              loop->defer([resp_ctx, state, reply = std::move(reply)]() mutable
-                {
+              loop->defer([resp_ctx, state, reply = std::move(reply)]() mutable {
                   if (state->aborted.load(std::memory_order_acquire))
                   {
                     return;
