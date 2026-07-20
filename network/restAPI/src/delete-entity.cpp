@@ -34,7 +34,7 @@ namespace restAPI
               ->WriteHeader( "Content-Type", "application/json; charset=utf-8" );
           }
 
-          if ( !functor.cancel )
+          if ( !*functor.cancel )
           {
             auto  base = mtc::json::print::decorated();
             auto  deco = mtc::json::print::decorated( base );
