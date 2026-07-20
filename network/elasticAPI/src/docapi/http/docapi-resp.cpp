@@ -5,6 +5,8 @@
 //-------------------------------------------------------------------------//
 #include <App.h>
 //-------------------------------------------------------------------------//
+#include "../../logger/logger.h"
+//-------------------------------------------------------------------------//
 #include "../docapi-resp.h"
 //-------------------------------------------------------------------------//
 namespace elastic::http::docapi
@@ -33,7 +35,7 @@ namespace elastic::http::docapi
     }
     catch (const std::exception &exc)
     {
-      std::fprintf(stderr, "Proceed request failed: %s\n", exc.what());
+      LOG_E_C("Proceed INDEX request failed: %s", exc.what());
     }
     return buffer.str();
   }
@@ -54,7 +56,7 @@ namespace elastic::http::docapi
 
     try
     {
-      std::fprintf(stdout, "TRACE Received response: %s\n", mtc::to_string(ret).c_str());
+      LOG_T_C("Received response: %s", mtc::to_string(ret).c_str());
       const auto &resp = ret.get_zmap("resp", {});
 
       // Checking response on errors.
@@ -82,7 +84,7 @@ namespace elastic::http::docapi
     }
     catch (const std::exception &exc)
     {
-      std::fprintf(stderr, "[ERROR] %s\n", exc.what());
+      LOG_E_C("Proceed SEARCH request failed: %s", exc.what());
     }
 
     return R"({)" + buffer.str() + R"(})";

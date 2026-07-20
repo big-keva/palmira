@@ -1,8 +1,8 @@
 #include "http-server.h"
 //-------------------------------------------------------------------------//
-#include <utility>
-//-------------------------------------------------------------------------//
 #include "../docapi/docapi-req.h"
+//-------------------------------------------------------------------------//
+#include "../logger/logger.h"
 //-------------------------------------------------------------------------//
 namespace elastic
 {
@@ -51,12 +51,26 @@ namespace elastic
 
     // Validating a configuration parameters.
     validate_config(this->config);
+
+    if (this->config.has_key("logger"))
+    {
+      const auto &logger = this->config.get_section("logger");
+
+      // Initializing a logger.
+      logger::init_logger(logger.get_path("file"));
+
+      // Setting debug level.
+      logger::set_debug_level(logger.get_charstr("debug_level", "info").c_str());
+    }
   }
 
   HttpServer::~HttpServer()
   {
     this->HttpServer::Stop();
     this->HttpServer::Wait();
+
+    // Destroying a logger.
+    logger::destroy_logger();
   }
 //-------------------------------------------------------------------------//
   void HttpServer::Start()
@@ -135,8 +149,8 @@ namespace elastic
           this->onlisten(token);
         });
 
-        std::fprintf(stdout, "Module [%s] listening on https://%s:%d\n",
-                     module_name.c_str(), listen_host.c_str(), getListenPort());
+        LOG_I_C("Module [%s] listening on https://%s:%d",
+                module_name.c_str(), listen_host.c_str(), getListenPort());
         // Executing server.
         app.run();
       }
@@ -151,8 +165,8 @@ namespace elastic
           this->onlisten(token);
         });
 
-        std::fprintf(stdout, "Module [%s] listening on http://%s:%d\n",
-                     module_name.c_str(), listen_host.c_str(), getListenPort());
+        LOG_I_C("Module [%s] listening on http://%s:%d",
+                module_name.c_str(), listen_host.c_str(), getListenPort());
         // Executing server.
         app.run();
       }

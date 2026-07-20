@@ -13,7 +13,14 @@
             "port": 9300,
             "workers": 2,
             "max_body_size": "5M",
-            "request_timeout": "2s"
+            "request_timeout": "2s",
+            "logger": {
+                "file": "elastic-api.log",
+                "debug_level": "trace",
+                "max_size": "10M",
+                "max_count": 5,
+                "rotate": true
+            }
         },
     }
 }

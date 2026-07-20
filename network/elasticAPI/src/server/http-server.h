@@ -34,6 +34,8 @@
 //-------------------------------------------------------------------------//
 #include "../common/utils.h"
 //-------------------------------------------------------------------------//
+#include "../logger/logger.h"
+//-------------------------------------------------------------------------//
 #include "../http/errors.h"
 #include "../http/http-req.h"
 #include "../http/http-resp.h"
@@ -175,8 +177,7 @@ namespace elastic
     const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
 
-    std::fprintf(stdout, "TRACE Received POST request: index=%s, id=%s\n", index.c_str(), id.c_str());
-
+    LOG_D_C("Received POST request: index=%s, id=%s", index.c_str(), id.c_str());
     // Reserving resources.
     body->reserve(body_size);
 
@@ -211,6 +212,7 @@ namespace elastic
       this->executer.enqueue(executer_types::insert, [loop = this->loop, service = this->service, resp_ctx, index, id, body = std::move(*body), params, timeout, &state, started](const executer_context &ctx) mutable -> void {
           try
           {
+            LOG_D_C("Received POST request: index=%s, id=%s, payload=%s", index.c_str(), id.c_str(), body.c_str());
             // Parsing insert request.
             auto args = json::docapi::parse_index_request(std::string_view(body), mtc::zmap{
               {"_index", index},
@@ -243,14 +245,17 @@ namespace elastic
           }
           catch (const elastic::json::parse_error &exc)
           {
+            LOG_E_C("Proceeding POST request failed: %s", exc.what());
             http::send_error_response(resp_ctx.get(), http::status_codes::BAD_REQUEST, "payload_bad_request", exc.what());
           }
           catch (const std::exception &exc)
           {
+            LOG_E_C("Proceeding POST request failed: %s", exc.what());
             http::send_error_response(resp_ctx.get(), http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", exc.what());
           }
           catch (...)
           {
+            LOG_E_C("Proceeding POST request failed: %unknown");
             http::send_error_response(resp_ctx.get(), http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", "unknown");
           }
         });
@@ -270,10 +275,7 @@ namespace elastic
     const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
 
-    std::fprintf(stdout, "TRACE Received PUT request: index=%s, id=%s\n", index.c_str(), id.c_str());
-
-    res->onAborted([state]()
-    {
+    res->onAborted([state]() {
       state->aborted.store(true, std::memory_order_release);
     });
 
@@ -288,8 +290,7 @@ namespace elastic
     // Reserving resources.
     body->reserve(body_size);
 
-    res->onData([this, resp_ctx, state, index, id, params, started = request_started.time_since_epoch().count(), body, body_size](std::string_view chunk, bool last) mutable
-    {
+    res->onData([this, resp_ctx, state, index, id, params, started = request_started.time_since_epoch().count(), body, body_size](std::string_view chunk, bool last) mutable {
       const auto timeout = this->config.get_int32("request_timeout", request_timeout);
 
       if (state->aborted.load(std::memory_order_acquire))
@@ -313,10 +314,10 @@ namespace elastic
       }
 
       // Forwarding a request to search engine.
-      this->executer.enqueue(executer_types::insert, [loop = this->loop, service = this->service, resp_ctx, index, id, body = std::move(*body), params, timeout, state, started](const executer_context &ctx) mutable -> void
-      {
+      this->executer.enqueue(executer_types::insert, [loop = this->loop, service = this->service, resp_ctx, index, id, body = std::move(*body), params, timeout, state, started](const executer_context &ctx) mutable -> void {
         try
         {
+          LOG_D_C("Received PUT request: index=%s, id=%s, payload=%s", index.c_str(), id.c_str(), body.c_str());
           // Parsing insert request.
           auto args = json::docapi::parse_index_request(std::string_view(body), mtc::zmap{
             {"_index",   index},
@@ -326,8 +327,8 @@ namespace elastic
           });
 
           // Sending a document to search engine.
-          auto resp = service->Insert(args, [&ctx, &loop, resp_ctx, &state](const mtc::zmap &resp)
-          {
+          auto resp = service->Insert(args, [&ctx, &loop, resp_ctx, &state](const mtc::zmap &resp) {
+            LOG_T_C("Received PUT response: %s", mtc::to_string(resp).c_str());
             auto reply = http::service_response{
               .status = http::status_codes::OK,
               .content_type = "application/json; charset=utf-8",
@@ -337,8 +338,7 @@ namespace elastic
             // Making a response.
             reply.body = http::docapi::make_index_response(resp);
 
-            loop->defer([resp_ctx, state, reply = std::move(reply)]() mutable
-            {
+            loop->defer([resp_ctx, state, reply = std::move(reply)]() mutable {
               if (state->aborted.load(std::memory_order_acquire))
               {
                 return;
@@ -351,14 +351,17 @@ namespace elastic
         }
         catch (const elastic::json::parse_error &exc)
         {
+          LOG_E_C("Proceeding PUT request failed: %s", exc.what());
           http::send_error_response(resp_ctx.get(), http::status_codes::BAD_REQUEST, "payload_bad_request", exc.what());
         }
         catch (const std::exception &exc)
         {
+          LOG_E_C("Proceeding PUT request failed: %s", exc.what());
           http::send_error_response(resp_ctx.get(), http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", exc.what());
         }
         catch (...)
         {
+          LOG_E_C("Proceeding PUT request failed: unknown");
           http::send_error_response(resp_ctx.get(), http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", "unknown");
         }
       });
@@ -378,8 +381,7 @@ namespace elastic
     const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
 
-    std::fprintf(stdout, "TRACE Received GET request: index=%s, id=%s\n", index.c_str(), id.c_str());
-
+    LOG_T_C("Received GET request: index=%s, id=%s", index.c_str(), id.c_str());
     res->onAborted([resp_ctx]() {
       resp_ctx->aborted.store(true, std::memory_order_release);
     });
@@ -420,8 +422,8 @@ namespace elastic
           }
 
           // Parsing a search request.
-          const auto req = not body->empty() ? json::docapi::parse_mget_request(body->c_str(), index)
-                                                       : json::docapi::parse_mget_request(index, id, mtc::zmap{
+          const auto req = not body->empty() ? json::docapi::parse_mget_request(*body, index)
+                                                        : json::docapi::parse_mget_request(index, id, mtc::zmap{
                                                            {"_index", index},
                                                            {"_id", id},
                                                            {"_routing", routing.has_value() ? routing.value() : ""},
@@ -452,6 +454,7 @@ namespace elastic
 
           // Forwarding a search request into search engine.
           service->Search(args, [resp_ctx, index, id, ctx, state, loop](const mtc::zmap &resp) {
+            LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
             auto reply = http::service_response{
               .status = http::status_codes::OK,
               .content_type = "application/json; charset=utf-8",
@@ -478,13 +481,13 @@ namespace elastic
         }
         catch (const std::exception &exc)
         {
-          std::fprintf(stderr, "ERROR Proceeding request failed: %s\n", exc.what());
+          LOG_E_C("Proceeding GET request failed: %s", exc.what());
           // Replying to error response.
           http::send_error_response(resp_ctx.get(), http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", exc.what());
         }
         catch (...)
         {
-          std::fprintf(stderr, "ERROR Proceeding request failed: unknown\n");
+          LOG_E_C("Proceeding GET request failed: unknown");
           // Replying to error response.
           http::send_error_response(resp_ctx.get(), http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", "unknown");
         }
