@@ -76,7 +76,7 @@ add_executable(k2
 	src/k2.cpp)
 
 if(USE_BUILTIN_REST)
-  set(MODULE_LIBS ${MODULE_LIBS} $<LINK_LIBRARY:WHOLE_ARCHIVE,palmira-restAPI> remottp)
+  set(MODULE_LIBS ${MODULE_LIBS} $<LINK_LIBRARY:WHOLE_ARCHIVE,palmira-restAPI> uSockets ssl crypto)
 endif()
 
 target_link_libraries(palmira
