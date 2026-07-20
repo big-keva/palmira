@@ -1,5 +1,6 @@
 # include "delete-entity.hpp"
 # include "update-entity.hpp"
+# include "insert-entity.hpp"
 # include <server.hpp>
 # include <service.hpp>
 //# include <reports.hpp>
@@ -111,20 +112,10 @@ namespace restAPI
    /*
     * DELETE [/{index}]/{id}
     */
-    pwMain->del( "/:docid", [this]( auto* respond, auto* request )
+    pwMain->del( "/:space/:id", [this]( auto* respond, auto* request )
       {
         auto  action = DeleteEntity( search, restAPI::MakeResponse( respond ) )
-          .SetDocId( request->getParameter( 0 ) );
-
-        respond->onData( [action] ( std::string_view chunk, bool final ) mutable
-          {  return action.chunk( chunk, final );  } );
-        respond->onAborted( [action]() mutable
-          {  return action.abort();  } );
-      } );
-    pwMain->del( "/:index/:docid", [this]( auto* respond, auto* request )
-      {
-        auto  action = DeleteEntity( search, restAPI::MakeResponse( respond ) )
-          .SetIndex( request->getParameter( 0 ) )
+          .SetSpace( request->getParameter( 0 ) )
           .SetDocId( request->getParameter( 1 ) );
 
         respond->onData( [action] ( std::string_view chunk, bool final ) mutable
@@ -135,10 +126,10 @@ namespace restAPI
    /*
     * PATCH [/{index}]/{id}
     */
-    pwMain->patch( "/:index/:docid", [this]( auto* respond, auto* request )
+    pwMain->patch( "/:space/:id", [this]( auto* respond, auto* request )
       {
         auto  action = UpdateEntity( search, restAPI::MakeResponse( respond ) )
-          .SetIndex( request->getParameter( 0 ) )
+          .SetSpace( request->getParameter( 0 ) )
           .SetDocId( request->getParameter( 1 ) );
 
         respond->onData( [action] ( std::string_view chunk, bool final ) mutable
@@ -146,10 +137,16 @@ namespace restAPI
         respond->onAborted( [action]() mutable
           {  return action.abort();  } );
       } );
-    pwMain->patch( "/:docid", [this]( auto* respond, auto* request )
+   /*
+    * PUT [/{index}]/{id}
+    *
+    * Безусловным образом вставить документ 'id' в пространство 'space'.
+    */
+    pwMain->put( "/:space/:id", [this]( auto* respond, auto* request )
       {
-        auto  action = UpdateEntity( search, restAPI::MakeResponse( respond ) )
-          .SetDocId( request->getParameter( 0 ) );
+        auto  action = InsertEntity( search, restAPI::MakeResponse( respond ) )
+          .SetSpace( request->getParameter( 0 ) )
+          .SetDocId( request->getParameter( 1 ) );
 
         respond->onData( [action] ( std::string_view chunk, bool final ) mutable
           {  return action.chunk( chunk, final );  } );

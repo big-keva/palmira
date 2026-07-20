@@ -1,12 +1,12 @@
-# include "update-entity.hpp"
+# include "insert-entity.hpp"
 # include <reports.hpp>
 
 namespace restAPI
 {
 
-  void  UpdateEntity::ready()
+  void  InsertEntity::ready()
   {
-    auto  deldoc = [functor = *this]()
+    auto  insert = [functor = *this]()
     {
       auto  update = palmira::UpdateReport();
       auto  parsed = mtc::zmap();
@@ -80,7 +80,7 @@ namespace restAPI
       }
     };
 
-    return thPool != nullptr ? (void)thPool->Insert( deldoc ) : (void)deldoc();
+    return thPool != nullptr ? (void)thPool->Insert( insert ) : (void)insert();
   }
 
 }

@@ -1,27 +1,16 @@
 # if !defined( PALMIRA_RESTAPI_DELETE_HPP_ )
 # define PALMIRA_RESTAPI_DELETE_HPP_
-# include "responder.hpp"
+# include "modify-entity.hpp"
 
 namespace restAPI
 {
 
-  class DeleteEntity: public Responder
+  class DeleteEntity: public ModifyEntity<DeleteEntity>
   {
-    using Responder::Responder;
+    using ModifyEntity::ModifyEntity;
 
   public:
-    DeleteEntity( mtc::api<IService>, mtc::api<Response>, const mtc::zmap& );
-    DeleteEntity( const DeleteEntity& ) = default;
-
     void  ready() override;
-
-    auto  SetIndex( std::string_view ) -> DeleteEntity&;
-    auto  SetDocId( std::string_view ) -> DeleteEntity&;
-
-  protected:
-    std::string   sIndex;
-    std::string   sDocId;
-
   };
 
 }

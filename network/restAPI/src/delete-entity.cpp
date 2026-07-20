@@ -11,7 +11,7 @@ namespace restAPI
 
       if ( !*functor.cancel )
       {
-        auto  report = palmira::UpdateReport( functor.search->Remove( { functor.sDocId } )
+        auto  report = palmira::UpdateReport( functor.search->Remove( { functor.docId } )
           ->Wait( functor.tm_off ) );
 
         if ( *functor.cancel )
@@ -54,16 +54,6 @@ namespace restAPI
     };
 
     return thPool != nullptr ? (void)thPool->Insert( deldoc ) : (void)deldoc();
-  }
-
-  auto  DeleteEntity::SetIndex( std::string_view ix ) -> DeleteEntity&
-  {
-    return sIndex = ix, *this;
-  }
-
-  auto  DeleteEntity::SetDocId( std::string_view id ) -> DeleteEntity&
-  {
-    return sDocId = id, *this;
   }
 
 }
