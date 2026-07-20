@@ -3,10 +3,6 @@
 # include "../../../toolset.hpp"
 # include "unpack.hpp"
 # include <DeliriX/DOM-dump.hpp>
-# include <remottp/src/server/rest.hpp>
-# include <remottp/http-client.hpp>
-# include <remottp/src/events.hpp>
-# include <remottp/message.hpp>
 # include <mtc/recursive_shared_mutex.hpp>
 # include <mtc/ptr.h>
 # include <condition_variable>
@@ -17,7 +13,7 @@ inline  std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_
 
 namespace restAPI
 {
-
+# if 0
   class Client::impl final: public palmira::IService
   {
     friend class Client;
@@ -379,5 +375,5 @@ namespace restAPI
   {
     return Client().Create( addr );
   }
-
+# endif
 }

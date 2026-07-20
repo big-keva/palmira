@@ -1,43 +1,48 @@
+# include "delete-entity.hpp"
+# include "update-entity.hpp"
 # include <server.hpp>
-# include <reports.hpp>
-# include "loader.hpp"
-# include "unpack.hpp"
-# include <DeliriX/DOM-load.hpp>
-# include <remottp/http-server.hpp>
-# include <remottp/src/events.hpp>
-# include <remottp/src/server/rest.hpp>
-# include <mtc/recursive_shared_mutex.hpp>
-# include <condition_variable>
+# include <service.hpp>
+//# include <reports.hpp>
+//# include "loader.hpp"
+//# include "unpack.hpp"
+//# include <DeliriX/DOM-load.hpp>
+# include <uWebSockets/src/App.h>
+//# include <mtc/recursive_shared_mutex.hpp>
+# include <mtc/threadPool.hpp>
+//# include <condition_variable>
 # include <mtc/config.h>
+//# include <simdjson.h>
 
 template <>
 inline  std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
   {  return o->insert( o->end(), (const char*)p, l + (const char*)p ), o;  }
 
+
 namespace restAPI
 {
+  using IService = palmira::IService;
 
   class Server final: public palmira::IServer
   {
-    mtc::api<palmira::IService> serach;
-    http::Server                server;
+    mtc::ThreadPool           thPool;
+    uWS::Loop*                pwLoop = nullptr;
+    us_listen_socket_t*       listen = nullptr;
+    std::shared_ptr<uWS::App> pwMain;
+    mtc::api<IService>        search;
+    uint16_t                  dwPort;
 
-    std::mutex                  mxwait;
-    std::condition_variable     cvwait;
-    volatile bool               finish = false;
+  public:
+    Server( mtc::api<IService> s, uint16_t p ): search( s ), dwPort( p )
+    {}
 
+  protected:
     void  Start() override;
     void  Stop() override;
     void  Wait() override;
 
-  public:
-    Server( mtc::api<palmira::IService> serv, uint16_t port );
-
-  protected:
     implement_lifetime_control
-
   };
-
+/*
   auto  IsJson( const http::Request& req ) -> bool
     {  return req.GetHeaders().get( "Content-Type").substr( 0, 16 ) == "application/json";  }
   auto  IsDump( const http::Request& req ) -> bool
@@ -92,28 +97,202 @@ namespace restAPI
       }
     }
   };
-
+*/
   // Server implementation
 
   void  Server::Start()
   {
-    return server.Start();
+      pwMain = std::make_shared<uWS::App>();
+
+//    pwMain->delete( );
+//    pwMain->put( );
+//    pwMain->post( );
+//    pwMain->head( );
+   /*
+    * DELETE [/{index}]/{id}
+    */
+    pwMain->del( "/:docid", [this]( auto* respond, auto* request )
+      {
+        auto  action = DeleteEntity( search, restAPI::MakeResponse( respond ) )
+          .SetDocId( request->getParameter( 0 ) );
+
+        respond->onData( [action] ( std::string_view chunk, bool final ) mutable
+          {  return action.chunk( chunk, final );  } );
+        respond->onAborted( [action]() mutable
+          {  return action.abort();  } );
+      } );
+    pwMain->del( "/:index/:docid", [this]( auto* respond, auto* request )
+      {
+        auto  action = DeleteEntity( search, restAPI::MakeResponse( respond ) )
+          .SetIndex( request->getParameter( 0 ) )
+          .SetDocId( request->getParameter( 1 ) );
+
+        respond->onData( [action] ( std::string_view chunk, bool final ) mutable
+          {  return action.chunk( chunk, final );  } );
+        respond->onAborted( [action]() mutable
+          {  return action.abort();  } );
+      } );
+   /*
+    * PATCH [/{index}]/{id}
+    */
+    pwMain->patch( "/:index/:docid", [this]( auto* respond, auto* request )
+      {
+        auto  action = UpdateEntity( search, restAPI::MakeResponse( respond ) )
+          .SetIndex( request->getParameter( 0 ) )
+          .SetDocId( request->getParameter( 1 ) );
+
+        respond->onData( [action] ( std::string_view chunk, bool final ) mutable
+          {  return action.chunk( chunk, final );  } );
+        respond->onAborted( [action]() mutable
+          {  return action.abort();  } );
+      } );
+    pwMain->patch( "/:docid", [this]( auto* respond, auto* request )
+      {
+        auto  action = UpdateEntity( search, restAPI::MakeResponse( respond ) )
+          .SetDocId( request->getParameter( 0 ) );
+
+        respond->onData( [action] ( std::string_view chunk, bool final ) mutable
+          {  return action.chunk( chunk, final );  } );
+        respond->onAborted( [action]() mutable
+          {  return action.abort();  } );
+      } );
+# if 0
+    pwMain->get( "/:0/_doc/:1", [this]( auto* respond, auto* request )
+      {
+        auto  qparams = LoadParams( request->getQuery() );
+        auto  nextkey = std::string();
+        auto  quotate = mtc::zmap();
+        auto  bsource = true;
+        auto  include = mtc::array_charstr();
+        auto  exclude = mtc::array_charstr();
+
+      // parse '_source'
+        nextkey = qparams.get_charstr( "_source", "true" );
+
+        if ( nextkey == "true" )  bsource = true;
+          else
+        if ( nextkey == "false" ) bsource = false;
+            else
+        if ( !get( include, nextkey ) )
+        {
+          return elastic::GetEntity( search, elastic::MakeResponse( respond ) ).Error( "400 Bad Request",
+            elastic::JsonError( 400, "illegal_argument_exception", "Failed to parse [_source] as boolean" ) );
+        }
+
+       /*
+        * if _source defined, check the other parameters
+        */
+        if ( !bsource )
+        {
+          auto  functor = elastic::GetEntity( search, elastic::MakeResponse( respond ) );
+
+          functor
+            .SetIndex( request->getParameter( 0 ) )
+            .SetDocId( request->getParameter( 1 ) );
+
+  //      , quotate );
+          respond->onData( [functor] ( std::string_view chunk, bool final ) mutable
+            {  return functor.chunk( chunk, final );  } );
+          respond->onAborted( [functor]() mutable
+            {  return functor.abort();  } );
+        }
+
+        auto  functor = elastic::GetEntity( search, elastic::MakeResponse( respond ) );
+
+        functor
+          .SetIndex( request->getParameter( 0 ) )
+          .SetDocId( request->getParameter( 1 ) );
+
+//      , quotate );
+        respond->onData( [functor] ( std::string_view chunk, bool final ) mutable
+          {  return functor.chunk( chunk, final );  } );
+        respond->onAborted( [functor]() mutable
+          {  return functor.abort();  } );
+      } );
+   /*
+    * GET /{index}/_mget
+    */
+    /*
+    pwMain->get( "/:0/_mget", [this]( auto* respond, auto* request )
+      {
+        auto  quotate = mtc::zmap();
+
+        ListParams( request->getQuery(), {
+          { "source",             [&]( std::string_view val )
+            {  quotate["mode"] = val == "true" ? "source" : "absent";  } },
+          { "_source_includes",   [&]( std::string_view val )
+            {  quotate["include"] = string_view::cast<mtc::array_charstr>( val );  } },
+          { "_source_excludes",   [&]( std::string_view val )
+            {  quotate["exclude"] = string_view::cast<mtc::array_charstr>( val );  } } } );
+
+        auto  functor = elastic::GetEntity::Create( search, respond,
+          request->getParameter( 0 ), mtc::charstr( request->getParameter( 1 ) ), quotate );
+
+        respond->onData( [functor]( std::string_view chunk, bool final )
+          {  return functor.chunk( chunk, final );  } );
+        respond->onAborted( [functor]()
+          {  return functor.abort();  } );
+      } );
+    */
+  /*  PUT  */
+    pwMain->put( "/:0/_doc/:1", [this]( auto* respond, auto* request )
+      {
+        auto  functor = elastic::SetEntity( search, elastic::MakeResponse( respond ), {
+          { "index", request->getParameter( 0 ) },
+          { "docid", request->getParameter( 1 ) },
+          { "query", LoadParams( request->getQuery() ) } } );
+
+        functor.Set( thPool );
+
+        respond->onData( [functor] ( std::string_view chunk, bool final ) mutable
+          {  return functor.chunk( chunk, final );  } );
+        respond->onAborted( [functor]() mutable
+          {  return functor.abort();  } );
+      } );
+    pwMain->put( "/:0/_create/:1", [this]( auto* respond, auto* request )
+      {
+        respond->onAborted( [](){} );
+      } );
+    pwMain->post( "/:0/_doc", [this]( auto* respond, auto* request )
+      {
+        auto  functor = elastic::SetEntity( search, elastic::MakeResponse( respond ), {
+          { "index", request->getParameter( 0 ) },
+          { "docid", "aaa" } } );
+
+        functor
+//          .Set( timeout )
+          .Set( thPool );
+
+        respond->onData( [functor] ( std::string_view chunk, bool final ) mutable
+          {  return functor.chunk( chunk, final );  } );
+        respond->onAborted( [functor]() mutable
+          {  return functor.abort();  } );
+      } );
+# endif
+    pwMain->listen( dwPort, [this]( auto* listenSocket )
+      {
+        pwLoop = uWS::Loop::get();
+        listen = listenSocket;
+      } );
   }
 
   void  Server::Stop()
   {
-    server.Stop();
-    finish = true;
-    cvwait.notify_one();
+    if ( pwLoop != nullptr && listen != nullptr )
+    {
+      us_listen_socket_close(0, listen );
+      pwLoop = nullptr;
+      listen = nullptr;
+    }
   }
 
   void  Server::Wait()
   {
-    auto  exlock = mtc::make_unique_lock( mxwait );
-
-    cvwait.wait( exlock, [this](){  return finish;  } );
+    if ( pwMain == nullptr )
+      throw std::runtime_error( "Server::Wait: uWebSockets server is not initialized!" );
+    return pwMain->run(), pwMain.reset();
   }
-
+/*
   Server::Server( mtc::api<palmira::IService> serv, uint16_t port ):
     serach( serv ), server( "0.0.0.0", port )
   {
@@ -170,6 +349,7 @@ namespace restAPI
     Output( output, result, serial.data(), serial.size() );
   }
 
+  */
 }
 
 extern "C"  int   CreateServer(

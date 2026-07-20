@@ -3,7 +3,7 @@
 
 namespace restAPI {
 namespace zmap    {
-
+# if 0
   template <class Args>
   static  auto  Access( Args&, const http::Request&, const mtc::zmap& ) -> Args&;
   template <class Args>
@@ -128,5 +128,5 @@ namespace zmap    {
       throw std::invalid_argument( "invalid binary serialization format, zmap expected @" __FILE__ ":" LINE_STRING );
     return output;
   }
-
+# endif
 }}

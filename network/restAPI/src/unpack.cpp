@@ -86,7 +86,7 @@ namespace restAPI
   }
 
   // Request processors
-
+/*
   auto  Inflate( const http::Message& msg, mtc::IByteStream* src ) -> mtc::api<mtc::IByteStream>
   {
     auto  method = msg.GetHeaders().get( "Content-Encoding" );
@@ -141,5 +141,5 @@ namespace restAPI
 
     return deflate_buffer;
   }
-
+  */
 }

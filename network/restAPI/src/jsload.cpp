@@ -1,11 +1,10 @@
 # include "loader.hpp"
 # include <structo/queries/parser.hpp>
-# include <remottp/src/server/rest.hpp>
 # include <DeliriX/DOM-load.hpp>
 
 namespace restAPI {
 namespace json    {
-
+# if 0
   template <class Args>
   static  auto  Access( Args&, const http::Request&, const mtc::zmap& ) -> Args&;
   template <class Args>
@@ -117,5 +116,5 @@ namespace json    {
 
     return mtc::json::Parse( src, output, revive ) , output;
   }
-
+# endif
 }}
