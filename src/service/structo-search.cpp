@@ -346,7 +346,7 @@ namespace palmira {
     auto  operator()( const mtc::zmap& to ) const -> mtc::zmap
     {
       return mtc::zmap( to, {
-        { "timer", mtc::zmap{
+        { "timing", mtc::zmap{
           { "elapsed", elapced() } } } } );
     };
 
@@ -512,14 +512,18 @@ namespace palmira {
 
   auto  StructoSearch::Remove( const RemoveArgs& remove, NotifyFn notify ) -> mtc::api<IPending>
   {
+    Timing  timeout;
+
     try
-    {
-      if ( ctxIndex->DelEntity( remove.objectId ) )
-        return modified = true, Immediate( UpdateReport( 0, "OK" ), notify );
-      return Immediate( UpdateReport( ENOENT, "document not found" ), notify );
-    }
-    catch ( const std::invalid_argument& xp )         {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
-    catch ( const DeliriX::load_as::ParseError& xp )  {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
+      {
+        if ( ctxIndex->DelEntity( remove.objectId ) )
+          return modified = true, Immediate( timeout( UpdateReport{ 0, "OK" } ), notify );
+        return Immediate( timeout( UpdateReport{ ENOENT, "document not found" } ), notify );
+      }
+    catch ( const std::invalid_argument& xp )
+      {  return Immediate( timeout( UpdateReport{ EINVAL, xp.what() } ), notify );  }
+    catch ( const DeliriX::load_as::ParseError& xp )
+      {  return Immediate( timeout( UpdateReport{ EINVAL, xp.what() } ), notify );  }
   }
 
   auto  StructoSearch::Search( const SearchArgs& search, NotifyFn notify ) -> mtc::api<IPending>
