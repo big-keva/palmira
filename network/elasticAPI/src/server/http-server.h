@@ -45,6 +45,8 @@
 #include "../docapi/docapi-req.h"
 #include "../docapi/docapi-resp.h"
 //-------------------------------------------------------------------------//
+#include <mtc/json.h>
+
 #include "../docapi/json/simd-json-index-parser.h"
 #include "../docapi/json/simd-json-mget-parser.h"
 //-------------------------------------------------------------------------//
@@ -432,14 +434,13 @@ namespace elastic
           palmira::SearchArgs args;
           // Setting an order of searching.
           args.order = mtc::zmap{
-            {"first", 1},
-            {"count", 10}
+            {"first", /* => */  1},
+            {"count", /* => */  10},
+            {"quote", /* => */  mtc::zmap{{"mode", "source"}}}
           };
 
           args.query = mtc::zmap{
-            {"get", mtc::array_charstr{
-              id
-            }},
+            {"get",   /* => */  mtc::array_charstr{ id }}
           };
 /*<TODO> Adding support a list of docs.
           mtc::array_zmap docs;
@@ -459,6 +460,16 @@ namespace elastic
               .content_type = "application/json; charset=utf-8",
               .body = ""
             };
+
+          // вот здесь вот я тебе возвращаю:
+          // "items": [
+          //   {
+          //     ...
+          //     "quote": [
+          //       {
+          //         "title": ...
+          //     ...
+            mtc::json::Print( stdout, resp, mtc::json::print::decorated() );
 
             // Making a response.
             reply.body = http::docapi::make_search_response(mtc::zmap{
