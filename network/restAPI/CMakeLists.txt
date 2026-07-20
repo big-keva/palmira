@@ -6,6 +6,7 @@ set(TARGET
 set(SOURCE
   src/delete-entity.cpp
   src/update-entity.cpp
+  src/insert-entity.cpp
   src/responder.cpp
   src/client.cpp
   src/jsload.cpp
