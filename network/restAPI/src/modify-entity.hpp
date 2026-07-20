@@ -14,7 +14,7 @@ namespace restAPI
     ModifyEntity( mtc::api<IService>, mtc::api<Response>, const mtc::zmap& );
     ModifyEntity( const ModifyEntity& ) = default;
 
-    void  ready() override;
+    void  ready() override = 0;
 
     auto  SetSpace( std::string_view ) -> SelfType&;
     auto  SetDocId( std::string_view ) -> SelfType&;

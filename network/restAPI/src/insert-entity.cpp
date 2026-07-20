@@ -1,15 +1,29 @@
 # include "insert-entity.hpp"
 # include <reports.hpp>
+# include <simdjson.h>
 
 namespace restAPI
 {
+
+  auto  LoadMetadata( simdjson::ondemand::value val ) -> mtc::zmap;
+  auto  LoadCondition( simdjson::ondemand::value val ) -> mtc::charstr;
+  auto  LoadVersion( simdjson::ondemand::value val ) -> uint64_t;
+  void  LoadDocument( simdjson::ondemand::value val, std::function<mtc::api<DeliriX::IText>()> );
+
+  auto  LoadArguments( simdjson::ondemand::value val ) -> palmira::InsertArgs
+  {
+
+  }
 
   void  InsertEntity::ready()
   {
     auto  insert = [functor = *this]()
     {
+      auto  parser = simdjson::ondemand::parser();
+      auto  buforg = functor.buffer->data();
+      auto  source = parser.iterate( buforg, functor.bufptr - buforg, functor.buffer->size() );
+      auto  inText = DeliriX::Text();
       auto  update = palmira::UpdateReport();
-      auto  parsed = mtc::zmap();
 
       if ( *functor.cancel )
         return;
@@ -18,18 +32,13 @@ namespace restAPI
       {
        /*
         * object body contains:
-        *   - metadata as structure,
-        *   - version as uint64_t, and
-        *   - update condition as serialized zvalue
+        *   - 'metadata' as structure,
+        *   - 'document' as structure
+        *   - 'version' as uint64_t, and
+        *   - update 'condition' as serialized zvalue
         */
-        mtc::json::Parse( (const char*)functor.buffer->data(), parsed, mtc::zmap{
-          { "version", "word64" } } );
-
-        update = functor.search->Update( { functor.docId,
-          parsed.get_zmap   ( "metadata",   {} ),
-          parsed.get_word64 ( "version",    0ll ),
-          parsed.get        ( "condition",  {} ) } )
-        ->Wait( functor.tm_off );
+        update = functor.search->Insert( SetId( LoadArguments( source.value() ), functor.docId ) )
+          ->Wait( functor.tm_off );
 
         if ( *functor.cancel )
           return;
@@ -81,6 +90,73 @@ namespace restAPI
     };
 
     return thPool != nullptr ? (void)thPool->Insert( insert ) : (void)insert();
+  }
+
+  auto  LoadMetadata( simdjson::ondemand::value val ) -> mtc::zmap
+  {
+  }
+
+  auto  LoadCondition( simdjson::ondemand::value val ) -> mtc::charstr
+  {
+  }
+
+  auto  LoadVersion( simdjson::ondemand::value val ) -> uint64_t
+  {
+  }
+
+  void  LoadDocument( simdjson::ondemand::value val, std::function<mtc::api<DeliriX::IText>()> add )
+  {
+    switch ( val.type() )
+    {
+      case simdjson::ondemand::json_type::array:
+      {
+        auto  arr = val.get_array().value();
+
+        for ( auto element: arr )
+          LoadDocument( element.value(), add );
+        break;
+      }
+      case simdjson::ondemand::json_type::object:
+      {
+        auto  obj = val.get_object().value();
+        auto  tag = mtc::api<DeliriX::IText>();
+
+        for ( auto field: obj )
+        {
+          auto  key = field.unescaped_key().value();
+
+          LoadDocument( field.value(), [&]()
+            {  return (tag != nullptr ? tag : add())->AddMarkupTag( key );  });
+        }
+        break;
+      }
+      case simdjson::ondemand::json_type::string:
+      {
+        auto  str = val.get_string().value();
+
+        if ( !str.empty() )
+          add()->AddBlock( DeliriX::IText::persistent, str );
+        break;
+      }
+      case simdjson::ondemand::json_type::number:
+      {
+        auto str = val.raw_json_token();
+
+        if ( !str.empty() )
+          add()->AddBlock( DeliriX::IText::persistent, str );
+        break;
+      }
+      case simdjson::ondemand::json_type::boolean:
+      {
+        add()->AddBlock( DeliriX::IText::persistent, val.get_bool().value() ? "true" : "false" );
+        break;
+      }
+      case simdjson::ondemand::json_type::null:
+      {
+        add()->AddBlock( DeliriX::IText::persistent, "NULL" );
+        break;
+      }
+    }
   }
 
 }

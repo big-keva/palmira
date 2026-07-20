@@ -35,9 +35,15 @@ endif()
 
 find_package(MoonyCode REQUIRED)
 
+if(USE_BUILTIN_REST)
+  find_package(simdjson REQUIRED)
+
+  set(MODULE_LIBS ${MODULE_LIBS} $<LINK_LIBRARY:WHOLE_ARCHIVE,palmira-restAPI> uSockets ssl crypto simdjson::simdjson)
+endif()
+
 include_directories(
-	./
-	contrib)
+  ./
+  contrib)
 
 add_subdirectory(contrib/mtc)
 add_subdirectory(contrib/DeliriX)
@@ -74,10 +80,6 @@ add_executable(palmira
 
 add_executable(k2
 	src/k2.cpp)
-
-if(USE_BUILTIN_REST)
-  set(MODULE_LIBS ${MODULE_LIBS} $<LINK_LIBRARY:WHOLE_ARCHIVE,palmira-restAPI> uSockets ssl crypto)
-endif()
 
 target_link_libraries(palmira
 	${MODULE_LIBS}

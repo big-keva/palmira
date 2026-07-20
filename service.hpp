@@ -1,5 +1,7 @@
 # if !defined( __palmira_service_hpp__ )
 # define __palmira_service_hpp__
+#include <condition_variable>
+
 # include "DeliriX/DOM-text.hpp"
 # include <mtc/interfaces.h>
 # include <mtc/zmap.h>
@@ -35,6 +37,18 @@ namespace palmira {
     AccessArgs( const std::string& entId ): objectId( entId ) {}
     AccessArgs( const mtc::zmap& );
   };
+
+  template <typename T, typename = std::enable_if_t<std::is_base_of_v<AccessArgs, T>>>
+  T&  SetId( T& args, const std::string& id )
+  {
+    return args.objectId = id, args;
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_base_of_v<AccessArgs, T>>>
+  T&& SetId( T&& args, const std::string& id )
+  {
+    return args.objectId = id, std::move( args );
+  }
 
   struct RemoveArgs: AccessArgs
   {

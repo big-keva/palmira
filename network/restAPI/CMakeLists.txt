@@ -41,5 +41,6 @@ else()
     structo
     DeliriX
     moonycode
-    mtc)
+    mtc
+    simdjson::simdjson)
 endif()
