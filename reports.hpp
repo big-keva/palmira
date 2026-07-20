@@ -16,8 +16,13 @@ namespace palmira {
       alias_base( err, attr )  {}
   zmap_end
 
+  zmap_view( Timing )
+    zmap_value( uint32_t, elapced, "elapced" )
+  zmap_end
+
   zmap_view( StatusReport )
     zmap_value( Status, status, "status" )
+    zmap_value( Timing, timing, "timing" )
 
     StatusReport( const Status& st, const mtc::zmap& attr = {} ): alias_base( attr,
       { { "status", st } } )  {}
@@ -32,8 +37,8 @@ namespace palmira {
   zmap_end
 
   zmap_view_as( SearchReport, StatusReport )
-    zmap_value( uint32_t, first, "first" )
-    zmap_value( uint32_t, count, "count" )
+    zmap_value( uint32_t,   first,  "first" )
+    zmap_value( uint32_t,   count,  "count" )
   zmap_end
 
 }
