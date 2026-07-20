@@ -1,11 +1,12 @@
 project(restAPI)
 
-include_directories(contrib)
-
 set(TARGET
   palmira-restAPI)
 
 set(SOURCE
+  src/delete-entity.cpp
+  src/update-entity.cpp
+  src/responder.cpp
   src/client.cpp
   src/jsload.cpp
   src/server.cpp
@@ -36,11 +37,8 @@ else()
   add_library(${TARGET} SHARED ${SOURCE} src/shared.cpp)
 
   target_link_libraries(${TARGET}
-    remottp
     structo
     DeliriX
     moonycode
     mtc)
 endif()
-
-add_subdirectory(contrib/remottp)
