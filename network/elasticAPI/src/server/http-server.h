@@ -28,6 +28,8 @@
 //-------------------------------------------------------------------------//
 #include <structo/contents.hpp>
 //-------------------------------------------------------------------------//
+#include <mtc/json.h>
+//-------------------------------------------------------------------------//
 #include "../server.h"
 //-------------------------------------------------------------------------//
 #include "async-executer.h"
@@ -45,8 +47,6 @@
 #include "../docapi/docapi-req.h"
 #include "../docapi/docapi-resp.h"
 //-------------------------------------------------------------------------//
-#include <mtc/json.h>
-
 #include "../docapi/json/simd-json-index-parser.h"
 #include "../docapi/json/simd-json-mget-parser.h"
 //-------------------------------------------------------------------------//
@@ -434,14 +434,17 @@ namespace elastic
           palmira::SearchArgs args;
           // Setting an order of searching.
           args.order = mtc::zmap{
-            {"first", /* => */  1},
-            {"count", /* => */  10},
-            {"quote", /* => */  mtc::zmap{{"mode", "source"}}}
+            {"first", 1},
+            {"count", 10},
+            {"quote", mtc::zmap{
+              {"mode", "source"}
+            }}
           };
 
           args.query = mtc::zmap{
-            {"get",   /* => */  mtc::array_charstr{ id }}
+            {"get", mtc::array_charstr{id}}
           };
+
 /*<TODO> Adding support a list of docs.
           mtc::array_zmap docs;
           for (const auto &doc : req.docs)
@@ -454,22 +457,23 @@ namespace elastic
 
           // Forwarding a search request into search engine.
           service->Search(args, [resp_ctx, index, id, ctx, state, loop](const mtc::zmap &resp) {
-            LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
+            //<!!!> LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
+            mtc::json::Print(stdout, resp, mtc::json::print::decorated());
             auto reply = http::service_response{
               .status = http::status_codes::OK,
               .content_type = "application/json; charset=utf-8",
               .body = ""
             };
 
-          // вот здесь вот я тебе возвращаю:
-          // "items": [
-          //   {
-          //     ...
-          //     "quote": [
-          //       {
-          //         "title": ...
-          //     ...
-            mtc::json::Print( stdout, resp, mtc::json::print::decorated() );
+            // вот здесь вот я тебе возвращаю:
+            // "items": [
+            //   {
+            //     ...
+            //     "quote": [
+            //       {
+            //         "title": ...
+            //     ...
+            //<!!!> mtc::json::Print(stdout, resp, mtc::json::print::decorated());
 
             // Making a response.
             reply.body = http::docapi::make_search_response(mtc::zmap{

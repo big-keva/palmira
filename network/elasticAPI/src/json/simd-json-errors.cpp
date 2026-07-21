@@ -11,7 +11,7 @@ namespace elastic::json
   {
     if (error)
     {
-      throw(parse_error(std::string(context) + ": " + simdjson::error_message(error)));
+      throw (parse_error(std::string(context) + ": " + simdjson::error_message(error)));
     }
   }
 //-------------------------------------------------------------------------//

@@ -34,6 +34,12 @@ namespace elastic::json
     explicit parse_error(const std::string &message);
   };
 //-------------------------------------------------------------------------//
+  /**
+   * Checks error object on error.
+   * @param error [in] - Error object.
+   * @param context [in] - A context error.
+   * @throw parse_error - Error.
+   */
   auto throw_if_error(simdjson::error_code error, std::string_view context) -> void;
 //-------------------------------------------------------------------------//
 } // namespace elastic::json
