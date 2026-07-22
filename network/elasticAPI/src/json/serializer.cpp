@@ -23,19 +23,31 @@ namespace elastic::json
           switch (val.get_type())
           {
           case mtc::zval::z_int16:
-            stream << val.get_int16();
+            if (val.get_int16() != nullptr)
+            {
+              stream << val.get_int16();
+            }
             break;
           case mtc::zval::z_int32:
-            stream << val.get_int32();
+            if (val.get_int32() != nullptr)
+            {
+              stream << *val.get_int32();
+            }
             break;
           case mtc::zval::z_int64:
-            stream << val.get_int64();
+            if (val.get_int64() != nullptr)
+            {
+              stream << *val.get_int64();
+            }
             break;
           case mtc::zval::z_bool:
-            stream << std::boolalpha << val.get_bool();
+            if (val.get_bool() != nullptr)
+            {
+              stream << std::boolalpha << *val.get_bool();
+            }
             break;
           case mtc::zval::z_charstr:
-            stream << '"' << val.get_charstr() << '"';
+            stream << '"' << val.to_string() << '"';
             break;
           case mtc::zval::z_array_int16:
             serialize_array_values(stream, val.get_array_int16());
@@ -70,11 +82,11 @@ namespace elastic::json
     auto serialize(std::ostream &stream, const mtc::zmap *zmap) -> std::ostream &
     {
       // mtc::json::Print(stdout, zmap, decorate);
-      auto need_comma = false;
       //<???> stream << '{';
 
       if (zmap != nullptr)
       {
+        auto need_comma = false;
         for (auto iter = zmap->begin(), end = zmap->end(); iter != end; ++iter)
         {
           if (need_comma)
