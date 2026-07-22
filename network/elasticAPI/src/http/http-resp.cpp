@@ -4,6 +4,8 @@
 #include <string>
 #include <filesystem>
 //-------------------------------------------------------------------------//
+#include "network/elasticAPI/src/logger/logger.h"
+
 #include <App.h>
 //-------------------------------------------------------------------------//
 namespace elastic::http
@@ -59,7 +61,7 @@ namespace elastic::http
       return;
     }
 
-    ctx->response->writeStatus(http::to_string(static_cast<http::status_codes>(response.status)));
+    ctx->response->writeStatus(http::to_string(response.status));
     ctx->response->writeHeader("Content-Type", response.content_type.empty() ? "application/json" : response.content_type);
     ctx->response->writeHeader("Content-Length", std::to_string(response.body.size()));
     ctx->response->end(response.body);

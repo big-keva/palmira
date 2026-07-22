@@ -5,7 +5,11 @@
 //-------------------------------------------------------------------------//
 #include <App.h>
 //-------------------------------------------------------------------------//
+#include <mtc/json.h>
+//-------------------------------------------------------------------------//
 #include "../../logger/logger.h"
+//-------------------------------------------------------------------------//
+#include "../../json/serializer.h"
 //-------------------------------------------------------------------------//
 #include "../docapi-resp.h"
 //-------------------------------------------------------------------------//
@@ -71,31 +75,24 @@ namespace elastic::http::docapi
       const auto &items = resp.get_array_zmap("items", {});
       for (const auto &item : items)
       {
-        auto need_comma = false;
         buffer << R"("_index": )" << R"(")" << item.get_zmap("extra", {}).get_charstr("_index", "") << R"(",)" <<
                   R"("_id": )" << R"(")" << item.get_charstr("_d", item.get_zmap("extra", {}).get_charstr("_id", "")) << R"(",)" <<
                   R"("_version": )" << R"(")" << item.get_zmap("extra", {}).get_int32("_version", -1) << R"(",)" <<
                   R"("_seq_no": )" << R"(")" << item.get_zmap("extra", {}).get_int32("_seq_no", 0) << R"(",)" <<
                   R"("_primary_term": )" << R"(")" << item.get_zmap("extra", {}).get_int32("_primary_term", 0) << R"(",)" <<
                   R"("found": true)";
-        if (item.get_array_zmap("quote", {}).empty())
+        if (item.get_array_zval("quote", {}).empty())
         {
           continue;
         }
 
-        buffer << R"("_source": {)" << std::endl;
-        for (const auto &quote: item.get_array_zmap("quote", {}))
-        {
-          for (auto iter = quote.begin(); iter != quote.end(); ++iter)
-          {
-            if (need_comma)
-            {
-              buffer << ',' << std::endl;
-            }
-            buffer << R"(  ")" << iter->first.to_charstr() << R"(": )" << iter->second.to_string();
-          }
-        }
-        buffer << std::endl << R"("})" << std::endl;
+        buffer << R"(,)" <<
+                  R"("_source": {)";
+
+        // Serializing response result.
+        json::serialize(buffer, item.get_array_zval("quote", {}));
+
+        buffer << R"(})";
       }
     }
     catch (const std::exception &exc)

@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <thread>
 //-------------------------------------------------------------------------//
+#include <moonycode/codes.h>
+//-------------------------------------------------------------------------//
 namespace elastic
 {
 //-------------------------------------------------------------------------//
@@ -192,6 +194,11 @@ namespace elastic
     }
 
     return id;
+  }
+
+  auto to_utf8(const codepages::widestring &src) -> std::string
+  {
+    return codepages::widetombcs(codepages::codepage_utf8, src);
   }
 //-------------------------------------------------------------------------//
 } // namespace elastic

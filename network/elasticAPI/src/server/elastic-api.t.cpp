@@ -22,9 +22,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 //-------------------------------------------------------------------------//
-#include "service/structo-search.hpp"
-#include "src/http/http-req.h"
-
 #include <cerrno>
 #include <chrono>
 #include <cstring>
@@ -34,6 +31,10 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+//-------------------------------------------------------------------------//
+#include <service/structo-search.hpp>
+//-------------------------------------------------------------------------//
+#include "../http/http-req.h"
 //-------------------------------------------------------------------------//
 namespace
 {

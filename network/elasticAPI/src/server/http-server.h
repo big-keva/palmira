@@ -488,6 +488,7 @@ namespace elastic
                 return;
               }
 
+              LOG_T_C("Replying to client: [%s] %s", to_string(reply.status).data(), reply.body.c_str());
               // Replying a response to client.
               http::send_json_response(resp_ctx.get(), reply);
             });
