@@ -39,5 +39,18 @@ namespace
     ASSERT_NO_THROW(elastic::json::serialize(buffer, zjson.get_array_zval("array", {})));
     EXPECT_EQ(buffer.str(), R"("1","2","3","4","5","6","7","8","9")");
   }
+
+  TEST(TestSerializer, serializeComplex)
+  {
+    const auto zjson = mtc::zmap{
+      {"array", mtc::array_zval{"1", "2", "3", "4", "5", "6", "7", "8", "9"}},
+    {"first_name", "test_first_name"},
+      {"last_name", "test_last_name"}
+    };
+
+    std::ostringstream buffer;
+    ASSERT_NO_THROW(elastic::json::serialize(buffer, &zjson));
+    EXPECT_EQ(buffer.str(), R"("array":["1","2","3","4","5","6","7","8","9"],"first_name":"test_first_name","last_name":"test_last_name")");
+  }
 //-------------------------------------------------------------------------//
 } // namespace
