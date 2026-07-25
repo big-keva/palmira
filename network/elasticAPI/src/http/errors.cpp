@@ -34,18 +34,24 @@ namespace elastic::http
     return R"({"error":{"type":")" + type + R"(","reason":")" + reason + R"(","status": ")" + std::string(to_string(code)) + """}";
   }
 //-------------------------------------------------------------------------//
-  auto check_resp_on_error(const mtc::zmap &resp) -> void
+  auto check_resp_on_error(const mtc::zmap &resp) -> error_info
   {
+    error_info info{
+      .code = 0,
+      .msg = "success"
+    };
     const auto &status = resp.get_zmap("status", {});
-    const auto code = not status.empty() ? status.get_int32("code", -1) : 0;
-    if (code != 0)
+    info.code = not status.empty() ? status.get_int32("code", -1) : 0;
+    if (info.code != 0)
     {
-      if (code == -1)
+      if (info.code == -1)
       {
-        throw (std::invalid_argument("response format invalid: status/code node found"));
+        info.code = -EINVAL;
+        info.msg = "invalid format: status/code node found";
       }
-      throw (std::invalid_argument("Proceeding request failed: (" + std::to_string(code) + ") " + status.get_charstr("info", "unknown")));
+      info.msg = status.get_charstr("info", "unknown");
     }
+    return info;
   }
 //-------------------------------------------------------------------------//
 } // namespace elastic::http

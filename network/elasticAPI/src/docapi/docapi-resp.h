@@ -47,10 +47,12 @@ namespace elastic::http::docapi
 
   /**
    * Makes a response of searching a document.
+   * @param ctx [in] - HTTP context.
    * @param resp [in] - A response.
    * @return A response in JSON format.
    */
-  auto make_search_response(const mtc::zmap &resp) -> std::string;
+  template<bool SSL>
+  auto send_search_response(response_context<SSL> *ctx, const mtc::zmap &resp) -> std::string;
 //-------------------------------------------------------------------------//
 }// namespace elastic::http::docapi
 //-------------------------------------------------------------------------//

@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(ELASTIC_ENABLE_SSL "Enable SSL support through uWebSockets" OFF)
+option(ELASTIC_ENABLE_SSL "Enable SSL support through uWebSockets" ON)
 option(BUILD_USOCKETS_ENABLED "Build usockets library" ON)
 option(BUILD_TESTS "Building tests" ON)
 
@@ -17,8 +17,11 @@ if (ELASTIC_ENABLE_SSL)
     find_package(OpenSSL REQUIRED)
 endif (ELASTIC_ENABLE_SSL)
 
-
 add_compile_options(-DELASTIC_API_ENABLED)
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(-D__DEBUG__)
+endif ()
 
 if (BUILD_USOCKETS_ENABLED)
     set(USOCKETS_NAME usockets)
@@ -46,7 +49,6 @@ if (BUILD_USOCKETS_ENABLED)
 
     if (ELASTIC_SSL_ENABLED)
         target_compile_definitions(${USOCKETS_NAME} PUBLIC LIBUS_USE_OPENSSL)
-
         target_link_libraries(${USOCKETS_NAME} PUBLIC OpenSSL::SSL OpenSSL::Crypto)
     else ()
         target_compile_definitions(${USOCKETS_NAME} PUBLIC LIBUS_NO_SSL)
@@ -96,6 +98,7 @@ if (BUILD_TESTS)
 
     add_executable(${TEST_NAME} ${TEST_SOURCE_FILES})
     target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME}
+        elasticAPI
         tripoli
         structo
         mtc

@@ -14,6 +14,7 @@ option(BUILD_MTC_ENABLED "Enable build mtc module" OFF)
 option(BUILD_MOONYCODE_ENABLED "Enable build moonycode module" OFF)
 
 set(REGISTER_MODULES {};)
+set(MODULE_LIBS)
 
 # Set output folders
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin CACHE PATH "Single Directory for all")

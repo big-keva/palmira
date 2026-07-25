@@ -48,6 +48,12 @@ namespace elastic::http
     NOT_IMPLEMENTED = 501,
     SERVICE_UNAVAILABLE = 503
   };
+
+  struct error_info final
+  {
+    int code = 0;
+    std::string msg;
+  };
 //-------------------------------------------------------------------------//
   /**
    * Gets status as a string.
@@ -65,7 +71,7 @@ namespace elastic::http
    */
   auto make_error_json(status_codes code, std::string type, std::string reason) -> std::string;
 //-------------------------------------------------------------------------//
-  auto check_resp_on_error(const mtc::zmap &resp) -> void;
+  auto check_resp_on_error(const mtc::zmap &resp) -> error_info;
 //-------------------------------------------------------------------------//
 } // namespace elastic::http
 //-------------------------------------------------------------------------//

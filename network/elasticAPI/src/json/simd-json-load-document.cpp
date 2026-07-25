@@ -7,6 +7,83 @@
 namespace elastic::json
 {
 //-------------------------------------------------------------------------//
+void  Load( simdjson::ondemand::value val, std::function<mtc::api<DeliriX::IText>()> add )
+  {
+    switch ( val.type() )
+    {
+      case simdjson::ondemand::json_type::array:
+      {
+        auto  arr = val.get_array().value();
+        auto  tag = mtc::api<DeliriX::IText>();
+
+        for ( auto element: arr )
+        {
+          if ( element.value().type() == simdjson::ondemand::json_type::object )
+          {
+            Load( element.value(), [&]()
+            {
+              if ( tag == nullptr )
+                tag = add();
+              return tag->AddMarkupTag( { "\x1", 1 } );
+            } );
+          }
+            else
+          {
+            Load( element.value(), [&]()
+              {  return tag != nullptr ? tag : tag = add();  } );
+          }
+        }
+        break;
+      }
+      case simdjson::ondemand::json_type::object:
+      {
+        auto  obj = val.get_object().value();
+        auto  tag = mtc::api<DeliriX::IText>();
+        auto  mkx = mtc::api<DeliriX::IText>();
+
+        for ( auto field: obj )
+        {
+          auto  key = field.unescaped_key().value();
+
+          Load( field.value(), [&]()
+            {
+              if ( tag == nullptr )
+                tag = add();
+              if ( mkx == nullptr )
+                mkx = tag->AddMarkupTag( { "\x1", 1 } );
+              return mkx->AddMarkupTag( key );
+            } );
+        }
+        break;
+      }
+      case simdjson::ondemand::json_type::string:
+      {
+        auto  str = val.get_string().value();
+
+        if ( !str.empty() )
+          add()->AddBlock( DeliriX::IText::persistent, str );
+        break;
+      }
+      case simdjson::ondemand::json_type::number:
+      {
+        auto str = val.raw_json_token();
+
+        if ( !str.empty() )
+          add()->AddBlock( DeliriX::IText::persistent, str );
+        break;
+      }
+      case simdjson::ondemand::json_type::boolean:
+      {
+        add()->AddBlock( DeliriX::IText::persistent, val.get_bool().value() ? "true" : "false" );
+        break;
+      }
+      case simdjson::ondemand::json_type::null:
+      {
+        add()->AddBlock( DeliriX::IText::persistent, "NULL" );
+        break;
+      }
+    }
+  }//-------------------------------------------------------------------------//
   auto load_document(std::string_view json, std::function<mtc::api<DeliriX::IText>()> onadd) -> void
   {
     simdjson::padded_string padded_json(json);
@@ -27,6 +104,7 @@ namespace elastic::json
     switch (value.type())
     {
     case simdjson::ondemand::json_type::array: {
+      auto tag = mtc::api<DeliriX::IText>();
       simdjson::ondemand::array array;
       throw_if_error(value.get_array().get(array), "failed to read JSON array");
 
@@ -36,23 +114,24 @@ namespace elastic::json
         throw_if_error(element.get(array_value), "failed to read JSON array element");
 
         // Loading a document from value.
-        load_document(array_value, onadd);
+        load_document(array_value, [&]() {
+          if (tag == nullptr)
+          {
+            tag = onadd();
+          }
+          return tag->AddMarkupTag( { "\x1", 1 } );
+        });
       }
       break;
     }
     case simdjson::ondemand::json_type::object: {
+      auto tag = mtc::api<DeliriX::IText>();
+      auto mkx = mtc::api<DeliriX::IText>();
       simdjson::ondemand::object object;
       throw_if_error(value.get_object().get(object), "failed to read JSON object");
 
-      auto tag = onadd();
-      if (tag == nullptr)
-      {
-        throw (std::invalid_argument("making a new tag failed"));
-      }
-
       for (auto field_result : object)
       {
-        auto child = mtc::api<DeliriX::IText>();
         simdjson::ondemand::field field;
         throw_if_error(std::move(field_result).get(field), "failed to read object field");
 
@@ -64,13 +143,17 @@ namespace elastic::json
         simdjson::ondemand::value field_value = field.value();
 
         //  Loading a new document from value.
-        load_document(field_value, [&tag, &child, owned_key]() mutable -> mtc::api<DeliriX::IText> {
-          if (child == nullptr)
+        load_document(field_value, [&]() mutable -> mtc::api<DeliriX::IText> {
+          if (tag == nullptr)
           {
-            child = tag->AddMarkupTag(owned_key);
+            tag = onadd();
           }
 
-          return child;
+          if (mkx == nullptr)
+          {
+              mkx = tag->AddMarkupTag( { "\x1", 1 } );
+          }
+          return mkx->AddMarkupTag( key );
         });
       }
       break;
