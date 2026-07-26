@@ -17,11 +17,42 @@ namespace elastic::http
 //-------------------------------------------------------------------------//
   namespace {
 //-------------------------------------------------------------------------//
+    const std::unordered_map<unsigned, const std::string_view> g_braces_types = {
+      {mtc::zval::z_char, ""},
+      {mtc::zval::z_byte, ""},
+      {mtc::zval::z_int16, ""},
+      {mtc::zval::z_word16, ""},
+      {mtc::zval::z_word32, ""},
+      {mtc::zval::z_int64, ""},
+      {mtc::zval::z_word64, ""},
+      {mtc::zval::z_float, ""},
+      {mtc::zval::z_double, ""},
+      {mtc::zval::z_uuid, R"("")"},
+      {mtc::zval::z_charstr, R"("")"},
+      {mtc::zval::z_widestr, R"("")"},
+      {mtc::zval::z_zmap, "{}"},
+
+      {mtc::zval::z_array_char, "[]"},
+      {mtc::zval::z_array_byte, "[]"},
+      {mtc::zval::z_array_int16, "[]"},
+      {mtc::zval::z_array_word16, "[]"},
+      {mtc::zval::z_array_word32, "[]"},
+      {mtc::zval::z_array_int64, "[]"},
+      {mtc::zval::z_array_word64, "[]"},
+      {mtc::zval::z_array_float, "[]"},
+      {mtc::zval::z_array_double, "[]"},
+      {mtc::zval::z_array_uuid, "[]"},
+      {mtc::zval::z_array_charstr, "[]"},
+      {mtc::zval::z_array_widestr, "[]"},
+      {mtc::zval::z_array_zmap, "[]"},
+      {mtc::zval::z_array_zval, "[]"},
+    };
+//-------------------------------------------------------------------------//
     template<typename Output>
-    auto serialize(Output *output, const mtc::zmap &zmap, const char *braces = "{}") -> Output *;
+    auto serialize(Output *output, const mtc::zmap &zmap, const char *braces = "") -> Output *;
 
     template<typename Output>
-    auto serialize(Output *output, const mtc::array_zval &zvalues, const char *braces = "[]") -> Output *;
+    auto serialize(Output *output, const mtc::array_zval &zvalues, const char *braces = "") -> Output *;
 //-------------------------------------------------------------------------//
     auto to_escape(std::string_view value) -> std::string
     {
@@ -64,8 +95,28 @@ namespace elastic::http
     }
 //-------------------------------------------------------------------------//
     template<typename Output>
-    auto serialize(Output *output, const mtc::zval &zval) -> Output *
+    auto serialize(Output *output, char value) -> Output *
     {
+      std::string_view buf(&value, 1);
+      return output->write(buf), output;
+    }
+
+    template<typename Output>
+    auto serialize(Output *output, const mtc::zmap::key &key) -> Output *
+    {
+      return output->write(key.to_charstr()), output;
+    }
+
+    template<typename Output>
+    auto serialize(Output *output, const mtc::zval &zval, const char *braces = "") -> Output *
+    {
+      const std::string_view braces_value = braces != nullptr ? braces : "";
+
+      if (not braces_value.empty())
+      {
+        serialize(output, braces_value[0]);
+      }
+
       switch (zval.get_type())
       {
       case mtc::zval::z_char:    output->write(std::to_string(*zval.get_char())); break;
@@ -82,73 +133,69 @@ namespace elastic::http
       case mtc::zval::z_uuid:    output->write(mtc::to_string(*zval.get_uuid())); break;
 
       case mtc::zval::z_charstr: {
-        output->write("\"");
         output->write(*zval.get_charstr());
-        output->write("\"");
         break;
       }
       case mtc::zval::z_widestr: {
-        output->write("\"");
         output->write(to_utf8(*zval.get_widestr()));
-        output->write("\"");
         break;
       }
 
-      case mtc::zval::z_zmap:       serialize(output, *zval.get_zmap(), nullptr); break;
-      case mtc::zval::z_array_zval: serialize(output, *zval.get_array_zval(), nullptr); break;
+      case mtc::zval::z_zmap:       output = serialize(output, *zval.get_zmap()); break;
+      case mtc::zval::z_array_zval: output = serialize(output, *zval.get_array_zval()); break;
 
       default:
         LOG_W_C("Unsupported serialization type: %d", zval.get_type());
+      }
+
+      if (not braces_value.empty())
+      {
+        assert(braces_value.length() > 1 && "Invalid braces pattern length");
+        serialize(output, braces_value[1]);
       }
 
       return output;
     }
 
     template<typename Output>
-    auto serialize(Output *output, char value) -> Output *
-    {
-      std::string_view buf(&value, 1);
-      return output->write(buf), output;
-    }
-
-    template<typename Output>
-    auto serialize(Output *output, const mtc::zmap::key &key) -> Output *
-    {
-      return output->write(key.to_charstr()), output;
-    }
-
-    template<typename Output>
     auto serialize(Output *output, const mtc::zmap &zmap, const char *braces) -> Output *
     {
-      const std::string_view braces_tmp = braces != nullptr ? braces : "";
+      const std::string_view braces_zmap = (braces != nullptr) ? braces : "";
       auto begin = std::begin(zmap);
       auto end = std::end(zmap);
 
-      if (not braces_tmp.empty())
+      if (not braces_zmap.empty())
       {
-        output = serialize(output, braces[0]);
+        output = serialize(output, braces_zmap[0]);
       }
       if (begin == end)
       {
-        return serialize(output, braces[1]);
+        return serialize(output, braces_zmap[1]);
       }
 
       if (begin->first == mtc::zmap::key{"\x1", 1})
-      {
-        return serialize(output, begin->second);
+      {// There are items in one object.
+        return serialize(output, begin->second, g_braces_types.find(begin->second.get_type())->second.data());
       }
 
-      return serialize(serialize(serialize(serialize(serialize(output, '"'), begin->first), '"'), ':'), begin->second);
+      output = serialize(serialize(serialize(serialize(serialize(output, '"'), begin->first), '"'), ':'), begin->second, g_braces_types.find(begin->second.get_type())->second.data());
+
+      if (not braces_zmap.empty())
+      {
+        assert(braces_zmap.length() > 1 && "Invalid braces pattern length");
+        output = serialize(output, braces_zmap[1]);
+      }
+      return output;
     }
 
     template<typename Output>
     auto serialize(Output *output, const mtc::array_zval &zvalues, const char *braces) -> Output *
     {
-      const std::string_view braces_tmp = braces != nullptr ? braces : "";
+      const std::string_view braces_values = (braces != nullptr) ? braces : "";
 
-      if (not braces_tmp.empty())
+      if (not braces_values.empty())
       {
-        output = serialize(output, braces[0]);
+        output = serialize(output, braces_values[0]);
       }
 
       for (auto iter = std::begin(zvalues); iter != std::end(zvalues); ++iter)
@@ -158,12 +205,14 @@ namespace elastic::http
         {
           output = serialize(output, ',');
         }
+
         output = serialize(output, *iter);
       }
 
-      if (not braces_tmp.empty() && braces_tmp.length() > 1)
+      if (not braces_values.empty())
       {
-        output = serialize(output, braces[1]);
+        assert(braces_values.length() > 1 && "Invalid braces pattern length");
+        output = serialize(output, braces_values[1]);
       }
 
       return output;
@@ -271,7 +320,7 @@ namespace elastic::http
           ctx->response->write(R"("_source": )");
 
           // Serializing response result.
-          serialize(ctx->response, item.get_array_zval("quote", {}), "{}");
+          serialize(ctx->response, item.get_array_zval("quote", {}));
         }
       }
     }
