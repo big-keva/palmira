@@ -111,14 +111,7 @@ namespace
     }
   };
 //-------------------------------------------------------------------------//
-  /**
-   * Возвращает временно свободный TCP-порт.
-   *
-   * Важно: между освобождением порта и запуском сервера теоретически остаётся
-   * небольшое race window. Для локальных unit/integration-тестов это приемлемо.
-   * Production-решение — передавать серверу port=0 и получать реально выбранный
-   * порт из listen socket.
-   */
+/*<???>
   auto find_free_tcp_port() -> std::uint16_t
   {
     socket_handle socket(::socket(AF_INET, SOCK_STREAM, 0));
@@ -146,6 +139,7 @@ namespace
 
     return ntohs(address.sin_port);
   }
+*/
 
   //!< Connects to server.
   auto connect_to_server(std::uint16_t port) -> socket_handle
@@ -398,36 +392,76 @@ namespace
     std::thread wait_thread;
   };
 //-------------------------------------------------------------------------//
-  TEST_F(DocumentApiHttpTest, PutGetAndPostDocument)
+  TEST_F(DocumentApiHttpTest, PutAndGetDocument)
   {
-    // PUT с заданным идентификатором.
-    const auto put_response = execute_http_request(this->port, "PUT", "/test-document-api/_doc/1", R"json({"name":"brave","age":42})json");
+    {// Simple JSON document
+      auto response = execute_http_request(this->port, "PUT", "/test-document-api/_doc/1", R"json({"name":"brave","age":42})json");
+      EXPECT_TRUE(response.status_code == elastic::http::status_codes::OK || response.status_code == elastic::http::status_codes::CREATED)
+        << response.status_line << std::endl
+        << response.body;
+      EXPECT_EQ(response.body, R"({"_index": "test-document-api","_id": "1","_version": 1,"result": "created","_shards": {},"_seq_no": 0,"_primary_term": 1})");
+
+      response = execute_http_request(this->port, "GET", "/test-document-api/_doc/1");
+      EXPECT_EQ(response.status_code, elastic::http::status_codes::OK)
+        << response.status_line
+        << std::endl
+        << response.body;
+      EXPECT_EQ(response.body, R"({"_index": "test-document-api","_id": "1","_version": -1,"_seq_no": 0,"_primary_term": 0,"found": true,"_source": {"name":"brave","age":42}})");
+    }
+    {// Simple array JSON document
+      auto response = execute_http_request(this->port, "PUT", "/test-document-api/_doc/2", R"json({"name":"brave","age":42,"array":["item 1","item 2","item 3"]})json");
+      EXPECT_TRUE(response.status_code == elastic::http::status_codes::OK || response.status_code == elastic::http::status_codes::CREATED)
+        << response.status_line << std::endl
+        << response.body;
+      EXPECT_EQ(response.body, R"({"_index": "test-document-api","_id": "2","_version": 1,"result": "created","_shards": {},"_seq_no": 0,"_primary_term": 1})");
+
+      response = execute_http_request(this->port, "GET", "/test-document-api/_doc/2");
+      EXPECT_EQ(response.status_code, elastic::http::status_codes::OK)
+        << response.status_line
+        << std::endl
+        << response.body;
+      EXPECT_EQ(response.body, R"({"_index": "test-document-api","_id": "2","_version": -1,"_seq_no": 0,"_primary_term": 0,"found": true,"_source": {"name":"brave","age":"42","array":["item 1","item 2","item 3"]}})");
+    }
+  }
+
+  TEST_F(DocumentApiHttpTest, PostAndGetDocument)
+  {
+    // Finding a document id from body.
+    auto find_doc_id = [&](std::string_view body) -> std::string_view {
+      // Ищем "_id": "
+      std::string_view pattern = R"("_id": ")";
+      auto pos = body.find(pattern);
+      if (pos == std::string::npos) {
+        return "";
+      }
+
+      const auto start = pos + pattern.length();
+      const auto end = body.find('"', start);
+
+      if (end == std::string::npos) {
+        return "";
+      }
+
+      return body.substr(start, end - start);
+    };
+    const auto put_response = execute_http_request(this->port, "POST", "/test-document-api/_doc", R"json({"name":"brave","age":42})json");
 
     EXPECT_TRUE(put_response.status_code == elastic::http::status_codes::OK || put_response.status_code == elastic::http::status_codes::CREATED)
       << put_response.status_line << std::endl
       << put_response.body;
-    EXPECT_NE(put_response.body.find("\"_index\""), std::string::npos);
-    EXPECT_NE(put_response.body.find("\"_id\""), std::string::npos);
+    EXPECT_NE(put_response.body.find(R"("_index")"), std::string::npos);
+    ASSERT_NE(put_response.body.find(R"("_id")"), std::string::npos);
 
-    // GET ранее добавленного документа.
-    const auto get_response = execute_http_request(this->port, "GET", "/test-document-api/_doc/1");
+    std::ostringstream buffer;
+    buffer << "/test-document-api/_doc/" << find_doc_id(put_response.body);
+    const auto get_response = execute_http_request(this->port, "GET", buffer.str());
 
     EXPECT_EQ(get_response.status_code, elastic::http::status_codes::OK)
       << get_response.status_line
       << std::endl
       << get_response.body;
     EXPECT_NE(get_response.body.find("\"found\": true"), std::string::npos);
-    // EXPECT_NE(get_response.body.find("\"name\":\"brave\""), std::string::npos);
-
-    // POST без идентификатора. Сервер должен сгенерировать _id.
-    const auto post_response = execute_http_request(this->port, "POST", "/test-document-api/_doc", R"json({"name":"generated-id-document"})json");
-
-    EXPECT_TRUE(post_response.status_code == elastic::http::status_codes::OK || post_response.status_code == elastic::http::status_codes::CREATED)
-      << post_response.status_line
-      << std::endl
-      << post_response.body;
-    EXPECT_NE(post_response.body.find("\"_id\""), std::string::npos);
-    EXPECT_NE(post_response.body.find("\"result\""), std::string::npos);
+    //<!!!> EXPECT_EQ(get_response.body, R"({"_index": "tests","_id": "1","_version": -1,"_seq_no": 0,"_primary_term": 0,"found": true,"_source": ["name":"brave","age":"42"]})");
   }
 
   TEST_F(DocumentApiHttpTest, RejectInvalidJsonDocument)

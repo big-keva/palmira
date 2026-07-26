@@ -53,6 +53,42 @@ namespace elastic::http
 
     template<typename Output>
     auto serialize(Output *output, const mtc::array_zval &zvalues, const char *braces = "") -> Output *;
+
+    template<typename Output>
+    auto serialize(Output *output, char value) -> Output *;
+
+    template<typename Output>
+    auto serialize(Output *output, const mtc::zmap::key &key) -> Output *;
+//-------------------------------------------------------------------------//
+    template<typename Output>
+    struct braces_guard
+    {
+      Output *output = nullptr;
+      const char *braces = "";
+
+      explicit braces_guard(Output *output_, const char *braces_)
+        : output(output_), braces(braces_ != nullptr ? braces_ : "")
+      {
+        if (not this->empty())
+        {
+          serialize(output, this->braces[0]);
+        }
+      }
+
+      ~braces_guard()
+      {
+        if (not this->empty())
+        {
+          serialize(output, this->braces[1]);
+        }
+      }
+
+      [[nodiscard]]
+      auto empty() const noexcept -> bool
+      {
+        return this->braces[0] == '\0';
+      }
+    };
 //-------------------------------------------------------------------------//
     auto to_escape(std::string_view value) -> std::string
     {
@@ -110,48 +146,43 @@ namespace elastic::http
     template<typename Output>
     auto serialize(Output *output, const mtc::zval &zval, const char *braces = "") -> Output *
     {
-      const std::string_view braces_value = braces != nullptr ? braces : "";
-
-      if (not braces_value.empty())
-      {
-        serialize(output, braces_value[0]);
-      }
+      braces_guard guard(output, braces);
 
       switch (zval.get_type())
       {
-      case mtc::zval::z_char:    output->write(std::to_string(*zval.get_char())); break;
-      case mtc::zval::z_byte:    output->write(std::to_string(*zval.get_byte())); break;
-      case mtc::zval::z_int16:   output->write(std::to_string(*zval.get_int16())); break;
-      case mtc::zval::z_word16:  output->write(std::to_string(*zval.get_word16())); break;
-      case mtc::zval::z_int32:   output->write(std::to_string(*zval.get_int32())); break;
-      case mtc::zval::z_word32:  output->write(std::to_string(*zval.get_word32())); break;
-      case mtc::zval::z_int64:   output->write(std::to_string(*zval.get_int64())); break;
-      case mtc::zval::z_word64:  output->write(std::to_string(*zval.get_word64())); break;
-      case mtc::zval::z_float:   output->write(std::to_string(*zval.get_float())); break;
-      case mtc::zval::z_double:  output->write(std::to_string(*zval.get_double())); break;
-      case mtc::zval::z_bool:    output->write(*zval.get_bool() ? "true" : "false"); break;
-      case mtc::zval::z_uuid:    output->write(mtc::to_string(*zval.get_uuid())); break;
+      case mtc::zval::z_char:       output->write(std::to_string(*zval.get_char())); break;
+      case mtc::zval::z_byte:       output->write(std::to_string(*zval.get_byte())); break;
+      case mtc::zval::z_int16:      output->write(std::to_string(*zval.get_int16())); break;
+      case mtc::zval::z_word16:     output->write(std::to_string(*zval.get_word16())); break;
+      case mtc::zval::z_int32:      output->write(std::to_string(*zval.get_int32())); break;
+      case mtc::zval::z_word32:     output->write(std::to_string(*zval.get_word32())); break;
+      case mtc::zval::z_int64:      output->write(std::to_string(*zval.get_int64())); break;
+      case mtc::zval::z_word64:     output->write(std::to_string(*zval.get_word64())); break;
+      case mtc::zval::z_float:      output->write(std::to_string(*zval.get_float())); break;
+      case mtc::zval::z_double:     output->write(std::to_string(*zval.get_double())); break;
+      case mtc::zval::z_bool:       output->write(*zval.get_bool() ? "true" : "false"); break;
+      case mtc::zval::z_uuid: {
+        braces_guard guard_uuid(output, guard.empty() ? g_braces_types.find(mtc::zval::z_uuid)->second.data() : "");
 
+        output->write(mtc::to_string(*zval.get_uuid()));
+        break;
+      }
       case mtc::zval::z_charstr: {
+        braces_guard guard_text(output, guard.empty() ? g_braces_types.find(mtc::zval::z_charstr)->second.data() : "");
+
         output->write(*zval.get_charstr());
         break;
       }
       case mtc::zval::z_widestr: {
+        braces_guard guard_text(output, guard.empty() ? g_braces_types.find(mtc::zval::z_widestr)->second.data() : "");
+
         output->write(to_utf8(*zval.get_widestr()));
         break;
       }
-
       case mtc::zval::z_zmap:       output = serialize(output, *zval.get_zmap()); break;
       case mtc::zval::z_array_zval: output = serialize(output, *zval.get_array_zval()); break;
-
       default:
         LOG_W_C("Unsupported serialization type: %d", zval.get_type());
-      }
-
-      if (not braces_value.empty())
-      {
-        assert(braces_value.length() > 1 && "Invalid braces pattern length");
-        serialize(output, braces_value[1]);
       }
 
       return output;
@@ -160,43 +191,32 @@ namespace elastic::http
     template<typename Output>
     auto serialize(Output *output, const mtc::zmap &zmap, const char *braces) -> Output *
     {
-      const std::string_view braces_zmap = (braces != nullptr) ? braces : "";
       auto begin = std::begin(zmap);
       auto end = std::end(zmap);
+      auto need_quotes = [](unsigned type) -> bool {
+        return type == mtc::zval::z_type::z_charstr || type == mtc::zval::z_type::z_widestr || type == mtc::zval::z_type::z_uuid;
+      };
+      braces_guard guard(output, braces);
 
-      if (not braces_zmap.empty())
-      {
-        output = serialize(output, braces_zmap[0]);
-      }
       if (begin == end)
       {
-        return serialize(output, braces_zmap[1]);
+        return output;
       }
 
       if (begin->first == mtc::zmap::key{"\x1", 1})
       {// There are items in one object.
-        return serialize(output, begin->second, g_braces_types.find(begin->second.get_type())->second.data());
+        return serialize(output, begin->second, not need_quotes(begin->second.get_type()) ? "{}" : g_braces_types.find(begin->second.get_type())->second.data());
       }
 
-      output = serialize(serialize(serialize(serialize(serialize(output, '"'), begin->first), '"'), ':'), begin->second, g_braces_types.find(begin->second.get_type())->second.data());
-
-      if (not braces_zmap.empty())
-      {
-        assert(braces_zmap.length() > 1 && "Invalid braces pattern length");
-        output = serialize(output, braces_zmap[1]);
-      }
-      return output;
+      return serialize(serialize(serialize(serialize(serialize(output, '"'), begin->first), '"'), ':'),
+                  begin->second,
+                  g_braces_types.find(begin->second.get_type())->second.data());
     }
 
     template<typename Output>
     auto serialize(Output *output, const mtc::array_zval &zvalues, const char *braces) -> Output *
     {
-      const std::string_view braces_values = (braces != nullptr) ? braces : "";
-
-      if (not braces_values.empty())
-      {
-        output = serialize(output, braces_values[0]);
-      }
+      braces_guard guard(output, braces);
 
       for (auto iter = std::begin(zvalues); iter != std::end(zvalues); ++iter)
       {
@@ -207,12 +227,6 @@ namespace elastic::http
         }
 
         output = serialize(output, *iter);
-      }
-
-      if (not braces_values.empty())
-      {
-        assert(braces_values.length() > 1 && "Invalid braces pattern length");
-        output = serialize(output, braces_values[1]);
       }
 
       return output;
@@ -261,12 +275,13 @@ namespace elastic::http
       ctx->response->writeStatus(http::to_string(http::status_codes::BAD_REQUEST));
       ctx->response->writeHeader("Content-Length", get_error_context_length(index, docid));
 
+      braces_guard guard(ctx->response, "{}");
       // Writing a body.
-      ctx->response->write(R"({"_index": ")");
+      ctx->response->write(R"("_index": ")");
       ctx->response->write(index);
       ctx->response->write(R"(","_id": ")");
       ctx->response->write(docid);
-      ctx->response->write(R"(","found": false})");
+      ctx->response->write(R"(","found": false)");
     }
     else
     {
@@ -276,20 +291,22 @@ namespace elastic::http
       {// Not found a document by id
         ctx->response->writeHeader("Content-Length", get_error_context_length(index, docid));
 
+        braces_guard guard(ctx->response, "{}");
         // Writing a body.
-        ctx->response->write(R"({"_index": ")");
+        ctx->response->write(R"("_index":")");
         ctx->response->write(index);
-        ctx->response->write(R"(","_id": ")");
+        ctx->response->write(R"(","_id":")");
         ctx->response->write(docid);
-        ctx->response->write(R"(","found": false})");
+        ctx->response->write(R"(","found":false)");
       }
       else
       {
+        braces_guard guard(ctx->response, "{}");
         // Getting a reference on items.
         const auto &items = resp.get_array_zmap("items", {});
         for (const auto &item : items)
         {
-          ctx->response->write(R"({"_index": ")");
+          ctx->response->write(R"("_index": ")");
           ctx->response->write(item.get_zmap("extra", {}).get_charstr("_index", ""));
           ctx->response->write(R"(",)");
 
@@ -324,7 +341,6 @@ namespace elastic::http
         }
       }
     }
-    ctx->response->write(R"(})");
     ctx->response->end();
   }
 
