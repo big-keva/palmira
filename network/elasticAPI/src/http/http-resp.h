@@ -62,9 +62,6 @@ namespace elastic::http
   void send_json_response(response_context<SSL> *ctx, const service_response &response);
 
   template<bool SSL>
-  void send_json_response(response_context<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid);
-
-  template<bool SSL>
   void send_error_response(response_context<SSL> *ctx, status_codes status, std::string_view error_type, std::string_view reason);
 //-------------------------------------------------------------------------//
 }// namespace elastic::http

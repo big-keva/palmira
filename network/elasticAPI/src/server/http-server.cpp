@@ -459,7 +459,7 @@ namespace elastic
 
               LOG_T_C("Replying a response: index=%s id=%s", index.data(), id.data());
               // Replying a response to client.
-              http::send_json_response(resp_ctx.get(), resp, index, id);
+              http::docapi::send_json_response(resp_ctx.get(), resp, index, id);
             });
           });
         }

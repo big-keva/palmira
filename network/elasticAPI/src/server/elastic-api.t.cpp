@@ -29,10 +29,13 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <filesystem>
 #include <thread>
 #include <utility>
 //-------------------------------------------------------------------------//
 #include <service/structo-search.hpp>
+//-------------------------------------------------------------------------//
+#include <simdjson.h>
 //-------------------------------------------------------------------------//
 #include "../http/http-req.h"
 //-------------------------------------------------------------------------//
@@ -333,7 +336,7 @@ namespace
     DocumentApiHttpTest()
       : config{
         {"service", mtc::zmap{
-          {"index", mtc::zmap{{"generic_name", "libelasticAPI.so"}}},
+          {"index", mtc::zmap{{"generic_name", "test-elastic-api"}}},
           {"contents", "Mini"}}
           },
         {"config", mtc::zmap{
@@ -383,6 +386,8 @@ namespace
       {
         this->wait_thread.join();
       }
+
+      std::filesystem::remove(this->config.get_section("config").get_section("index").get_path("generic_name"));
     }
 
     const mtc::config config;
@@ -395,73 +400,92 @@ namespace
   TEST_F(DocumentApiHttpTest, PutAndGetDocument)
   {
     {// Simple JSON document
+      simdjson::ondemand::parser parser;
       auto response = execute_http_request(this->port, "PUT", "/test-document-api/_doc/1", R"json({"name":"brave","age":42})json");
       EXPECT_TRUE(response.status_code == elastic::http::status_codes::OK || response.status_code == elastic::http::status_codes::CREATED)
         << response.status_line << std::endl
         << response.body;
-      EXPECT_EQ(response.body, R"({"_index": "test-document-api","_id": "1","_version": 1,"result": "created","_shards": {},"_seq_no": 0,"_primary_term": 1})");
+      auto doc = parser.iterate(response.body);
+
+      EXPECT_EQ(doc["_index"].get_string().value(), "test-document-api");
+      EXPECT_EQ(doc["_id"].get_string().value(), "1");
+      EXPECT_EQ(doc["_version"].get_int64().value(), 1);
+      EXPECT_EQ(doc["result"].get_string().value(), "created");
 
       response = execute_http_request(this->port, "GET", "/test-document-api/_doc/1");
       EXPECT_EQ(response.status_code, elastic::http::status_codes::OK)
         << response.status_line
         << std::endl
         << response.body;
-      EXPECT_EQ(response.body, R"({"_index": "test-document-api","_id": "1","_version": -1,"_seq_no": 0,"_primary_term": 0,"found": true,"_source": {"name":"brave","age":42}})");
+      doc = parser.iterate(response.body);
+
+      EXPECT_EQ(doc["_index"].get_string().value(), "test-document-api");
+      EXPECT_EQ(doc["_id"].get_string().value(), "1");
+      EXPECT_EQ(doc["_version"].get_string().value(), "1");
+      EXPECT_TRUE(doc["found"].get_bool().value());
+      EXPECT_EQ(doc["_source"]["name"].get_string().value(), "brave");
+      EXPECT_EQ(doc["_source"]["age"].get_int64().value(), 42);
     }
     {// Simple array JSON document
+      simdjson::ondemand::parser parser;
       auto response = execute_http_request(this->port, "PUT", "/test-document-api/_doc/2", R"json({"name":"brave","age":42,"array":["item 1","item 2","item 3"]})json");
       EXPECT_TRUE(response.status_code == elastic::http::status_codes::OK || response.status_code == elastic::http::status_codes::CREATED)
         << response.status_line << std::endl
         << response.body;
-      EXPECT_EQ(response.body, R"({"_index": "test-document-api","_id": "2","_version": 1,"result": "created","_shards": {},"_seq_no": 0,"_primary_term": 1})");
+      auto doc = parser.iterate(response.body);
+      EXPECT_EQ(doc["_index"].get_string().value(), "test-document-api");
+      EXPECT_EQ(doc["_id"].get_string().value(), "2");
+      EXPECT_EQ(doc["_version"].get_int64().value(), 1);
+      EXPECT_EQ(doc["result"].get_string().value(), "created");
 
       response = execute_http_request(this->port, "GET", "/test-document-api/_doc/2");
       EXPECT_EQ(response.status_code, elastic::http::status_codes::OK)
         << response.status_line
         << std::endl
         << response.body;
-      EXPECT_EQ(response.body, R"({"_index": "test-document-api","_id": "2","_version": -1,"_seq_no": 0,"_primary_term": 0,"found": true,"_source": {"name":"brave","age":"42","array":["item 1","item 2","item 3"]}})");
+      doc = parser.iterate(response.body);
+      EXPECT_EQ(doc["_index"].get_string().value(), "test-document-api");
+      EXPECT_EQ(doc["_id"].get_string().value(), "1");
+      EXPECT_EQ(doc["_version"].get_string().value(), "1");
+      EXPECT_TRUE(doc["found"].get_bool().value());
+      EXPECT_EQ(doc["_source"]["name"].get_string().value(), "brave");
+      EXPECT_EQ(doc["_source"]["age"].get_int64().value(), 42);
     }
   }
 
   TEST_F(DocumentApiHttpTest, PostAndGetDocument)
   {
-    // Finding a document id from body.
-    auto find_doc_id = [&](std::string_view body) -> std::string_view {
-      // Ищем "_id": "
-      std::string_view pattern = R"("_id": ")";
-      auto pos = body.find(pattern);
-      if (pos == std::string::npos) {
-        return "";
-      }
+    simdjson::ondemand::parser parser;
+    auto response = execute_http_request(this->port, "POST", "/test-document-api/_doc", R"json({"name":"brave","age":42})json");
 
-      const auto start = pos + pattern.length();
-      const auto end = body.find('"', start);
+    EXPECT_TRUE(response.status_code == elastic::http::status_codes::OK || response.status_code == elastic::http::status_codes::CREATED)
+      << response.status_line << std::endl
+      << response.body;
+    auto doc = parser.iterate(response.body);
+    auto doc_id = std::string(doc["_id"].get_string().value());
 
-      if (end == std::string::npos) {
-        return "";
-      }
+    EXPECT_EQ(doc["_index"].get_string().value(), "test-document-api");
+    EXPECT_FALSE(doc_id.empty());
 
-      return body.substr(start, end - start);
-    };
-    const auto put_response = execute_http_request(this->port, "POST", "/test-document-api/_doc", R"json({"name":"brave","age":42})json");
-
-    EXPECT_TRUE(put_response.status_code == elastic::http::status_codes::OK || put_response.status_code == elastic::http::status_codes::CREATED)
-      << put_response.status_line << std::endl
-      << put_response.body;
-    EXPECT_NE(put_response.body.find(R"("_index")"), std::string::npos);
-    ASSERT_NE(put_response.body.find(R"("_id")"), std::string::npos);
+    EXPECT_NE(response.body.find(R"("_index")"), std::string::npos);
+    ASSERT_NE(response.body.find(R"("_id")"), std::string::npos);
 
     std::ostringstream buffer;
-    buffer << "/test-document-api/_doc/" << find_doc_id(put_response.body);
-    const auto get_response = execute_http_request(this->port, "GET", buffer.str());
+    buffer << "/test-document-api/_doc/" << doc_id;
+    response = execute_http_request(this->port, "GET", buffer.str());
 
-    EXPECT_EQ(get_response.status_code, elastic::http::status_codes::OK)
-      << get_response.status_line
+    EXPECT_EQ(response.status_code, elastic::http::status_codes::OK)
+      << response.status_line
       << std::endl
-      << get_response.body;
-    EXPECT_NE(get_response.body.find("\"found\": true"), std::string::npos);
-    //<!!!> EXPECT_EQ(get_response.body, R"({"_index": "tests","_id": "1","_version": -1,"_seq_no": 0,"_primary_term": 0,"found": true,"_source": ["name":"brave","age":"42"]})");
+      << response.body;
+    doc = parser.iterate(response.body);
+
+    EXPECT_EQ(doc["_index"].get_string().value(), "test-document-api");
+    EXPECT_EQ(doc["_id"].get_string().value(), "1");
+    EXPECT_EQ(doc["_version"].get_string().value(), "1");
+    EXPECT_TRUE(doc["found"].get_bool().value());
+    EXPECT_EQ(doc["_source"]["name"].get_string().value(), "brave");
+    EXPECT_EQ(doc["_source"]["age"].get_int64().value(), 42);
   }
 
   TEST_F(DocumentApiHttpTest, RejectInvalidJsonDocument)

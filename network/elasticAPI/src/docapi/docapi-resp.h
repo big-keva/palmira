@@ -45,14 +45,8 @@ namespace elastic::http::docapi
    */
   auto make_remove_response(const mtc::zmap &resp) -> std::string;
 
-  /**
-   * Makes a response of searching a document.
-   * @param ctx [in] - HTTP context.
-   * @param resp [in] - A response.
-   * @return A response in JSON format.
-   */
   template<bool SSL>
-  auto send_search_response(response_context<SSL> *ctx, const mtc::zmap &resp) -> std::string;
+  auto send_json_response(response_context<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid) -> void;
 //-------------------------------------------------------------------------//
 }// namespace elastic::http::docapi
 //-------------------------------------------------------------------------//

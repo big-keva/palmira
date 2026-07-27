@@ -8,13 +8,201 @@
 #include <mtc/json.h>
 //-------------------------------------------------------------------------//
 #include "../../logger/logger.h"
-//-------------------------------------------------------------------------//
 #include "../../json/serializer.h"
+#include "../../common/utils.h"
 //-------------------------------------------------------------------------//
 #include "../docapi-resp.h"
 //-------------------------------------------------------------------------//
 namespace elastic::http::docapi
 {
+//-------------------------------------------------------------------------//
+  namespace
+  {
+    const std::unordered_map<unsigned, const std::string_view> g_braces_types = {
+      {mtc::zval::z_char, ""},
+      {mtc::zval::z_byte, ""},
+      {mtc::zval::z_int16, ""},
+      {mtc::zval::z_word16, ""},
+      {mtc::zval::z_word32, ""},
+      {mtc::zval::z_int64, ""},
+      {mtc::zval::z_word64, ""},
+      {mtc::zval::z_float, ""},
+      {mtc::zval::z_double, ""},
+      {mtc::zval::z_uuid, R"("")"},
+      {mtc::zval::z_charstr, R"("")"},
+      {mtc::zval::z_widestr, R"("")"},
+      {mtc::zval::z_zmap, "{}"},
+
+      {mtc::zval::z_array_char, "[]"},
+      {mtc::zval::z_array_byte, "[]"},
+      {mtc::zval::z_array_int16, "[]"},
+      {mtc::zval::z_array_word16, "[]"},
+      {mtc::zval::z_array_word32, "[]"},
+      {mtc::zval::z_array_int64, "[]"},
+      {mtc::zval::z_array_word64, "[]"},
+      {mtc::zval::z_array_float, "[]"},
+      {mtc::zval::z_array_double, "[]"},
+      {mtc::zval::z_array_uuid, "[]"},
+      {mtc::zval::z_array_charstr, "[]"},
+      {mtc::zval::z_array_widestr, "[]"},
+      {mtc::zval::z_array_zmap, "[]"},
+      {mtc::zval::z_array_zval, "[]"},
+    };
+//-------------------------------------------------------------------------//
+    template<typename Output>
+    auto serialize(Output *output, const mtc::zmap &zmap, const char *braces = "") -> Output *;
+
+    template<typename Output>
+    auto serialize(Output *output, const mtc::array_zval &zvalues, const char *braces = "") -> Output *;
+
+    template<typename Output>
+    auto serialize(Output *output, char value) -> Output *;
+
+    template<typename Output>
+    auto serialize(Output *output, const mtc::zmap::key &key) -> Output *;
+//-------------------------------------------------------------------------//
+    template<typename Output>
+    struct braces_guard
+    {
+      Output *output = nullptr;
+      const char *braces = "";
+
+      explicit braces_guard(Output *output_, const char *braces_)
+        : output(output_), braces(braces_ != nullptr ? braces_ : "")
+      {
+        if (not this->empty())
+        {
+          serialize(output, this->braces[0]);
+        }
+      }
+
+      ~braces_guard()
+      {
+        if (not this->empty())
+        {
+          serialize(output, this->braces[1]);
+        }
+      }
+
+      [[nodiscard]]
+      auto empty() const noexcept -> bool
+      {
+        return this->braces[0] == '\0';
+      }
+    };
+//-------------------------------------------------------------------------//
+    auto get_error_context_length(std::string_view index, std::string_view docid) -> size_t
+    {
+      static const auto s_length = std::strlen(R"({"_index": ")") +
+                                              std::strlen(R"(","_id": ")") +
+                                              std::strlen(R"(","found": false})");
+
+      return s_length + index.length() + docid.length();
+    }
+//-------------------------------------------------------------------------//
+    template<typename Output>
+    auto serialize(Output *output, char value) -> Output *
+    {
+      std::string_view buf(&value, 1);
+      return output->write(buf), output;
+    }
+
+    template<typename Output>
+    auto serialize(Output *output, const mtc::zmap::key &key) -> Output *
+    {
+      return output->write(key.to_charstr()), output;
+    }
+
+    template<typename Output>
+    auto serialize(Output *output, const mtc::zval &zval, const char *braces = "") -> Output *
+    {
+      braces_guard guard(output, braces);
+
+      switch (zval.get_type())
+      {
+      case mtc::zval::z_char:       output->write(std::to_string(*zval.get_char())); break;
+      case mtc::zval::z_byte:       output->write(std::to_string(*zval.get_byte())); break;
+      case mtc::zval::z_int16:      output->write(std::to_string(*zval.get_int16())); break;
+      case mtc::zval::z_word16:     output->write(std::to_string(*zval.get_word16())); break;
+      case mtc::zval::z_int32:      output->write(std::to_string(*zval.get_int32())); break;
+      case mtc::zval::z_word32:     output->write(std::to_string(*zval.get_word32())); break;
+      case mtc::zval::z_int64:      output->write(std::to_string(*zval.get_int64())); break;
+      case mtc::zval::z_word64:     output->write(std::to_string(*zval.get_word64())); break;
+      case mtc::zval::z_float:      output->write(std::to_string(*zval.get_float())); break;
+      case mtc::zval::z_double:     output->write(std::to_string(*zval.get_double())); break;
+      case mtc::zval::z_bool:       output->write(*zval.get_bool() ? "true" : "false"); break;
+      case mtc::zval::z_uuid: {
+        braces_guard guard_uuid(output, guard.empty() ? g_braces_types.find(mtc::zval::z_uuid)->second.data() : "");
+
+        output->write(mtc::to_string(*zval.get_uuid()));
+        break;
+      }
+      case mtc::zval::z_charstr: {
+        braces_guard guard_text(output, guard.empty() ? g_braces_types.find(mtc::zval::z_charstr)->second.data() : "");
+
+        output->write(*zval.get_charstr());
+        break;
+      }
+      case mtc::zval::z_widestr: {
+        braces_guard guard_text(output, guard.empty() ? g_braces_types.find(mtc::zval::z_widestr)->second.data() : "");
+
+        output->write(to_utf8(*zval.get_widestr()));
+        break;
+      }
+      case mtc::zval::z_zmap:       output = serialize(output, *zval.get_zmap()); break;
+      case mtc::zval::z_array_zval: output = serialize(output, *zval.get_array_zval()); break;
+      default:
+        LOG_W_C("Unsupported serialization type: %d", zval.get_type());
+      }
+
+      return output;
+    }
+
+    template<typename Output>
+    auto serialize(Output *output, const mtc::zmap &zmap, const char *braces) -> Output *
+    {
+      auto begin = std::begin(zmap);
+      auto end = std::end(zmap);
+      auto need_quotes = [](unsigned type) -> bool {
+        return type == mtc::zval::z_type::z_charstr || type == mtc::zval::z_type::z_widestr || type == mtc::zval::z_type::z_uuid;
+      };
+      braces_guard guard(output, braces);
+
+      if (begin == end)
+      {
+        return output;
+      }
+
+      if (begin->first == mtc::zmap::key{"\x1", 1})
+      {// There are items in one object.
+        return serialize(output, begin->second, not need_quotes(begin->second.get_type()) ? "{}" : g_braces_types.find(begin->second.get_type())->second.data());
+      }
+
+      return serialize(serialize(serialize(serialize(serialize(output, '"'), begin->first), '"'), ':'),
+                  begin->second,
+                  g_braces_types.find(begin->second.get_type())->second.data());
+    }
+
+    template<typename Output>
+    auto serialize(Output *output, const mtc::array_zval &zvalues, const char *braces) -> Output *
+    {
+      braces_guard guard(output, braces);
+
+      for (auto iter = std::begin(zvalues); iter != std::end(zvalues); ++iter)
+      {
+        LOG_T_C("Serializing a value: [%d] %s", iter->get_type(), mtc::to_string(*iter).c_str());
+        if (iter != std::begin(zvalues))
+        {
+          output = serialize(output, ',');
+        }
+
+        output = serialize(output, *iter);
+      }
+
+      return output;
+    }
+//-------------------------------------------------------------------------//
+  } // namespace
 //-------------------------------------------------------------------------//
   auto make_index_response(const mtc::zmap &resp) -> std::string {
     std::ostringstream buffer;
@@ -53,54 +241,100 @@ namespace elastic::http::docapi
   {
     return {};
   }
-
-  auto make_search_response(const mtc::zmap &ret) -> std::string
+//-------------------------------------------------------------------------//
+  template<bool SSL>
+  void send_json_response(response_context<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid)
   {
-    std::ostringstream buffer;
+    assert(ctx != nullptr && "Invalid response context");
+    if (ctx->aborted.load(std::memory_order_acquire)) {
+      return;
+    }
 
-    try
+    if (ctx->response == nullptr) {
+      return;
+    }
+
+    ctx->response->writeHeader("Content-Type", "application/json");
+
+    const auto error = check_resp_on_error(resp);
+    if (error.code != 0)
     {
-      LOG_T_C("Received response: %s", mtc::to_string(ret).c_str());
-      const auto &resp = ret.get_zmap("resp", {});
+      ctx->response->writeStatus(http::to_string(http::status_codes::BAD_REQUEST));
+      ctx->response->writeHeader("Content-Length", get_error_context_length(index, docid));
 
-      // Checking response on errors.
-      check_resp_on_error(resp);
+      braces_guard guard(ctx->response, "{}");
+      // Writing a body.
+      ctx->response->write(R"("_index": ")");
+      ctx->response->write(index);
+      ctx->response->write(R"(","_id": ")");
+      ctx->response->write(docid);
+      ctx->response->write(R"(","found": false)");
+    }
+    else
+    {
+      ctx->response->writeStatus(http::to_string(http::status_codes::OK));
 
       if (resp.get_word32("found", 0) == 0)
-      {// Not found document by id
-        return R"({"_index": ")" + ret.get_charstr("_index", "") + R"(","_id": ")" + ret.get_charstr("_id", "") + R"(","found": false})";
-      }
+      {// Not found a document by id
+        ctx->response->writeHeader("Content-Length", get_error_context_length(index, docid));
 
-      // Getting a reference on items.
-      const auto &items = resp.get_array_zmap("items", {});
-      for (const auto &item : items)
+        braces_guard guard(ctx->response, "{}");
+        // Writing a body.
+        ctx->response->write(R"("_index":")");
+        ctx->response->write(index);
+        ctx->response->write(R"(","_id":")");
+        ctx->response->write(docid);
+        ctx->response->write(R"(","found":false)");
+      }
+      else
       {
-        buffer << R"("_index": )" << R"(")" << item.get_zmap("extra", {}).get_charstr("_index", "") << R"(",)" <<
-                  R"("_id": )" << R"(")" << item.get_charstr("_d", item.get_zmap("extra", {}).get_charstr("_id", "")) << R"(",)" <<
-                  R"("_version": )" << R"(")" << item.get_zmap("extra", {}).get_int32("_version", -1) << R"(",)" <<
-                  R"("_seq_no": )" << R"(")" << item.get_zmap("extra", {}).get_int32("_seq_no", 0) << R"(",)" <<
-                  R"("_primary_term": )" << R"(")" << item.get_zmap("extra", {}).get_int32("_primary_term", 0) << R"(",)" <<
-                  R"("found": true)";
-        if (item.get_array_zval("quote", {}).empty())
+        braces_guard guard(ctx->response, "{}");
+        // Getting a reference on items.
+        const auto &items = resp.get_array_zmap("items", {});
+        for (const auto &item : items)
         {
-          continue;
+          ctx->response->write(R"("_index": ")");
+          ctx->response->write(item.get_zmap("extra", {}).get_charstr("_index", ""));
+          ctx->response->write(R"(",)");
+
+          ctx->response->write(R"("_id": ")");
+          ctx->response->write(item.get_charstr("_id", item.get_zmap("extra", {}).get_charstr("_id", "")));
+          ctx->response->write(R"(",)");
+
+          ctx->response->write(R"("_version": )");
+          ctx->response->write(std::to_string(item.get_zmap("extra", {}).get_int32("_version", -1)));
+          ctx->response->write(R"(,)");
+
+          ctx->response->write(R"("_seq_no": )");
+          ctx->response->write(std::to_string(item.get_zmap("extra", {}).get_int32("_seq_no", 0)));
+          ctx->response->write(R"(,)");
+
+          ctx->response->write(R"("_primary_term": )");
+          ctx->response->write(std::to_string(item.get_zmap("extra", {}).get_int32("_primary_term", 0)));
+          ctx->response->write(R"(,)");
+
+          ctx->response->write(R"("found": true)");
+
+          if (item.get_array_zval("quote", {}).empty())
+          {
+            continue;
+          }
+
+          ctx->response->write(R"(,)");
+          ctx->response->write(R"("_source": )");
+
+          // Serializing response result.
+          serialize(ctx->response, item.get_array_zval("quote", {}));
         }
-
-        buffer << R"(,)" <<
-                  R"("_source": {)";
-
-        // Serializing response result.
-        json::serialize(buffer, item.get_array_zval("quote", {}));
-
-        buffer << R"(})";
       }
     }
-    catch (const std::exception &exc)
-    {
-      LOG_E_C("Proceed SEARCH request failed: %s", exc.what());
-    }
-
-    return R"({)" + buffer.str() + R"(})";
+    ctx->response->end();
   }
+//-------------------------------------------------------------------------//
+  template
+  void send_json_response<false>(response_context<false> *, const mtc::zmap &, std::string_view, std::string_view);
+
+  template
+  void send_json_response<true>(response_context<true> *, const mtc::zmap &, std::string_view, std::string_view);
 //-------------------------------------------------------------------------//
 } // namespace elastic::http::docapi
