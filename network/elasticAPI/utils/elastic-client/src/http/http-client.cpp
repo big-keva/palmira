@@ -14,6 +14,11 @@ namespace elastic::http
     }
   }
 
+  client::~client()
+  {
+    this->sess.shutdown();
+  }
+
   auto client::execute(const request& req) -> response
   {
     response result;

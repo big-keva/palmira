@@ -145,7 +145,7 @@ namespace elastic
       }
     }
   }
-  //-------------------------------------------------------------------------//
+//-------------------------------------------------------------------------//
   template <typename executer_context>
   void async_executer<executer_context>::onrun() noexcept
   {

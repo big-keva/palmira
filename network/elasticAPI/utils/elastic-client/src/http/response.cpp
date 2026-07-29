@@ -216,18 +216,4 @@ namespace elastic::http
     return true;
   }
 //-------------------------------------------------------------------------//
-  template<class onjson_t>
-  auto response::parse_json(onjson_t &&onjson) const -> void
-  {
-    this->padded_body = simdjson::padded_string(this->raw_body.data(), this->raw_body.size());
-
-    auto document_result = this->parser.iterate(this->padded_body);
-    if (document_result.error() != simdjson::SUCCESS)
-    {
-      throw simdjson::simdjson_error(document_result.error());
-    }
-
-    std::invoke(std::forward<onjson_t>(onjson), document_result.value());
-  }
-//-------------------------------------------------------------------------//
 } // namespace elastic::http

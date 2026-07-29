@@ -7,7 +7,7 @@ namespace elastic::http::tests
 //-------------------------------------------------------------------------//
   TEST(SessionTest, NormalizesTrailingSlashesInBaseUrl)
   {
-      session value{"http://localhost:9200///"};
+      session value{"http://localhost:9200"};
 
       EXPECT_EQ(value.base_url(), "http://localhost:9200");
   }

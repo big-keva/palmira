@@ -40,6 +40,9 @@ namespace elastic::http
      */
     auto perform(const request &req, response &resp) -> void;
 
+    //!< Shuts the session down.
+    auto shutdown() -> void;
+
     /**
      * Sets a base URL.
      * @param value [in] - A base URL.

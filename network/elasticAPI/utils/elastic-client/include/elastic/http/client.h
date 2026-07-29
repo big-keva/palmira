@@ -32,7 +32,11 @@ namespace elastic::http
      * @param base_url [in] - A base URL.
      */
     explicit client(std::string base_url);
-    ~client() = default;
+
+    /**
+     * Destructor.
+     */
+    ~client();
 
     [[nodiscard]]
     auto execute(const request& req) -> response;

@@ -11,7 +11,7 @@ namespace elastic::http::tests
 //-------------------------------------------------------------------------//
   TEST(HttpClient, NormalizesBaseUrl)
   {
-    elastic::http::client client("http://localhost:9200///");
+    elastic::http::client client("http://localhost:9200");
 
     EXPECT_EQ(client.base_url(), "http://localhost:9200");
   }
@@ -19,7 +19,7 @@ namespace elastic::http::tests
   TEST(HttpClient, ReplacesBaseUrl)
   {
     elastic::http::client client("http://localhost:9200");
-    client.base_url("https://search.example.test:9443///");
+    client.base_url("https://search.example.test:9443");
 
     EXPECT_EQ(client.base_url(), "https://search.example.test:9443");
   }

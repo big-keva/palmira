@@ -82,7 +82,19 @@ namespace elastic::http
     [[nodiscard]] auto keep_alive() const -> bool;
 
     template<class onjson_t>
-    auto parse_json(onjson_t &&onjson) const -> void;
+    auto parse_json(onjson_t &&onjson) const
+    {
+      this->padded_body = simdjson::padded_string(this->raw_body.data(), this->raw_body.size());
+
+      auto document_result = this->parser.iterate(this->padded_body);
+      if (document_result.error() != simdjson::SUCCESS)
+      {
+        throw simdjson::simdjson_error(document_result.error());
+      }
+
+      static_assert(std::is_invocable_v<onjson_t, simdjson::ondemand::document &>, "Callback must accept simdjson::ondemand::document&");
+      return std::invoke(std::forward<onjson_t>(onjson), document_result.value());
+    }
 
   private:
     auto parse_headers() const -> void;

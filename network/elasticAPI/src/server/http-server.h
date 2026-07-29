@@ -128,6 +128,9 @@ namespace elastic
     template<bool SSL, typename Response, typename Request>
     auto onget(Response *res, Request *req) -> void;
 
+    template<bool SSL, typename Response, typename Request>
+    auto ondel(Response *res, Request *req) -> void;
+
   private:
     auto onloop() -> void;
     auto onlisten(us_listen_socket_t *token) -> void;

@@ -101,7 +101,7 @@ if (BUILD_TESTS)
 
     add_executable(${TEST_NAME} ${TEST_SOURCE_FILES})
     target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME}
-        elasticAPI
+        elastic-client
         tripoli
         structo
         mtc
@@ -111,7 +111,10 @@ if (BUILD_TESTS)
         simdjson::simdjson
         z
     )
-    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_include_directories(${TEST_NAME} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/utils/elastic-client/include
+    )
 
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
     set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 30)

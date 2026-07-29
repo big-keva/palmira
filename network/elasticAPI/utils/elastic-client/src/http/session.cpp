@@ -73,7 +73,7 @@ namespace elastic::http
 
     try
     {
-      configure();
+      this->configure();
     }
     catch (...)
     {
@@ -85,13 +85,7 @@ namespace elastic::http
 
   session::~session()
   {
-    clear_headers();
-
-    if (this->handle != nullptr)
-    {
-      curl_easy_cleanup(this->handle);
-      this->handle = nullptr;
-    }
+    this->shutdown();
   }
 
   auto session::base_url(std::string value) -> session &
@@ -151,6 +145,17 @@ namespace elastic::http
     resp.headers_parsed = true;
   }
 
+  auto session::shutdown() -> void
+  {
+    this->clear_headers();
+
+    if (this->handle != nullptr)
+    {
+      curl_easy_cleanup(this->handle);
+      this->handle = nullptr;
+    }
+  }
+
   auto session::clear_headers() noexcept -> void
   {
     if (this->request_headers != nullptr)
@@ -168,6 +173,7 @@ namespace elastic::http
     set_option(this->handle, CURLOPT_POST, 0L, "reset CURLOPT_POST");
     set_option(this->handle, CURLOPT_UPLOAD, 0L, "reset CURLOPT_UPLOAD");
     set_option(this->handle, CURLOPT_NOBODY, 0L, "reset CURLOPT_NOBODY");
+
     set_option(this->handle, CURLOPT_CUSTOMREQUEST, static_cast<const char *>(nullptr), "reset CURLOPT_CUSTOMREQUEST");
     set_option(this->handle, CURLOPT_POSTFIELDS, static_cast<const char *>(nullptr), "reset CURLOPT_POSTFIELDS");
     set_option(this->handle, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(0), "reset CURLOPT_POSTFIELDSIZE_LARGE");
