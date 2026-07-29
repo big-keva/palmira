@@ -1,0 +1,8 @@
+//
+// Created by bulganin-va on 28.07.2026.
+//
+
+#ifndef PALMIRA_DELETE_DOCUMENT_REQUEST_H
+#define PALMIRA_DELETE_DOCUMENT_REQUEST_H
+
+#endif // PALMIRA_DELETE_DOCUMENT_REQUEST_H

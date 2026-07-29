@@ -1,0 +1,8 @@
+//
+// Created by bulganin-va on 28.07.2026.
+//
+
+#ifndef PALMIRA_CREATE_INDEX_REQUEST_H
+#define PALMIRA_CREATE_INDEX_REQUEST_H
+
+#endif // PALMIRA_CREATE_INDEX_REQUEST_H

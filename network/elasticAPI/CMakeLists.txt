@@ -93,6 +93,9 @@ if (BUILD_TESTS)
 
     enable_testing()
 
+    #
+    add_subdirectory(utils)
+
     # Collecting source test files.
     file(GLOB_RECURSE TEST_SOURCE_FILES src/*.t.cpp)
 

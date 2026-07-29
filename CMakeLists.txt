@@ -60,6 +60,7 @@ if (BUILD_MTC_ENABLED)
 endif (BUILD_MTC_ENABLED)
 
 set(MoonyCode_LIB moonycode-objset)
+set(MoonyCode_LIB moonycode-objset)
 if (BUILD_MOONYCODE_ENABLED)
 	add_subdirectory(contrib/moonycode)
 	message(STATUS "Found ${MoonyCode_LIB}" )
