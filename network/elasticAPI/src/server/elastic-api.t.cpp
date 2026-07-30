@@ -162,10 +162,10 @@ namespace
     {
       const auto document_id = get_rand_document_id();
       auto index_resp = this->client->index(this->index, document_id)
-                                                            .body(R"json({"name":"brave","age":42})json")
-                                                            .query("refresh", "wait_for")
-                                                            .timeout(10000)
-                                                            .execute();
+                                                          .body(R"json({"name":"brave","age":42})json")
+                                                          .query("refresh", "wait_for")
+                                                          .timeout(10000)
+                                                          .execute();
       ASSERT_TRUE(index_resp.ok());
       ASSERT_TRUE(index_resp.is_json());
       index_resp.parse_json([&](simdjson::ondemand::document &doc) {
@@ -176,8 +176,8 @@ namespace
       });
 
       auto get_resp = this->client->get_document(this->index, document_id)
-                                                        .timeout(10000)
-                                                        .execute();
+                                                     .timeout(10000)
+                                                     .execute();
       ASSERT_TRUE(get_resp.ok());
       ASSERT_TRUE(get_resp.is_json());
       std::fprintf(stdout, "Response: %s\n", std::string(get_resp.body().data(), get_resp.body().length()).c_str());
@@ -191,12 +191,13 @@ namespace
       });
     }
     {// Simple array JSON document
+      constexpr std::string_view expected[]{"item 1","item 2","item 3"};
       const auto document_id = get_rand_document_id();
       auto index_resp = this->client->index(this->index, document_id)
-                                                            .body(R"json({"name":"brave","age":42,"array":["item 1","item 2","item 3"]})json")
-                                                            .query("refresh", "wait_for")
-                                                            .timeout(10000)
-                                                            .execute();
+                                                         .body(R"json({"name":"brave","age":42,"array":["item 1","item 2","item 3"]})json")
+                                                         .query("refresh", "wait_for")
+                                                         .timeout(10000)
+                                                         .execute();
       ASSERT_TRUE(index_resp.ok());
       ASSERT_TRUE(index_resp.is_json());
       index_resp.parse_json([&](simdjson::ondemand::document &doc) {
@@ -207,11 +208,11 @@ namespace
       });
 
       auto get_resp = this->client->get_document(this->index, document_id)
-                                                        .timeout(10000)
-                                                        .execute();
+                                                     .timeout(10000)
+                                                     .execute();
       ASSERT_TRUE(get_resp.ok());
       ASSERT_TRUE(get_resp.is_json());
-      get_resp.parse_json([&](simdjson::ondemand::document &doc) {
+      get_resp.parse_json([&](simdjson::ondemand::document &doc) mutable {
         EXPECT_EQ(doc["_index"].get_string().value(), this->index);
         EXPECT_EQ(doc["_id"].get_string().value(), document_id);
         EXPECT_EQ(doc["_version"].get_int64().value(), -1);
@@ -219,6 +220,20 @@ namespace
         EXPECT_EQ(doc["_source"]["name"].get_string().value(), "brave");
         EXPECT_EQ(doc["_source"]["age"].get_string().value(), "42");
         //<TODO> EXPECT_EQ(doc["_source"]["age"].get_int64().value(), 42);
+
+        std::uint16_t index = 0;
+        auto actual_array = doc["_source"]["array"].get_array();
+        ASSERT_EQ(actual_array.error(), simdjson::SUCCESS);
+        ASSERT_EQ(actual_array.value().count_elements().value(), std::size(expected));
+
+        auto array = actual_array.value();
+        ASSERT_FALSE(array.is_empty());
+        for (auto array_value : array)
+        {
+          auto value_string = array_value.get_string();
+          ASSERT_EQ(array_value.error(), simdjson::SUCCESS);
+          EXPECT_EQ(value_string.value(), expected[index++]);
+        }
       });
     }
   }
