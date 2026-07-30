@@ -215,24 +215,23 @@ namespace elastic
             });
 
             // Sending a document to search engine.
-            service->Insert(args, [&ctx, &loop, resp_ctx, &state](const mtc::zmap &resp) {
-              auto reply = http::service_response{
-                .status = http::status_codes::OK,
-                .content_type = "application/json; charset=utf-8",
-                .body = ""};
+            service->Insert(args, [resp_ctx, loop, state, index, id](const mtc::zmap &resp) {
+#ifdef __DEBUG__
+              mtc::json::Print(stdout, resp, mtc::json::print::decorated());
+#else
+              LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
+#endif // __DEBUG__
 
-              // Making a response.
-              reply.body = http::docapi::make_index_response(resp);
+              loop->defer([resp_ctx, resp, state, index, id]() mutable {
+                if (state->aborted.load(std::memory_order_acquire))
+                {
+                  return;
+                }
 
-              loop->defer([resp_ctx, state, reply = std::move(reply)]() mutable {
-                  if (state->aborted.load(std::memory_order_acquire))
-                  {
-                    return;
-                  }
-
-                  // Replying a response to client.
-                  http::send_json_response(resp_ctx.get(), reply);
-                });
+                LOG_T_C("Replying a response: index=%s, id=%s, status=%s", index.data(), id.data(), mtc::to_string(resp).c_str());
+                // Replying a response to client.
+                http::docapi::send_index_json_response(resp_ctx.get(), resp, index, id);
+              });
             });
           }
           catch (const elastic::json::parse_error &exc)
@@ -319,25 +318,21 @@ namespace elastic
           });
 
           // Sending a document to search engine.
-          auto resp = service->Insert(args, [&ctx, &loop, resp_ctx, &state](const mtc::zmap &resp) {
-            LOG_T_C("Received PUT response: %s", mtc::to_string(resp).c_str());
-            auto reply = http::service_response{
-              .status = http::status_codes::OK,
-              .content_type = "application/json; charset=utf-8",
-              .body = ""
-            };
+          auto resp = service->Insert(args, [resp_ctx, loop, state, index, id](const mtc::zmap &resp) {
+#ifdef __DEBUG__
+            mtc::json::Print(stdout, resp, mtc::json::print::decorated());
+#else
+            LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
+#endif // __DEBUG__
 
-            // Making a response.
-            reply.body = http::docapi::make_index_response(resp);
-
-            loop->defer([resp_ctx, state, reply = std::move(reply)]() mutable {
+            loop->defer([resp_ctx, resp, state, index, id]() mutable {
               if (state->aborted.load(std::memory_order_acquire))
               {
                 return;
               }
-
+              LOG_T_C("Replying a response: index=%s, id=%s, status=%s", index.data(), id.data(), mtc::to_string(resp).c_str());
               // Replying a response to client.
-              http::send_json_response(resp_ctx.get(), reply);
+              http::docapi::send_index_json_response(resp_ctx.get(), resp, index, id);
             });
           });
         }
@@ -447,22 +442,21 @@ namespace elastic
 */
 
           // Forwarding a search request into search engine.
-          service->Search(args, [resp_ctx, index, id, ctx, state, loop](const mtc::zmap &resp) {
+          service->Search(args, [resp_ctx, index, id, state, loop](const mtc::zmap &resp) {
 #ifdef __DEBUG__
             mtc::json::Print(stdout, resp, mtc::json::print::decorated());
 #else
             LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
 #endif // __DEBUG__
-
             loop->defer([resp_ctx, resp, state, index, id]() mutable {
               if (state->aborted.load(std::memory_order_acquire))
               {
                 return;
               }
 
-              LOG_T_C("Replying a response: index=%s id=%s", index.data(), id.data());
+              LOG_T_C("Replying a response: index=%s, id=%s, status=%s", index.data(), id.data(), mtc::to_string(resp).c_str());
               // Replying a response to client.
-              http::docapi::send_json_response(resp_ctx.get(), resp, index, id);
+              http::docapi::send_get_json_response(resp_ctx.get(), resp, index, id);
             });
           });
         }
@@ -539,7 +533,7 @@ namespace elastic
           args.objectId = id;
 
           // Forwarding a search request into search engine.
-          service->Remove(args, [resp_ctx, index, id, ctx, state, loop](const mtc::zmap &resp) {
+          service->Remove(args, [resp_ctx, index, id, state, loop](const mtc::zmap &resp) {
 #ifdef __DEBUG__
             mtc::json::Print(stdout, resp, mtc::json::print::decorated());
 #else
@@ -552,9 +546,9 @@ namespace elastic
                 return;
               }
 
-              LOG_T_C("Replying a response: index=%s id=%s", index.data(), id.data());
+              LOG_T_C("Replying a response: index=%s, id=%s, status=%s", index.data(), id.data(), mtc::to_string(resp).c_str());
               // Replying a response to client.
-              http::docapi::send_json_response(resp_ctx.get(), resp, index, id);
+              http::docapi::send_del_json_response(resp_ctx.get(), resp, index, id);
             });
           });
         }

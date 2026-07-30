@@ -46,7 +46,13 @@ namespace elastic::http::docapi
   auto make_remove_response(const mtc::zmap &resp) -> std::string;
 
   template<bool SSL>
-  auto send_json_response(response_context<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid) -> void;
+  auto send_index_json_response(response_context<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid) -> void;
+
+  template<bool SSL>
+  auto send_get_json_response(response_context<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid) -> void;
+
+  template<bool SSL>
+  auto send_del_json_response(response_context<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid) -> void;
 //-------------------------------------------------------------------------//
 }// namespace elastic::http::docapi
 //-------------------------------------------------------------------------//
