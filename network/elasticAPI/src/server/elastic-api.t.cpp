@@ -161,11 +161,11 @@ namespace
   {
     {
       const auto document_id = get_rand_document_id();
-      elastic::api::docapi::index_document_request index_req{this->index, document_id, R"json({"name":"brave","age":42})json"};
-
-      index_req.refresh(elastic::api::docapi::refresh_policies::wait_for).timeout(std::chrono::seconds{10});
-      auto index_resp = this->client->execute(index_req);
-
+      auto index_resp = this->client->index(this->index, document_id)
+                                                            .body(R"json({"name":"brave","age":42})json")
+                                                            .query("refresh", "wait_for")
+                                                            .timeout(10000)
+                                                            .execute();
       ASSERT_TRUE(index_resp.ok());
       ASSERT_TRUE(index_resp.is_json());
       index_resp.parse_json([&](simdjson::ondemand::document &doc) {
@@ -175,9 +175,9 @@ namespace
         EXPECT_EQ(doc["result"].get_string().value(), "created");
       });
 
-      elastic::api::docapi::get_document_request get_req{this->index, document_id};
-      auto get_resp = this->client->execute(get_req);
-
+      auto get_resp = this->client->get_document(this->index, document_id)
+                                                        .timeout(10000)
+                                                        .execute();
       ASSERT_TRUE(get_resp.ok());
       ASSERT_TRUE(get_resp.is_json());
       std::fprintf(stdout, "Response: %s\n", std::string(get_resp.body().data(), get_resp.body().length()).c_str());
@@ -192,11 +192,11 @@ namespace
     }
     {// Simple array JSON document
       const auto document_id = get_rand_document_id();
-      elastic::api::docapi::index_document_request index_req{this->index, document_id, R"json({"name":"brave","age":42,"array":["item 1","item 2","item 3"]})json"};
-
-      index_req.refresh(elastic::api::docapi::refresh_policies::wait_for).timeout(std::chrono::seconds{10});
-      auto index_resp = this->client->execute(index_req);
-
+      auto index_resp = this->client->index(this->index, document_id)
+                                                            .body(R"json({"name":"brave","age":42,"array":["item 1","item 2","item 3"]})json")
+                                                            .query("refresh", "wait_for")
+                                                            .timeout(10000)
+                                                            .execute();
       ASSERT_TRUE(index_resp.ok());
       ASSERT_TRUE(index_resp.is_json());
       index_resp.parse_json([&](simdjson::ondemand::document &doc) {
@@ -206,9 +206,9 @@ namespace
         EXPECT_EQ(doc["result"].get_string().value(), "created");
       });
 
-      elastic::api::docapi::get_document_request get_req{this->index, document_id};
-      auto get_resp = this->client->execute(get_req);
-
+      auto get_resp = this->client->get_document(this->index, document_id)
+                                                        .timeout(10000)
+                                                        .execute();
       ASSERT_TRUE(get_resp.ok());
       ASSERT_TRUE(get_resp.is_json());
       get_resp.parse_json([&](simdjson::ondemand::document &doc) {
@@ -227,11 +227,11 @@ namespace
   {
     {// Simple array JSON document
       const auto document_id = get_rand_document_id();
-      elastic::api::docapi::index_document_request index_req{this->index, document_id, R"json({"name":"brave","age":42,"array":["item 1","item 2","item 3"]})json"};
-
-      index_req.refresh(elastic::api::docapi::refresh_policies::wait_for).timeout(std::chrono::seconds{10});
-      auto index_resp = this->client->execute(index_req);
-
+      auto index_resp = this->client->index(this->index, document_id)
+                                                            .body(R"json({"name":"brave","age":42,"array":["item 1","item 2","item 3"]})json")
+                                                            .query("refresh", "wait_for")
+                                                            .timeout(10000)
+                                                            .execute();
       ASSERT_TRUE(index_resp.ok());
       ASSERT_TRUE(index_resp.is_json());
       index_resp.parse_json([&](simdjson::ondemand::document &doc) {
@@ -241,9 +241,9 @@ namespace
         EXPECT_EQ(doc["result"].get_string().value(), "created");
       });
 
-      elastic::api::docapi::delete_document_request del_req{this->index, document_id};
-      auto del_resp = this->client->execute(del_req);
-
+      auto del_resp = this->client->delete_document(this->index, document_id)
+                                                          .timeout(10000)
+                                                          .execute();
       ASSERT_TRUE(del_resp.ok());
       ASSERT_TRUE(del_resp.is_json());
       del_resp.parse_json([&](simdjson::ondemand::document &doc) {
@@ -255,9 +255,9 @@ namespace
         EXPECT_EQ(doc["_source"]["age"].get_string().value(), "42");
       });
 
-      elastic::api::docapi::get_document_request get_req{this->index, document_id};
-      auto get_resp = this->client->execute(get_req);
-
+      auto get_resp = this->client->get_document(this->index, document_id)
+                                                        .timeout(10000)
+                                                        .execute();
       ASSERT_TRUE(get_resp.ok());
       ASSERT_TRUE(get_resp.is_json());
       get_resp.parse_json([&](simdjson::ondemand::document &doc) {
