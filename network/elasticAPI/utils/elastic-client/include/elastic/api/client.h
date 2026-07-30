@@ -53,10 +53,14 @@ namespace elastic::api
     client(client&&) = delete;
     auto operator=(client&&) -> client& = delete;
 
+    /**
+     * Destructor.
+     */
     ~client() = default;
 
     template<detail::rest_request Request>
-    [[nodiscard]] auto execute(const Request& request) -> typename Request::response_type
+    [[nodiscard]]
+    auto execute(const Request& request) -> typename Request::response_type
     {
       auto http_request = request.build();
       auto http_response = this->http.execute(http_request);

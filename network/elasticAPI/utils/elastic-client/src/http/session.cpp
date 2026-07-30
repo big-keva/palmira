@@ -71,6 +71,11 @@ namespace elastic::http
       throw std::runtime_error("curl_easy_init failed");
     }
 
+    while (this->url.size() > 1U && this->url.back() == '/')
+    {
+      this->url.pop_back();
+    }
+
     try
     {
       this->configure();
