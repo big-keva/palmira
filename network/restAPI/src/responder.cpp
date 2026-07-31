@@ -54,7 +54,7 @@ namespace restAPI
       bufend = buffer->data() + buffer->size() - 0x100;
 
       if ( bufptr + chunk.size() > bufend )
-        return Error( "413 Content Too Large", "Request too large to be loaded" );
+        return Instant( "413 Content Too Large", "Request too large to be loaded" );
 
       bufptr = chunk.size() + (char*)memcpy( bufptr, chunk.data(), chunk.size() );
 
@@ -63,11 +63,11 @@ namespace restAPI
 
     catch ( const std::bad_alloc& xp )
     {
-      return Error( "500 Internal Server Error", "Process could not allocate 4Mb memory" );
+      return Instant( "500 Internal Server Error", "Process could not allocate 4Mb memory" );
     }
   }
 
-  void  Responder::Error( const char* status, const char* message )
+  void  Responder::Instant( std::string_view status, std::string_view message ) const
   {
     answer
       ->WriteStatus( status )
@@ -76,23 +76,49 @@ namespace restAPI
     *cancel = true;
   }
 
-  void  Responder::Error( const char* status, const mtc::zmap& message )
+  void  Responder::Instant( std::string_view status, const mtc::zmap& message ) const
   {
-    std::string output;
-
-    answer
+    mtc::json::Print( answer
       ->WriteStatus( status )
-      ->WriteHeader( "Content-Type", "application/json; charset=\"utf-8\"" )
-      ->FinishWrite( *mtc::json::Print( &output, message, mtc::json::print::decorated() ) );
+      ->WriteHeader( "Content-Type", "application/json; charset=\"utf-8\"" ), message, mtc::json::print::decorated() )
+      ->FinishWrite();
     *cancel = true;
   }
 
-  auto  Responder::Set( mtc::ThreadPool& threads ) -> Responder&
+  void  Responder::Delayed( std::string_view status, std::string_view message ) const
+  {
+    return evLoop->defer( [
+      answer = this->answer,
+      cancel = this->cancel, state = std::string( status ), msg = std::string( message ) ]() mutable
+    {
+      answer
+        ->WriteStatus( state )
+        ->WriteHeader( "Content-Type", "text/plain; charset=\"utf-8\"" )
+        ->FinishWrite( msg );
+      *cancel = true;
+    } );
+  }
+
+  void  Responder::Delayed( std::string_view status, const mtc::zmap& report ) const
+  {
+    return evLoop->defer( [
+      answer = this->answer,
+      cancel = this->cancel, state = std::string( status ), report]() mutable
+    {
+      mtc::json::Print( answer
+        ->WriteStatus( state )
+        ->WriteHeader( "Content-Type", "application/json; charset=\"utf-8\"" ), report, mtc::json::print::decorated() )
+        ->FinishWrite();
+      *cancel = true;
+    } );
+  }
+
+  auto  Responder::SetThreads( mtc::ThreadPool& threads ) -> Responder&
   {
     return thPool = &threads, *this;
   }
 
-  auto  Responder::Set( double timeout ) -> Responder&
+  auto  Responder::SetTimeout( double timeout ) -> Responder&
   {
     return tm_off = timeout, *this;
   }

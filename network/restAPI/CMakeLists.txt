@@ -4,15 +4,16 @@ set(TARGET
   palmira-restAPI)
 
 set(SOURCE
-  src/delete-entity.cpp
-  src/update-entity.cpp
-  src/insert-entity.cpp
+  src/array-reports.cpp
+  src/delete.cpp
+  src/update.cpp
+  src/insert.cpp
+  src/search.cpp
+  src/get-entity.cpp
   src/responder.cpp
   src/client.cpp
-  src/jsload.cpp
   src/server.cpp
-  src/unpack.cpp
-  src/zmload.cpp)
+  src/unpack.cpp)
 
 if(MSVC)
   set(EXPORT_TABLE ${NETWORK_SOURCE_DIR}/network.msvc.def)

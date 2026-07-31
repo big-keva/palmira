@@ -259,7 +259,7 @@ namespace grpcapi
     {
       if ( next.has_text() )
       {
-        out.AddBlock( codepages::codepage_utf8, next.text() );
+        out.AddString( codepages::codepage_utf8, next.text() );
       }
         else
       if ( next.has_mkup() && next.mkup().has_items() )

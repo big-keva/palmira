@@ -1,13 +1,13 @@
 # if !defined( PALMIRA_RESTAPI_INSERT_HPP_ )
 # define PALMIRA_RESTAPI_INSERT_HPP_
-# include "modify-entity.hpp"
+# include "doc-action.hpp"
 
 namespace restAPI
 {
 
-  class InsertEntity: public ModifyEntity<InsertEntity>
+  class Insert: public DocAction<Insert>
   {
-    using ModifyEntity::ModifyEntity;
+    using DocAction::DocAction;
 
   public:
     void  ready() override;
@@ -15,4 +15,5 @@ namespace restAPI
   };
 
 }
+
 # endif // !PALMIRA_RESTAPI_INSERT_HPP_

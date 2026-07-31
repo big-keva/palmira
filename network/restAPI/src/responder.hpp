@@ -54,24 +54,26 @@ namespace restAPI
 
     virtual void  ready() = 0;
 
-    void  Error( const char*, const char* );
-    void  Error( const char*, const mtc::zmap& );
+    void  Instant( std::string_view, std::string_view ) const;
+    void  Instant( std::string_view, const mtc::zmap& ) const;
+    void  Delayed( std::string_view, std::string_view ) const;
+    void  Delayed( std::string_view, const mtc::zmap& ) const;
 
-    auto  Set( mtc::ThreadPool& threads ) -> Responder&;
-    auto  Set( double           timeout ) -> Responder&;
+    auto  SetThreads( mtc::ThreadPool& threads ) -> Responder&;
+    auto  SetTimeout( double           timeout ) -> Responder&;
   };
 
-  template <class O, class D>
-  O*  PrintKey( O* o, const mtc::zmap::key& k, const D& d )
+  template <class O>
+  O*  PrintKey( O* o, const mtc::zmap::key& k )
   {
     switch ( k.type() )
     {
       case mtc::zmap::key::uint:
-        return ::Serialize( mtc::json::Print( ::Serialize( d.Shift( o ), '"' ), (unsigned)k ), '"' );
+        return ::Serialize( mtc::json::Print( ::Serialize( o, '"' ), (unsigned)k ), '"' );
       case mtc::zmap::key::cstr:
-        return mtc::json::print::charstr( d.Shift( o ), (const char*)k, k.size() );
+        return mtc::json::print::charstr( o, (const char*)k, k.size() );
       case mtc::zmap::key::wstr: default:
-        return mtc::json::print::widestr( d.Shift( o ), (const widechar*)k, k.size() / sizeof(widechar) );
+        return mtc::json::print::widestr( o, (const widechar*)k, k.size() / sizeof(widechar) );
     }
   }
 

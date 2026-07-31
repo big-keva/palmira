@@ -1,23 +1,17 @@
-# include "delete-entity.hpp"
-# include "update-entity.hpp"
-# include "insert-entity.hpp"
+# include "delete.hpp"
+# include "update.hpp"
+# include "insert.hpp"
+# include "search.hpp"
+# include "get-entity.hpp"
 # include <server.hpp>
 # include <service.hpp>
-//# include <reports.hpp>
-//# include "loader.hpp"
-//# include "unpack.hpp"
-//# include <DeliriX/DOM-load.hpp>
 # include <uWebSockets/src/App.h>
-//# include <mtc/recursive_shared_mutex.hpp>
 # include <mtc/threadPool.hpp>
-//# include <condition_variable>
 # include <mtc/config.h>
-//# include <simdjson.h>
 
 template <>
 inline  std::vector<char>* Serialize( std::vector<char>* o, const void* p, size_t l )
   {  return o->insert( o->end(), (const char*)p, l + (const char*)p ), o;  }
-
 
 namespace restAPI
 {
@@ -43,229 +37,163 @@ namespace restAPI
 
     implement_lifetime_control
   };
-/*
-  auto  IsJson( const http::Request& req ) -> bool
-    {  return req.GetHeaders().get( "Content-Type").substr( 0, 16 ) == "application/json";  }
-  auto  IsDump( const http::Request& req ) -> bool
-    {  return req.GetHeaders().get( "Content-Type").substr( 0, 24 ) == "application/octet-stream";  }
-  auto  IsHead( const http::Request& req ) -> bool
-    {  return req.GetHeaders().get( "Content-Type") == "" && req.GetMethod() == http::Method::GET;  }
 
-  void  OutputHTML( mtc::IByteStream*, const http::Respond&, const char* msgstr );
-  void  OutputJSON( mtc::IByteStream*, const http::Respond&, const mtc::zmap& report );
-
-  template <class Args, mtc::api<palmira::IService::IPending> (palmira::IService::*Method)
-    ( const Args&, palmira::IService::NotifyFn )>
-  struct ActionCall
+ /*
+  * parse arguments and fill the args map
+  */
+  auto  ParseQuery( std::string_view query ) -> mtc::zmap
   {
-    mtc::api<palmira::IService> service;
-
-    void  operator()( mtc::IByteStream* out, const http::Request& req, mtc::IByteStream* src, std::function<bool()> cancel )
+    auto  targetData = mtc::zmap();
+    auto  skipDelims = []( const char* beg, const char* end )
     {
-      auto  ctType = req.GetHeaders().get( "Content-Type" );
-      auto  stream = Inflate( req, src );
-
-      // check if cancel
-      if ( cancel() )
-        return OutputHTML( out, http::StatusCode::Ok, "request cancelled by user" );
-
-    // parse input args
-      try
+      while( beg != end && (*beg == '?' || *beg == '&') )
+        ++beg;
+      return beg;
+    };
+    auto  parseQuery = [&]( const char* beg, const char* end ) -> mtc::zmap&
+    {
+      for ( beg = skipDelims( beg, end ); beg < end; beg = skipDelims( beg, end ) )
       {
-        Args  args;
+        auto  key = beg;
 
-        if ( IsJson( req ) )  json::Load( args, req, stream );
-          else
-        if ( IsDump( req ) )  zmap::Load( args, req, stream );
-          else
-        if ( IsHead( req ) )  json::Load( args, req, nullptr );
-          else
-        throw std::logic_error( "Unexpected request method @" __FILE__ ":" LINE_STRING );
+        while ( beg != end && *beg != '=' && *beg != '&' )  ++beg;
 
-        OutputJSON( out, { http::StatusCode::Ok, { { "Access-Control-Allow-Origin", "*" } } },
-          (service->*Method)( args, []( const mtc::zmap& ){} )->Wait() );
+        if ( beg != key )
+        {
+          auto  val = targetData.put( { key, size_t(beg - key) } );
+
+          if ( beg != end && *beg++ == '=' )
+          {
+            auto  org = beg;
+
+            while ( beg != end && *beg != '&' ) ++beg;
+
+            if ( beg != org )
+              val->set_charstr( org, beg - org );
+          }
+        }
       }
-      catch ( const mtc::json::parse::error& xp )
-      {
-        OutputJSON( out, { http::StatusCode::Ok, { { "Access-Control-Allow-Origin", "*" } } },
-          palmira::StatusReport( EINVAL, mtc::strprintf( "error parsing request body, line %d: %s",
-            xp.get_json_lineid(), xp.what() ) ) );
-      }
-      catch ( std::invalid_argument& xp )
-      {
-        OutputHTML( out, { http::StatusCode::BadRequest,
-          { { "Access-Control-Allow-Origin", "*" } } }, xp.what() );
-      }
+      return targetData;
+    };
+
+    return query.size() != 0 ? parseQuery( query.data(), query.data() + query.size() ) : targetData;
+  }
+
+  // Server implementation
+
+  template <class Action>
+  class Dispatch
+  {
+    mtc::api<IService>  service;
+    mtc::ThreadPool*    threads = nullptr;
+
+  public:
+    Dispatch( mtc::api<IService> s, mtc::ThreadPool& t ): service( s ), threads( &t ) {}
+    Dispatch( mtc::api<IService> s ): service( s ) {}
+
+    template <bool SSL>
+    void  operator()( uWS::HttpResponse<SSL>* respond, uWS::HttpRequest* request )
+    {
+      auto  action = Action( service, restAPI::MakeResponse( respond ) ).
+        SetQuery( ParseQuery( request->getQuery() ) ).
+        Contents( request->getHeader( "content-type" ) );
+
+      for ( uint16_t u = 0; request->getParameter( u ).size() != 0; ++u )
+        action.AddRoute( request->getParameter( u ) );
+
+      if ( threads != nullptr )
+        action.SetThreads( *threads );
+
+      respond->onData( [action] ( std::string_view chunk, bool final ) mutable
+        {  return action.chunk( chunk, final );  } );
+      respond->onAborted( [action]() mutable
+        {  return action.abort();  } );
     }
   };
-*/
-  // Server implementation
 
   void  Server::Start()
   {
-      pwMain = std::make_shared<uWS::App>();
+    pwMain = std::make_shared<uWS::App>();
 
-//    pwMain->delete( );
-//    pwMain->put( );
-//    pwMain->post( );
-//    pwMain->head( );
    /*
-    * DELETE [/{index}]/{id}
+    * DELETE      /{space}/{id}
+    * GET  /delete/{space}/{id}
+    * GET  /remove/{space}/{id}
+    * POST /delete
+    * POST /remove
     */
-    pwMain->del( "/:space/:id", [this]( auto* respond, auto* request )
-      {
-        auto  action = DeleteEntity( search, restAPI::MakeResponse( respond ) )
-          .SetSpace( request->getParameter( 0 ) )
-          .SetDocId( request->getParameter( 1 ) );
+    pwMain->del  (        "/:space/:id", Dispatch<Delete>( search, thPool ) );
+    pwMain->del  (        "/:space",     Dispatch<Delete>( search, thPool ) );
+    pwMain->del  (        "",            Dispatch<Delete>( search, thPool ) );
 
-        respond->onData( [action] ( std::string_view chunk, bool final ) mutable
-          {  return action.chunk( chunk, final );  } );
-        respond->onAborted( [action]() mutable
-          {  return action.abort();  } );
-      } );
+    pwMain->get  ( "/delete/:space/:id", Dispatch<Delete>( search, thPool ) );
+    pwMain->get  ( "/delete/:space",     Dispatch<Delete>( search, thPool ) );
+    pwMain->get  ( "/delete",            Dispatch<Delete>( search, thPool ) );
+
+    pwMain->get  ( "/remove/:space/:id", Dispatch<Delete>( search, thPool ) );
+    pwMain->get  ( "/remove/:space",     Dispatch<Delete>( search, thPool ) );
+    pwMain->get  ( "/remove",            Dispatch<Delete>( search, thPool ) );
+
+    pwMain->post ( "/delete/:space/:id", Dispatch<Delete>( search, thPool ) );
+    pwMain->post ( "/delete/:space",     Dispatch<Delete>( search, thPool ) );
+    pwMain->post ( "/delete",            Dispatch<Delete>( search, thPool ) );
+
+    pwMain->post ( "/remove/:space/:id", Dispatch<Delete>( search, thPool ) );
+    pwMain->post ( "/remove/:space",     Dispatch<Delete>( search, thPool ) );
+    pwMain->post ( "/remove",            Dispatch<Delete>( search, thPool ) );
+
    /*
-    * PATCH [/{index}]/{id}
+    * PATCH       /{space}/{id}
+    * PATCH       /{space}/{id}
+    * POST /update/{space}/{id}
     */
-    pwMain->patch( "/:space/:id", [this]( auto* respond, auto* request )
-      {
-        auto  action = UpdateEntity( search, restAPI::MakeResponse( respond ) )
-          .SetSpace( request->getParameter( 0 ) )
-          .SetDocId( request->getParameter( 1 ) );
+    pwMain->patch( "/:space/:id",        Dispatch<Update>( search, thPool ) );
+    pwMain->patch( "/:space",            Dispatch<Update>( search, thPool ) );
+    pwMain->patch( "",                   Dispatch<Update>( search, thPool ) );
 
-        respond->onData( [action] ( std::string_view chunk, bool final ) mutable
-          {  return action.chunk( chunk, final );  } );
-        respond->onAborted( [action]() mutable
-          {  return action.abort();  } );
-      } );
+    pwMain->post ( "/update/:space/:id", Dispatch<Update>( search, thPool ) );
+    pwMain->post ( "/update/:space",     Dispatch<Update>( search, thPool ) );
+    pwMain->post ( "/update",            Dispatch<Update>( search, thPool ) );
+
    /*
-    * PUT [/{index}]/{id}
-    *
-    * Безусловным образом вставить документ 'id' в пространство 'space'.
+    * PUT         /{space}/{id}
+    * POST /insert/{space}/{id}
     */
-    pwMain->put( "/:space/:id", [this]( auto* respond, auto* request )
-      {
-        auto  action = InsertEntity( search, restAPI::MakeResponse( respond ) )
-          .SetSpace( request->getParameter( 0 ) )
-          .SetDocId( request->getParameter( 1 ) );
+    pwMain->put  (        "/:space/:id", Dispatch<Insert>( search, thPool ) );
+    pwMain->post ( "/insert/:space/:id", Dispatch<Insert>( search, thPool ) );
+    pwMain->post ( "/insert/:space",     Dispatch<Insert>( search, thPool ) );
+    pwMain->post ( "/insert",            Dispatch<Insert>( search, thPool ) );
 
-        respond->onData( [action] ( std::string_view chunk, bool final ) mutable
-          {  return action.chunk( chunk, final );  } );
-        respond->onAborted( [action]() mutable
-          {  return action.abort();  } );
-      } );
-# if 0
-    pwMain->get( "/:0/_doc/:1", [this]( auto* respond, auto* request )
-      {
-        auto  qparams = LoadParams( request->getQuery() );
-        auto  nextkey = std::string();
-        auto  quotate = mtc::zmap();
-        auto  bsource = true;
-        auto  include = mtc::array_charstr();
-        auto  exclude = mtc::array_charstr();
-
-      // parse '_source'
-        nextkey = qparams.get_charstr( "_source", "true" );
-
-        if ( nextkey == "true" )  bsource = true;
-          else
-        if ( nextkey == "false" ) bsource = false;
-            else
-        if ( !get( include, nextkey ) )
-        {
-          return elastic::GetEntity( search, elastic::MakeResponse( respond ) ).Error( "400 Bad Request",
-            elastic::JsonError( 400, "illegal_argument_exception", "Failed to parse [_source] as boolean" ) );
-        }
-
-       /*
-        * if _source defined, check the other parameters
-        */
-        if ( !bsource )
-        {
-          auto  functor = elastic::GetEntity( search, elastic::MakeResponse( respond ) );
-
-          functor
-            .SetIndex( request->getParameter( 0 ) )
-            .SetDocId( request->getParameter( 1 ) );
-
-  //      , quotate );
-          respond->onData( [functor] ( std::string_view chunk, bool final ) mutable
-            {  return functor.chunk( chunk, final );  } );
-          respond->onAborted( [functor]() mutable
-            {  return functor.abort();  } );
-        }
-
-        auto  functor = elastic::GetEntity( search, elastic::MakeResponse( respond ) );
-
-        functor
-          .SetIndex( request->getParameter( 0 ) )
-          .SetDocId( request->getParameter( 1 ) );
-
-//      , quotate );
-        respond->onData( [functor] ( std::string_view chunk, bool final ) mutable
-          {  return functor.chunk( chunk, final );  } );
-        respond->onAborted( [functor]() mutable
-          {  return functor.abort();  } );
-      } );
    /*
-    * GET /{index}/_mget
+    * GET       /{space}/{id}
+    * POST  /get/{space}/{id}
+    * POST  /get/{space}
+    * POST  /get
     */
-    /*
-    pwMain->get( "/:0/_mget", [this]( auto* respond, auto* request )
-      {
-        auto  quotate = mtc::zmap();
+    pwMain->get  (     "/:space/:id", Dispatch<GetEntity>( search, thPool ) );
+    pwMain->get  (     "/:space",     Dispatch<GetEntity>( search, thPool ) );
+    pwMain->get  (     "",            Dispatch<GetEntity>( search, thPool ) );
 
-        ListParams( request->getQuery(), {
-          { "source",             [&]( std::string_view val )
-            {  quotate["mode"] = val == "true" ? "source" : "absent";  } },
-          { "_source_includes",   [&]( std::string_view val )
-            {  quotate["include"] = string_view::cast<mtc::array_charstr>( val );  } },
-          { "_source_excludes",   [&]( std::string_view val )
-            {  quotate["exclude"] = string_view::cast<mtc::array_charstr>( val );  } } } );
+    pwMain->get  ( "/get/:space/:id", Dispatch<GetEntity>( search, thPool ) );
+    pwMain->get  ( "/get/:space",     Dispatch<GetEntity>( search, thPool ) );
+    pwMain->get  ( "/get",            Dispatch<GetEntity>( search, thPool ) );
 
-        auto  functor = elastic::GetEntity::Create( search, respond,
-          request->getParameter( 0 ), mtc::charstr( request->getParameter( 1 ) ), quotate );
+    pwMain->post ( "/get/:space/:id", Dispatch<GetEntity>( search, thPool ) );
+    pwMain->post ( "/get/:space",     Dispatch<GetEntity>( search, thPool ) );
+    pwMain->post ( "/get",            Dispatch<GetEntity>( search, thPool ) );
 
-        respond->onData( [functor]( std::string_view chunk, bool final )
-          {  return functor.chunk( chunk, final );  } );
-        respond->onAborted( [functor]()
-          {  return functor.abort();  } );
-      } );
+   /*
+    * GET   /search/{space}
+    * GET   /search
+    * POST  /search/{space}
+    * POST  /search
     */
-  /*  PUT  */
-    pwMain->put( "/:0/_doc/:1", [this]( auto* respond, auto* request )
-      {
-        auto  functor = elastic::SetEntity( search, elastic::MakeResponse( respond ), {
-          { "index", request->getParameter( 0 ) },
-          { "docid", request->getParameter( 1 ) },
-          { "query", LoadParams( request->getQuery() ) } } );
+    pwMain->get  ( "/search/:space",  Dispatch<Search>( search, thPool ) );
+    pwMain->get  ( "/search",         Dispatch<Search>( search, thPool ) );
 
-        functor.Set( thPool );
+    pwMain->post ( "/search/:space",  Dispatch<Search>( search, thPool ) );
+    pwMain->post ( "/search",         Dispatch<Search>( search, thPool ) );
 
-        respond->onData( [functor] ( std::string_view chunk, bool final ) mutable
-          {  return functor.chunk( chunk, final );  } );
-        respond->onAborted( [functor]() mutable
-          {  return functor.abort();  } );
-      } );
-    pwMain->put( "/:0/_create/:1", [this]( auto* respond, auto* request )
-      {
-        respond->onAborted( [](){} );
-      } );
-    pwMain->post( "/:0/_doc", [this]( auto* respond, auto* request )
-      {
-        auto  functor = elastic::SetEntity( search, elastic::MakeResponse( respond ), {
-          { "index", request->getParameter( 0 ) },
-          { "docid", "aaa" } } );
-
-        functor
-//          .Set( timeout )
-          .Set( thPool );
-
-        respond->onData( [functor] ( std::string_view chunk, bool final ) mutable
-          {  return functor.chunk( chunk, final );  } );
-        respond->onAborted( [functor]() mutable
-          {  return functor.abort();  } );
-      } );
-# endif
     pwMain->listen( dwPort, [this]( auto* listenSocket )
       {
         pwLoop = uWS::Loop::get();
@@ -289,64 +217,6 @@ namespace restAPI
       throw std::runtime_error( "Server::Wait: uWebSockets server is not initialized!" );
     return pwMain->run(), pwMain.reset();
   }
-/*
-  Server::Server( mtc::api<palmira::IService> serv, uint16_t port ):
-    serach( serv ), server( "0.0.0.0", port )
-  {
-    server.SetMaxTimeout( 3 * 60 );
-
-    server.RegisterHandler( "/health", http::Method::GET, [](
-      mtc::IByteStream*     output,
-      const http::Request&  hthead,
-      mtc::IByteStream*     htbody,
-      std::function<bool()> cancel )
-    {
-      (void)hthead;
-      (void)htbody;
-      (void)cancel;
-      OutputJSON( output, { http::StatusCode::Ok, {
-        { "Access-Control-Allow-Origin", "*" },
-        { "Connection", "keep-alive" } } }, {
-        { "status", palmira::Status( 0, "OK" ) } } );
-    } );
-
-    server.RegisterHandler( "/delete", http::Method::GET,   ActionCall<palmira::RemoveArgs, &palmira::IService::Remove>{ serach } );
-    server.RegisterHandler( "/remove", http::Method::GET,   ActionCall<palmira::RemoveArgs, &palmira::IService::Remove>{ serach } );
-    server.RegisterHandler( "/delete", http::Method::POST,  ActionCall<palmira::RemoveArgs, &palmira::IService::Remove>{ serach } );
-    server.RegisterHandler( "/remove", http::Method::POST,  ActionCall<palmira::RemoveArgs, &palmira::IService::Remove>{ serach } );
-
-    server.RegisterHandler( "/update", http::Method::GET,   ActionCall<palmira::UpdateArgs, &palmira::IService::Update>{ serach } );
-    server.RegisterHandler( "/update", http::Method::POST,  ActionCall<palmira::UpdateArgs, &palmira::IService::Update>{ serach } );
-
-    server.RegisterHandler( "/insert", http::Method::POST,  ActionCall<palmira::InsertArgs, &palmira::IService::Insert>{ serach } );
-
-    server.RegisterHandler( "/search", http::Method::GET,   ActionCall<palmira::SearchArgs, &palmira::IService::Search>{ serach } );
-    server.RegisterHandler( "/search", http::Method::POST,  ActionCall<palmira::SearchArgs, &palmira::IService::Search>{ serach } );
-  }
-
-  // helpers section
-
-  void  OutputHTML( mtc::IByteStream* output, const http::Respond& result, const char* msgstr )
-  {
-    Output( output, http::Respond( result, { { "Content-Type", "text/html" } } ),
-      mtc::strprintf( "<html>\n"
-      "<head><title>%u %s</title></head>\n"
-      "<body>%s</body>\n"
-      "</html>\n", unsigned(result.GetStatusCode()), http::to_string( result.GetStatusCode() ), msgstr ).c_str() );
-  }
-
-  void  OutputJSON( mtc::IByteStream* output, const http::Respond& result, const mtc::zmap& report )
-  {
-    auto  serial = std::vector<char>();
-    auto  extRes = http::Respond( result,
-      { { "Content-Type", "application/json" } } );
-
-    mtc::json::Print( &serial, report, mtc::json::print::decorated() );
-
-    Output( output, result, serial.data(), serial.size() );
-  }
-
-  */
 }
 
 extern "C"  int   CreateServer(
