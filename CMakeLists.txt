@@ -64,12 +64,15 @@ add_library(tripoli
   src/service/structo-create.cpp
   src/service/structo-search.cpp
   src/service/collect-quotes.cpp
+  src/service/quotation-tool.cpp
   src/service/collect-docs.cpp
+  src/service/collect-dump.cpp
+  src/toolset/zip-unzip.cpp
 
   src/toolset/plugins.cpp
   src/toolset/toolset.cpp
   src/toolset/modules.cpp
-  src/toolset/z-arguments.cpp)
+  src/toolset/service.cpp)
 
 add_library(watchFs
 	src/watchFs/watchFs${XXX_SUF}.cpp)

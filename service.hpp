@@ -1,7 +1,5 @@
 # if !defined( __palmira_service_hpp__ )
 # define __palmira_service_hpp__
-#include <condition_variable>
-
 # include "DeliriX/DOM-text.hpp"
 # include <mtc/interfaces.h>
 # include <mtc/zmap.h>
@@ -80,6 +78,7 @@ namespace palmira {
   {
     DeliriX::Text document;
 
+    InsertArgs( const InsertArgs& ) = delete;
   public:
     const DeliriX::ITextView& textview;
 
@@ -90,6 +89,7 @@ namespace palmira {
       const mtc::zmap&          mdata = {},
       uint64_t                  uVers = 0,
       const mtc::zval&          icond = {} ): UpdateArgs( entId, mdata, uVers, icond ), textview( tview ) {}
+    InsertArgs( InsertArgs&& );
     InsertArgs( const mtc::zmap& );
 
     auto  GetTextAPI() -> DeliriX::IText& {  return document;  }
@@ -111,7 +111,7 @@ namespace palmira {
       query( req ),
       order( ord ),
       terms( tms )  {}
-  };
+};
 
   struct IService: mtc::Iface
   {

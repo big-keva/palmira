@@ -33,12 +33,14 @@ namespace palmira {
   zmap_end
 
   zmap_view_as( UpdateReport, StatusReport )
-    zmap_value( mtc::zmap, metadata, "metadata" )
+    zmap_value( mtc::zmap,       extra, "extra" )
   zmap_end
 
   zmap_view_as( SearchReport, StatusReport )
-    zmap_value( uint32_t,   first,  "first" )
-    zmap_value( uint32_t,   count,  "count" )
+    zmap_value( uint32_t,        first, "first" )
+    zmap_value( uint32_t,        count, "count" )
+    zmap_value( uint32_t,        found, "found" )
+    zmap_value( mtc::array_zmap, items, "items" )
   zmap_end
 
 }
