@@ -1,7 +1,9 @@
 # include "../../service/structo-search.hpp"
-# include "../toolset/object-zmap.hpp"
+# include "../toolset/zip-unzip.hpp"
 # include "../reports.hpp"
 # include "../toolset.hpp"
+# include "quotation-tool.hpp"
+# include "quotation-tool.hpp"
 # include "collect.hpp"
 # include "structo/storage/posix-fs.hpp"
 # include "structo/indexer/layered-contents.hpp"
@@ -13,287 +15,9 @@
 # include "structo/queries/builder.hpp"
 # include "DeliriX/DOM-load.hpp"
 # include <mtc/utf.hpp>
-# include <fnmatch.h>
 # include <zlib.h>
-#include <structo/rankers.hpp>
 
 namespace palmira {
-
-  auto  ZipBuf( const mtc::span<const char>& src ) -> std::vector<char>;
-  auto  Unpack( const mtc::span<const char>& src ) -> std::vector<char>;
-
-  class QuoteOpts
-  {
-    class FieldAccessor;
-    class IncludeFields;
-    class ExcludeFields;
-    class FnMatchFields;
-
-    struct Bundle: protected std::vector<char>, protected mtc::api<const mtc::IByteBuffer>
-    {
-      mtc::span<const char> mkup;
-      mtc::span<const char> body;
-
-      Bundle( const api& src ): api( src )  {}
-      Bundle() = default;
-
-      auto  packed() -> std::vector<char>&  {  return *this;  }
-      bool  empty() const {  return body.empty();  }
-    };
-
-  public:
-    enum class Type: unsigned
-    {
-      Absent  = 0,
-      Scheme  = 1,
-      Struct  = 3,
-      Source  = 4
-    };
-
-    struct include_t {};
-    struct exclude_t {};
-    struct fnmatch_t {};
-
-    static constexpr include_t include = {};
-    static constexpr exclude_t exclude = {};
-    static constexpr fnmatch_t fnmatch = {};
-
-    QuoteOpts( const FieldHandler&, Type );
-    QuoteOpts( const FieldHandler&, Type, const include_t&, const mtc::zval& );
-    QuoteOpts( const FieldHandler&, Type, const exclude_t&, const mtc::zval& );
-    QuoteOpts( const FieldHandler&, Type, const fnmatch_t&, const mtc::zval& );
-
-    auto  GetQuoteFn( mtc::api<IContentsIndex> ) const -> collect::QuotesFn;
-
-    static  auto  LoadBundle( const mtc::api<const mtc::IByteBuffer>& ) -> Bundle;
-    static  auto  Str2Scheme( std::string_view ) -> Type;
-    static  auto  Scheme2Str( Type ) -> const char*;
-
-  protected:
-    Type                            q_mode;
-    std::shared_ptr<FieldAccessor>  filter;
-    const FieldHandler*             fields;
-
-  };
-
-  class QuoteOpts::FieldAccessor: public FieldHandler
-  {
-  public:
-    using FieldHandler::Get;
-
-    FieldAccessor( const FieldHandler* pfd ): fields( pfd ) {}
-
-    auto  Add( const std::string_view& ) -> FieldOptions* override              {  throw std::logic_error( "not implemented" );  }
-    auto  Get( const std::string_view& ) const -> const FieldOptions* override  {  throw std::logic_error( "not implemented" );  }
-
-  protected:
-    const FieldHandler*     fields;
-    std::vector<uint64_t>   filter;
-
-  };
-
-  class QuoteOpts::IncludeFields: public FieldAccessor
-  {
-    using FieldAccessor::Get;
-
-  public:
-    IncludeFields( const FieldHandler* fds, const mtc::array_charstr& inc ): FieldAccessor( fds )
-      {
-        for ( auto& next: inc )
-          if ( auto pf = fds->Get( next ); pf != nullptr )
-            mtc::bitset_set( filter, pf->id );
-      }
-    auto  Get( uint32_t id ) const -> const FieldOptions* override
-      {
-        return mtc::bitset_get( filter, id ) ? fields->Get( id ) : nullptr;
-      }
-  };
-
-  class QuoteOpts::ExcludeFields: public FieldAccessor
-  {
-    using FieldAccessor::Get;
-
-  public:
-    ExcludeFields( const FieldHandler* fds, const mtc::array_charstr& exc ): FieldAccessor( fds )
-      {
-        for ( auto& next: exc )
-          if ( auto pf = fds->Get( next ); pf != nullptr )
-            mtc::bitset_set( filter, pf->id );
-      }
-    auto  Get( uint32_t id ) const -> const FieldOptions* override
-      {
-        return !mtc::bitset_get( filter, id ) ? fields->Get( id ) : nullptr;
-      }
-  };
-
-  class QuoteOpts::FnMatchFields: public FieldAccessor
-  {
-    using FieldAccessor::Get;
-
-  public:
-    FnMatchFields( const FieldHandler* fds, const mtc::array_charstr& matches ): FieldAccessor( fds )
-      {
-        const FieldOptions* pf;
-
-        for ( uint32_t id = 0; id == 0 || (pf = fields->Get( id )) != nullptr; ++id )
-          if ( pf != nullptr )
-            for ( auto& match: matches )
-              if ( ::fnmatch( match.c_str(), pf->name.data(), 0 ) == 0 )
-              {
-                mtc::bitset_set( filter, pf->id );
-                break;
-              }
-      }
-    auto  Get( uint32_t id ) const -> const FieldOptions* override
-      {
-        return mtc::bitset_get( filter, id ) ? fields->Get( id ) : nullptr;
-      }
-  };
-
-  QuoteOpts::QuoteOpts( const FieldHandler& fds, Type mode ): q_mode( mode ),
-    fields( mode != Type::Absent ? &fds : nullptr )
-  {
-  }
-
-  QuoteOpts::QuoteOpts( const FieldHandler& fds, Type mode, const include_t&, const mtc::zval& inc ): q_mode( mode )
-  {
-    switch ( inc.get_type() )
-    {
-      case mtc::zval::z_charstr:
-        fields = (filter = std::shared_ptr<FieldAccessor>( new IncludeFields( &fds, { *inc.get_charstr() } ) )).get();
-        break;
-      case mtc::zval::z_array_charstr:
-        fields = (filter = std::shared_ptr<FieldAccessor>( new IncludeFields( &fds, *inc.get_array_charstr() ))).get();
-        break;
-      default:
-        throw std::invalid_argument( "'include' quotation has to contain charstr or array_charstr @" __FILE__ ":" LINE_STRING );
-    }
-  }
-
-  QuoteOpts::QuoteOpts( const FieldHandler& fds, Type mode, const exclude_t&, const mtc::zval& exc ): q_mode( mode )
-  {
-    switch ( exc.get_type() )
-    {
-      case mtc::zval::z_charstr:
-        fields = (filter = std::shared_ptr<FieldAccessor>( new ExcludeFields( &fds, { *exc.get_charstr() } ) )).get();
-        break;
-      case mtc::zval::z_array_charstr:
-        fields = (filter = std::shared_ptr<FieldAccessor>( new ExcludeFields( &fds, *exc.get_array_charstr() ))).get();
-        break;
-      default:
-        throw std::invalid_argument( "'exclude' quotation has to contain charstr or array_charstr @" __FILE__ ":" LINE_STRING );
-    }
-  }
-
-  QuoteOpts::QuoteOpts( const FieldHandler& fds, Type mode, const fnmatch_t&, const mtc::zval& fnm ): q_mode( mode )
-  {
-    switch ( fnm.get_type() )
-    {
-      case mtc::zval::z_charstr:
-        fields = (filter = std::shared_ptr<FieldAccessor>( new FnMatchFields( &fds, { *fnm.get_charstr() } ) )).get();
-        break;
-      case mtc::zval::z_array_charstr:
-        fields = (filter = std::shared_ptr<FieldAccessor>( new FnMatchFields( &fds, *fnm.get_array_charstr() ))).get();
-        break;
-      default:
-        throw std::invalid_argument( "'fnmatch' quotation has to contain charstr or array_charstr @" __FILE__ ":" LINE_STRING );
-    }
-  }
-
-  auto  QuoteOpts::GetQuoteFn( mtc::api<IContentsIndex> ctxIndex ) const -> collect::QuotesFn
-  {
-    switch ( q_mode )
-    {
-      case Type::Absent:
-        return []( uint32_t, const queries::Abstract& ) {  return mtc::array_zval();  };
-      case Type::Scheme:
-        return []( uint32_t, const queries::Abstract& /*abstr*/ ) -> mtc::array_zval
-        {
-          return {};
-        };
-      case Type::Source:
-        return [ctxIndex, fieldMan = filter, fieldPtr = fields]( uint32_t id, const queries::Abstract& abstr )
-        {
-          auto  entity = ctxIndex->GetEntity( id );
-          auto  bundle = entity != nullptr ? LoadBundle( entity->GetBundle() ) : Bundle();
-          auto  output = mtc::array_zval();
-
-          if ( !bundle.empty() )
-            enquote::QuoteMachine( *fieldPtr ).TextSource()( ZmapAsText( output ), bundle.body, bundle.mkup, abstr );
-
-          return output;
-        };
-      case Type::Struct: default:
-        return [ctxIndex, fieldMan = filter, fieldPtr = fields]( uint32_t id, const queries::Abstract& abstr )
-        {
-          auto  entity = ctxIndex->GetEntity( id );
-          auto  bundle = entity != nullptr ? LoadBundle( entity->GetBundle() ) : Bundle();
-          auto  output = mtc::array_zval();
-
-          if ( !bundle.empty() )
-            enquote::QuoteMachine( *fieldPtr ).Structured()( ZmapAsText( output ), bundle.body, bundle.mkup, abstr );
-
-          return output;
-        };
-    }
-  }
-
-  auto  QuoteOpts::LoadBundle( const mtc::api<const mtc::IByteBuffer>& src ) -> Bundle
-  {
-    Bundle      bundle( src );
-    const char* source;
-    size_t      srclen;
-
-    if ( src == nullptr || src->GetPtr() == nullptr )
-      return bundle;
-
-    // check for formats
-    if ( (source = mtc::zmap::serial::find( src->GetPtr(), "ft" )) != nullptr )
-    {
-      if ( *source++ != mtc::zval::z_array_char )
-        throw std::runtime_error( "invalid object package format" );
-      source = ::FetchFrom( source, srclen );
-      bundle.mkup = { source, srclen };
-    }
-    // check compressed image
-    if ( (source = mtc::zmap::serial::find( src->GetPtr(), "ip" )) != nullptr )
-    {
-      if ( *source++ != mtc::zval::z_array_char )
-        throw std::runtime_error( "invalid object package format" );
-      source = ::FetchFrom( source, srclen );
-      bundle.body = (bundle.packed() = Unpack( { source, srclen } ));
-    }
-      else
-  // check uncompressed image
-    if ( (source = mtc::zmap::serial::find( src->GetPtr(), "im" )) != nullptr )
-    {
-      if ( *source++ != mtc::zval::z_array_char )
-        throw std::runtime_error( "invalid object package format" );
-      source = ::FetchFrom( source, srclen );
-      bundle.body = { source, srclen };
-    }
-
-    return bundle;
-  }
-
-  auto  QuoteOpts::Scheme2Str( Type type ) -> const char*
-  {
-    switch ( type )
-    {
-      case Type::Absent:  return "absent";
-      case Type::Scheme:  return "scheme";
-      case Type::Source:  return "source";
-      default:            return "struct";
-    }
-  }
-
-  auto  QuoteOpts::Str2Scheme( std::string_view type ) -> Type
-  {
-    return
-      type == "absent" ? Type::Absent :
-      type == "scheme" ? Type::Scheme :
-      type == "source" ? Type::Source : Type::Struct;
-  }
 
   class StructoSearch final: public IService
   {
@@ -322,7 +46,7 @@ namespace palmira {
   protected:
     auto  buildRequest( const SearchArgs& ) -> mtc::api<queries::IQuery>;
     auto  getCollector( const SearchArgs& ) -> mtc::api<collect::ICollector>;
-    auto  getQuoteOpts( const mtc::zval* ) const -> QuoteOpts;
+    auto  getQuoteTool( const mtc::zmap& ) const -> collect::QuotesFn;
 
   protected:
     mtc::api<IContentsIndex>  ctxIndex;
@@ -404,38 +128,6 @@ namespace palmira {
     return rCount;
   }
 
-  auto  ZipBuf( const mtc::span<const char>& src ) -> std::vector<char>
-  {
-    auto  compressed_size = compressBound( src.size() );
-    auto  compressed_data = std::vector<char>( compressed_size );
-    auto  compress_result = compress( (Bytef*)compressed_data.data(), &compressed_size,
-      (const Bytef*)src.data(), src.size() );
-
-    if ( compress_result != Z_OK )
-      throw std::range_error( "compression failed" );
-
-    if ( compressed_size > src.size() - 100 )
-      throw std::range_error( "ignore compression" );
-
-    return compressed_data.resize( compressed_size ), compressed_data;
-  }
-
-  auto  Unpack( const mtc::span<const char>& src ) -> std::vector<char>
-  {
-    std::vector<char> unpack( src.size() * 2 );
-    uLongf            length;
-    int               nerror;
-
-    while ( (nerror = uncompress( (Bytef*)unpack.data(), &(length = unpack.size()),
-      (const Bytef*)src.data(), src.size() )) == Z_BUF_ERROR )
-        unpack.resize( unpack.size() * 3 / 2 );
-
-    if ( nerror == Z_OK ) unpack.resize( length );
-      else unpack.clear();
-
-    return unpack;
-  }
-
   auto  StructoSearch::Insert( const InsertArgs& insert, NotifyFn notify ) -> mtc::api<IPending>
   {
     try
@@ -485,7 +177,7 @@ namespace palmira {
         { enBeef.data(), enBeef.size() } );
 
       return modified = true, Immediate( UpdateReport{ 0, "OK", {
-        { "metadata", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
+        { "extra", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
     }
     catch ( const std::bad_function_call& xp )        {  return Immediate( UpdateReport{ EFAULT, xp.what() }, notify );  }
     catch ( const std::invalid_argument& xp )         {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
@@ -504,7 +196,7 @@ namespace palmira {
         return Immediate( UpdateReport{ ENOENT, "document not found" }, notify );
 
       return modified = true, Immediate( UpdateReport{ 0, "OK", {
-        { "metadata", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
+        { "extra", LoadMetadata( getdoc->GetExtra() ) } } }, notify );
     }
     catch ( const std::invalid_argument& xp )         {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
     catch ( const DeliriX::load_as::ParseError& xp )  {  return Immediate( UpdateReport{ EINVAL, xp.what() }, notify );  }
@@ -581,64 +273,21 @@ namespace palmira {
     return zmap;
   }
 
-  class LoaderQuery final: public collect::IQuery
-  {
-    std::vector<uint32_t>                 docs;
-    std::vector<uint32_t>::const_iterator next;
-    queries::Abstract                     stub;
-
-  public:
-    auto  LastIndex() -> uint32_t override;
-    auto  SearchDoc( uint32_t ) -> uint32_t override;
-    auto  GetTuples( uint32_t ) -> const queries::Abstract& override;
-    auto  Duplicate( const Bounds& = {} ) -> mtc::api<IQuery> override;
-
-    LoaderQuery( mtc::api<IContentsIndex>, const mtc::array_charstr& );
-
-    implement_lifetime_control
-  };
-
-  auto  LoaderQuery::LastIndex() -> uint32_t
-  {
-    return !docs.empty() ? docs.back() : 0;
-  }
-
-  auto  LoaderQuery::SearchDoc( uint32_t id ) -> uint32_t
-  {
-    while ( next != docs.end() && *next < id )
-      ++next;
-    return next != docs.end() ? *next : uint32_t(-1);
-  }
-
-  auto  LoaderQuery::GetTuples( uint32_t ) -> const queries::Abstract&
-  {
-    return stub;
-  }
-
-  auto  LoaderQuery::Duplicate( const Bounds& ) -> mtc::api<IQuery>
-  {
-    return this;
-  }
-
-  LoaderQuery::LoaderQuery( mtc::api<IContentsIndex> idx, const mtc::array_charstr& ids ):
-    stub{ queries::Abstract::BM25, 1, {} }
-  {
-    for ( auto id: ids )
-      if ( auto doc = idx->GetEntity( id ); doc != nullptr )
-        docs.push_back( doc->GetIndex() );
-
-    std::sort( docs.begin(), docs.end() );
-      docs.resize( std::unique( docs.begin(), docs.end() ) - docs.begin() );
-
-    next = docs.begin();
-  }
-
   auto StructoSearch::buildRequest( const SearchArgs& args ) -> mtc::api<queries::IQuery>
   {
-  // check for 'get'
-    if ( auto zmap = args.query.get_zmap(); zmap != nullptr )
-      if ( auto zset = zmap->get_array_charstr( "get" ); zset != nullptr )
-        return zset->empty() ? nullptr : new LoaderQuery( ctxIndex, *zset );
+    struct DummyQuery final: queries::IQuery
+    {
+      auto  LastIndex() -> uint32_t {  return 0;  }
+      auto  SearchDoc( uint32_t ) -> uint32_t {  return -1;  }
+      auto  GetTuples( uint32_t ) -> const queries::Abstract& {  throw std::runtime_error{ "Not implemented" };  };
+      auto  Duplicate( const Bounds& = {} ) -> mtc::api<IQuery> {  return this;  }
+
+      implement_lifetime_control
+    };
+
+    if ( auto getmap = args.query.get_zmap(); getmap != nullptr )
+      if ( auto getarr = getmap->get( "get" ); getarr != nullptr )
+        return new DummyQuery();
 
     return queries::BuildRichQuery( args.query, args.terms,
       ctxIndex,
@@ -649,7 +298,32 @@ namespace palmira {
   auto  StructoSearch::getCollector( const SearchArgs& args ) -> mtc::api<collect::ICollector>
   {
     auto  stMode = args.order.get_charstr( "order", "score" );     // по умолчанию по релевантности
-    auto  quoter = getQuoteOpts( args.order.get( "quote" ) );
+    auto  quoter = getQuoteTool( args.order.get_zmap( "quote", {} ) );
+
+  // check 'get' queries
+    if ( auto getmap = args.query.get_zmap(); getmap != nullptr )
+      if ( auto getget = getmap->get( "get" ); getget != nullptr )
+      {
+        auto  loader = collect::LoadDumps( ctxIndex.ptr() );
+
+        switch ( getget->get_type() )
+        {
+          case mtc::zval::z_zmap:
+            loader.Insert(
+              getget->get_zmap()->get_charstr( "id", "" ), getQuoteTool(
+                getget->get_zmap()->get_zmap( "quote", { { "mode", "source" } } ) ) );
+            break;
+          case mtc::zval::z_array_zmap:
+            for ( auto& next: *getget->get_array_zmap() )
+              loader.Insert( next.get_charstr( "id", "" ), getQuoteTool(
+                next.get_zmap( "quote", { { "mode", "source" } } ) ) );
+            break;
+          default:
+            throw std::invalid_argument( "invalid request 'get' value type" );
+        }
+
+        return loader.Create();
+      }
 
     if ( stMode == "score" )
     {
@@ -657,33 +331,50 @@ namespace palmira {
         .SetFirst( args.order.get_int32( "first", 1 ) )
         .SetCount( args.order.get_int32( "count", 10 ) )
         .SetAsync( asyncers )
-        .SetQuote( quoter.GetQuoteFn( ctxIndex ) ).Create();
+        .SetQuote( quoter ).Create();
     }
     throw std::invalid_argument( "Unknown ordering '" + stMode + "' @" __FILE__ + ":" + LINE_STRING );
   }
 
-  auto  StructoSearch::getQuoteOpts( const mtc::zval* quote ) const -> QuoteOpts
+  auto  StructoSearch::getQuoteTool( const mtc::zmap& quote ) const -> collect::QuotesFn
   {
-    if ( quote == nullptr )
-      return QuoteOpts( fieldMan, QuoteOpts::Type::Struct );
+    enquote::Scheme   scheme = enquote::StringToScheme( quote.get_charstr( "mode", "struct" ) );
+    const mtc::zval*  pvalue;
 
-    if ( auto as_map = quote->get_zmap(); as_map != nullptr )
-    {
-      auto  quoType = QuoteOpts::Str2Scheme( as_map->get_charstr( "mode", "struct" ) );
+    if ( (pvalue = quote.get( "include" )) != nullptr )
+      switch ( pvalue->get_type() )
+      {
+        case mtc::zval::z_charstr:
+          return Function( ctxIndex, fieldMan, scheme, enquote::include, { *pvalue->get_charstr() } );
+        case mtc::zval::z_array_charstr:
+          return Function( ctxIndex, fieldMan, scheme, enquote::include, *pvalue->get_array_charstr() );
+        default:
+          throw std::invalid_argument( "unexpected 'include' quotation value, has to be string or array of strings" );
+      }
 
-      if ( auto include = as_map->get( "include" ); include != nullptr )
-        return QuoteOpts( fieldMan, quoType, QuoteOpts::include, *include );
+    if ( (pvalue = quote.get( "exclude" )) != nullptr )
+      switch ( pvalue->get_type() )
+      {
+        case mtc::zval::z_charstr:
+          return Function( ctxIndex, fieldMan, scheme, enquote::exclude, { *pvalue->get_charstr() } );
+        case mtc::zval::z_array_charstr:
+          return Function( ctxIndex, fieldMan, scheme, enquote::exclude, *pvalue->get_array_charstr() );
+        default:
+          throw std::invalid_argument( "unexpected 'exclude' quotation value, has to be string or array of strings" );
+      }
 
-      if ( auto exclude = as_map->get( "exclude" ); exclude != nullptr )
-        return QuoteOpts( fieldMan, quoType, QuoteOpts::exclude, *exclude );
+    if ( (pvalue = quote.get( "fnmatch" )) != nullptr )
+      switch ( pvalue->get_type() )
+      {
+        case mtc::zval::z_charstr:
+          return Function( ctxIndex, fieldMan, scheme, enquote::fnmatch, { *pvalue->get_charstr() } );
+        case mtc::zval::z_array_charstr:
+          return Function( ctxIndex, fieldMan, scheme, enquote::fnmatch, *pvalue->get_array_charstr() );
+        default:
+          throw std::invalid_argument( "unexpected 'fnmatch' quotation value, has to be string or array of strings" );
+      }
 
-      if ( auto fnmatch = as_map->get( "fnmatch" ); fnmatch != nullptr )
-        return QuoteOpts( fieldMan, quoType, QuoteOpts::fnmatch, *fnmatch );
-
-      return QuoteOpts( fieldMan, quoType );
-    }
-
-    throw std::invalid_argument( "invalid quote options @" __FILE__ ":" LINE_STRING );
+    return Function( ctxIndex, fieldMan, scheme );
   }
 
   // StructoService implementation

@@ -28,7 +28,7 @@ namespace palmira {
     uVersion( args.get_word64 ( "version", 0 ) )
   {
     if ( args.get( "claim" ) != nullptr )
-      ifClause = *args.get( "condition" );
+      ifClause = *args.get( "claim" );
   };
 
   // UpdateArgs implementation
@@ -39,6 +39,12 @@ namespace palmira {
   }
 
   // InsertArgs implementation
+
+  InsertArgs::InsertArgs( InsertArgs&& args ): UpdateArgs( std::move( args ) ),
+    document( std::move( args.document ) ),
+    textview( &args.textview == &args.document ? document : args.textview )
+  {
+  }
 
   InsertArgs::InsertArgs( const mtc::zmap& args ): UpdateArgs( args ),
     textview( document )

@@ -4,6 +4,7 @@
 # include <stdexcept>
 # include <cmath>
 #include <condition_variable>
+#include <reports.hpp>
 #include <mtc/json.h>
 #include <mtc/recursive_shared_mutex.hpp>
 
@@ -159,15 +160,13 @@ namespace collect {
 
   auto  Documents::impl::Finish( mtc::api<IContentsIndex> pIndex ) -> mtc::zmap
   {
-    auto  report = mtc::zmap{
-      { "first", uint32_t(nFirst) },
-      { "found", uint32_t(nFound) } };
-
     if ( nCount >= nFirst )
     {
+      auto  report = SearchReport( 0, "OK", {
+        { "first", uint32_t(nFirst) },
+        { "found", uint32_t(nFound) },
+        { "count", uint32_t(nCount + 1 - nFirst) } } );
       auto  pitems = report.set_array_zmap( "items" );
-
-      report["count"] = uint32_t(nCount + 1 - nFirst);
 
       std::sort( Buffer(), Buffer() + nCount, [this]( const Entity& l, const Entity& r )
         {  return differ( l.id, l.weight, r.id, r.weight ) < 0;  } );
@@ -194,8 +193,9 @@ namespace collect {
         if ( quoter != nullptr && quoBox.Get( beg->id ) != nullptr )
           pitems->back().set_array_zval( "quote", std::move( quoter( beg->id, *quoBox.Get( beg->id ) ) ) );
       }
+      return report;
     }
-    return report;
+    return SearchReport( ENOENT, "Document(s) not found" );
   }
 
  /*

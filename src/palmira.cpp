@@ -37,8 +37,134 @@ void  SignalProc( int /*sig*/ )
     signalFunc();
 }
 
+class hints: protected mtc::zval
+{
+  struct value: protected zval
+  {
+    using zval::zval;
+
+    friend class hints;
+
+    value( zval& z ): zval( z ) {}
+  };
+
+public:
+  hints( const std::initializer_list<std::pair<std::string, value>>& init );
+
+  hints operator [] ( const std::string& key );
+
+  static  value type( const std::string&,
+                      const std::initializer_list<std::pair<std::string, value>>& );
+  static  value type( const std::initializer_list<std::pair<std::string, value>>& );
+  static  value array( mtc::zval::z_type );
+  static  value array( const mtc::charstr& );
+  static  value array( const mtc::zmap& );
+};
+
+hints::hints( const std::initializer_list<std::pair<std::string, value>>& init ): zval( mtc::zmap() )
+{
+  for ( auto& next: init )
+  {
+  // check simple type
+    switch ( next.second.get_type() )
+    {
+      case z_byte  :
+        get_zmap()->put( next.first, *next.second.get_byte() );
+        break;
+
+    // может быть реальный array_charstr, если пустой,
+    // или массив стуктур с именем,
+    // или явно заданных
+      case z_array_charstr:
+      {
+        auto& arr = *next.second.get_array_charstr();
+
+        if ( arr.empty() )  get_zmap()->put( next.first, next.second );
+          else
+        if ( arr.size() == 1 )
+        {
+          auto  map = get_zmap()->get_zmap( arr.front() );
+
+          if ( map != nullptr ) get_zmap()->put( next.first, mtc::array_zmap{ *map } );
+            else
+          throw std::invalid_argument( "undefined type '" + next.first + "' referenced" );
+        }
+          else
+        throw std::invalid_argument( "invalid type array length" );
+        break;
+      }
+      case z_array_zmap:
+      {
+        auto& arr = *next.second.get_array_zmap();
+
+        if ( arr.empty() )  get_zmap()->put( next.first, next.second );
+          else
+        if ( arr.size() == 1 )
+        {
+          auto& map = arr.front();
+          auto  key = map.get_charstr( 1U );
+
+          if ( key != nullptr )
+            get_zmap()->set_zmap( *key, map );
+        }
+          else
+        throw std::invalid_argument( "invalid type array length" );
+        break;
+      }
+      case z_zmap:
+      {
+        auto& map = *next.second.get_zmap();
+        auto  key = map.get_charstr( 1U );
+
+        if ( key != nullptr )
+          get_zmap()->set_zmap( *key, map );
+        break;
+      }
+      default:
+        throw std::invalid_argument( "unexpected hint type" );
+    }
+  }
+}
+
+auto  hints::type( const std::initializer_list<std::pair<std::string, value>>& ht ) -> value
+{
+  auto  hint = hints( ht );
+  return value( hint );
+}
+
+auto  hints::type( const std::string& key, const std::initializer_list<std::pair<std::string, value>>& hints ) -> value
+{
+  return mtc::zmap( *type( hints ).get_zmap(), { { 1U, key } } );
+}
+
+auto  hints::array( const mtc::zval::z_type _typ ) -> value
+{
+  return mtc::array_byte{ _typ };
+}
+
+auto  hints::array( const mtc::charstr& _typ ) -> value
+{
+  return mtc::array_charstr{ _typ };
+}
+
+auto  hints::array( const mtc::zmap& _typ ) -> value
+{
+  return mtc::array_zmap{ _typ };
+}
+
 int   main( int argc, char* argv[] )
 {
+  auto hnts = hints{
+      { "version", mtc::zval::z_word64 },
+      { "sender", hints::type( "person_info", {
+          { "name", mtc::zval::z_widestr },
+          { "year", mtc::zval::z_int16 } } ) },
+      { "receivers", hints::array("person_info") },
+      { "address", hints::type( {
+          { "street", mtc::zval::z_charstr },
+          { "city", mtc::zval::z_charstr },
+          { "zip", mtc::zval::z_int32 } } ) } };
+
   auto  server = mtc::api<palmira::IServer>();
   auto  search = mtc::api<palmira::IService>();
   auto  config = mtc::config();

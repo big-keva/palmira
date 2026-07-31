@@ -58,7 +58,7 @@ auto  LoadText( const std::string& path ) -> DeliriX::Text
     char  szline[0x1000];
 
     while ( fgets( szline, sizeof(szline) - 1, infile ) != nullptr )
-      getdoc.AddBlock( szline );
+      getdoc.AddString( szline );
 
     fclose( infile );
   }

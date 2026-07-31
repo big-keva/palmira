@@ -32,16 +32,19 @@ namespace palmira {
 
   };
 
-  auto  UtfStr( const DeliriX::Paragraph& para ) -> mtc::charstr
+  auto  ToZval( const DeliriX::Paragraph& para ) -> mtc::zval
   {
     auto  coding = para.GetEncoding();
+
+    if ( auto pvalue = para.GetNumeric(); pvalue != nullptr )
+      return *pvalue;
 
     switch ( coding )
     {
       case uint32_t(-1):
         return codepages::widetombcs( codepages::codepage_utf8, para.GetWideStr() );
       case codepages::codepage_utf8:
-        return { para.GetCharStr().data(), para.GetCharStr().size() };
+        return mtc::charstr( para.GetCharStr() );
       default:
         return codepages::mbcstombcs( codepages::codepage_utf8, coding, para.GetCharStr() );
     }
@@ -72,15 +75,14 @@ namespace palmira {
     switch ( val.get_type() )
     {
       case mtc::zval::z_array_zval:
-        val.get_array_zval()->push_back( std::move( UtfStr( para ) ) );
+        val.get_array_zval()->emplace_back( ToZval( para ) );
         break;
-      case mtc::zval::z_charstr:
-      case mtc::zval::z_widestr:
-      case mtc::zval::z_zmap:
-        val = mtc::array_zval{ std::move( val ), std::move( UtfStr( para ) ) };
+      case mtc::zval::z_untyped:
+        val = std::move( ToZval( para ) );
         break;
       default:
-        val = std::move( UtfStr( para ) );
+        val = mtc::array_zval{ std::move( val ), std::move( ToZval( para ) ) };
+        break;
     }
     return {};
   }
@@ -96,7 +98,7 @@ namespace palmira {
 
   auto  ZmapArr::AddParagraph( const DeliriX::Paragraph& para ) -> DeliriX::Paragraph
   {
-    output.push_back( UtfStr( para ) );
+    output.push_back( ToZval( para ) );
     return {};
   }
 
@@ -147,10 +149,10 @@ namespace palmira {
         switch ( next.get_type() )
         {
           case mtc::zval::z_widestr:
-            doc.AddBlock( *next.get_widestr() );
+            doc.AddString( *next.get_widestr() );
             break;
           case mtc::zval::z_zmap:
-            doc.AddBlock(
+            doc.AddString(
               next.get_zmap()->get_word32( 1U, 0 ),
               next.get_zmap()->get_charstr( 0U, "" ) );
             break;

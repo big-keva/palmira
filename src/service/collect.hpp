@@ -44,20 +44,17 @@ namespace collect {
     auto  Create() -> mtc::api<ICollector>;
   };
 
-  class LoadEntities final
+  class LoadDumps final
   {
-    class data;
     class impl;
 
-    std::shared_ptr<data> params;
+    impl* params = nullptr;
 
   public:
-    LoadEntities( mtc::api<const IContentsIndex> );
+    LoadDumps( mtc::api<const IContentsIndex> );
+   ~LoadDumps();
 
-    auto  Add( std::string_view, QuotesFn ) -> LoadEntities&;
-    auto  Add( std::initializer_list<std::string_view>, QuotesFn ) -> LoadEntities&;
-    auto  Add( std::initializer_list<std::pair<std::string_view, QuotesFn>> ) -> LoadEntities&;
-
+    auto  Insert( std::string_view, QuotesFn ) -> LoadDumps&;
     auto  Create() -> mtc::api<ICollector>;
   };
 
