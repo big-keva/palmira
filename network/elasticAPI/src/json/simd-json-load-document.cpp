@@ -7,83 +7,6 @@
 namespace elastic::json
 {
 //-------------------------------------------------------------------------//
-void  Load( simdjson::ondemand::value val, std::function<mtc::api<DeliriX::IText>()> add )
-  {
-    switch ( val.type() )
-    {
-      case simdjson::ondemand::json_type::array:
-      {
-        auto  arr = val.get_array().value();
-        auto  tag = mtc::api<DeliriX::IText>();
-
-        for ( auto element: arr )
-        {
-          if ( element.value().type() == simdjson::ondemand::json_type::object )
-          {
-            Load( element.value(), [&]()
-            {
-              if ( tag == nullptr )
-                tag = add();
-              return tag->AddMarkupTag( { "\x1", 1 } );
-            } );
-          }
-            else
-          {
-            Load( element.value(), [&]()
-              {  return tag != nullptr ? tag : tag = add();  } );
-          }
-        }
-        break;
-      }
-      case simdjson::ondemand::json_type::object:
-      {
-        auto  obj = val.get_object().value();
-        auto  tag = mtc::api<DeliriX::IText>();
-        auto  mkx = mtc::api<DeliriX::IText>();
-
-        for ( auto field: obj )
-        {
-          auto  key = field.unescaped_key().value();
-
-          Load( field.value(), [&]()
-            {
-              if ( tag == nullptr )
-                tag = add();
-              if ( mkx == nullptr )
-                mkx = tag->AddMarkupTag( { "\x1", 1 } );
-              return mkx->AddMarkupTag( key );
-            } );
-        }
-        break;
-      }
-      case simdjson::ondemand::json_type::string:
-      {
-        auto  str = val.get_string().value();
-
-        if ( !str.empty() )
-          add()->AddBlock( DeliriX::IText::persistent, str );
-        break;
-      }
-      case simdjson::ondemand::json_type::number:
-      {
-        auto str = val.raw_json_token();
-
-        if ( !str.empty() )
-          add()->AddBlock( DeliriX::IText::persistent, str );
-        break;
-      }
-      case simdjson::ondemand::json_type::boolean:
-      {
-        add()->AddBlock( DeliriX::IText::persistent, val.get_bool().value() ? "true" : "false" );
-        break;
-      }
-      case simdjson::ondemand::json_type::null:
-      {
-        add()->AddBlock( DeliriX::IText::persistent, "NULL" );
-        break;
-      }
-    }
-  }//-------------------------------------------------------------------------//
   auto load_document(std::string_view json, std::function<mtc::api<DeliriX::IText>()> onadd) -> void
   {
     simdjson::padded_string padded_json(json);
@@ -168,7 +91,7 @@ void  Load( simdjson::ondemand::value val, std::function<mtc::api<DeliriX::IText
         throw (std::invalid_argument("making a new tag failed"));
       }
 
-      tag->AddBlock(DeliriX::IText::persistent, string_value);
+      tag->AddString(DeliriX::IText::persistent, string_value);
       break;
     }
     case simdjson::ondemand::json_type::number: {
@@ -179,7 +102,7 @@ void  Load( simdjson::ondemand::value val, std::function<mtc::api<DeliriX::IText
         throw (std::invalid_argument("making a new tag failed"));
       }
 
-      tag->AddBlock(DeliriX::IText::persistent, raw_number);
+      tag->AddNumber(std::stod(raw_number.data()));
       break;
     }
     case simdjson::ondemand::json_type::boolean: {
@@ -192,7 +115,7 @@ void  Load( simdjson::ondemand::value val, std::function<mtc::api<DeliriX::IText
         throw (std::invalid_argument("making a new tag failed"));
       }
 
-      tag->AddBlock(DeliriX::IText::persistent, boolean_value ? "true" : "false");
+      tag->AddString(DeliriX::IText::persistent, boolean_value ? "true" : "false");
       break;
     }
     case simdjson::ondemand::json_type::null: {
@@ -202,7 +125,7 @@ void  Load( simdjson::ondemand::value val, std::function<mtc::api<DeliriX::IText
         throw (std::invalid_argument("making a new tag failed"));
       }
 
-      tag->AddBlock(DeliriX::IText::persistent, "null");
+      tag->AddString(DeliriX::IText::persistent, "null");
       break;
     }
     default:

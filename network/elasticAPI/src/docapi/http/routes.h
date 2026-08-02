@@ -1,64 +1,35 @@
 #pragma once
 //-------------------------------------------------------------------------//
-#include <atomic>
-#include <condition_variable>
 #include <memory>
-#include <mutex>
-#include <string>
-#include <thread>
-//-------------------------------------------------------------------------//
-#include <App.h>
 //-------------------------------------------------------------------------//
 #include <structo/contents.hpp>
 //-------------------------------------------------------------------------//
+#include <mtc/config.h>
 #include <mtc/json.h>
 //-------------------------------------------------------------------------//
-#include "../elastic-api-server.h"
+#include "server.hpp"
 //-------------------------------------------------------------------------//
-#include "../common/thread-pool.h"
+#include "../json/simd-json-index-parser.h"
+#include "../json/simd-json-mget-parser.h"
+#include "network/elasticAPI/src/common/thread-pool.h"
 //-------------------------------------------------------------------------//
-#include "../docapi/http/routes.h"
-#include "../http/method-type.h"
-//-------------------------------------------------------------------------//
-namespace elastic
+namespace elastic::docapi::http
 {
-//-------------------------------------------------------------------------//
-  struct async_response_state final
-  {
-    std::atomic_bool aborted{false};
-  };
 //-------------------------------------------------------------------------//
   //!< Keeps a max size of body.
   constexpr std::uint64_t max_body_size = 5 * 1024 * 1024;
   //!< Keeps a request timeout (in milliseconds).
   constexpr std::uint32_t request_timeout = 30000;
 //-------------------------------------------------------------------------//
-  class http_server final : public palmira::IServer
+  class routes final
   {
     using storage_t = mtc::api<structo::IStorage>;
-
-    //!< Keeps a server config.
-    const mtc::config config;
 
     //!< Keeps a search service.
     mtc::api<palmira::IService> service;
 
-    //!< Keeps a list of servers.
-    std::tuple<
-      docapi::http::routes
-    > routes;
-
-    std::thread thread;
-    std::atomic_bool started{false};
-    std::atomic_bool stopping{false};
-
-    std::mutex mtx;
-    std::condition_variable cv;
-    bool start_failed = false;
-
-    us_listen_socket_t *listen_socket = nullptr;
-
-    implement_lifetime_control
+    //!< Keeps a server config.
+    const mtc::config config;
 
   public:
     /**
@@ -66,23 +37,17 @@ namespace elastic
      * @param service [in] - A search service.
      * @param config [in] - A server configuration.
      */
-    explicit http_server(palmira::IService *service, const mtc::config &config);
+    explicit routes(palmira::IService *service, const mtc::config &config);
 
     /**
      * Destructor.
      */
-    virtual ~http_server();
+    ~routes() = default;
 
-    // Override methods
-  public:
-    void Start() override;
-    void Stop() override;
-    void Wait() override;
-
-  protected:
     template<typename app_t>
     auto register_routes(app_t &app) -> void;
 
+  private:
     template<typename Response, typename Request>
     auto onpost(Response *res, Request *req) -> void;
 
@@ -97,28 +62,6 @@ namespace elastic
 
     template<typename Response, typename Request>
     auto ondel(Response *res, Request *req) -> void;
-
-  private:
-    auto onloop() -> void;
-    auto onlisten(us_listen_socket_t *token) -> void;
   };
 //-------------------------------------------------------------------------//
-  /**
-   * Gets a listen port.
-   * @return A listen port.
-   */
-  auto getListenPort() -> std::uint16_t;
-
-  /**
-   * Gets a pool of threads.
-   * @return A thread pool.
-   */
-  auto get_thread_pool() -> thread_pool *;
-
-  /**
-   * Gets uWS event loop.
-   * @return uWS event loop.
-   */
-  auto get_ws_loop() -> uWS::Loop *;
-//-------------------------------------------------------------------------//
-} // namespace elastic
+} // namespace elastic::docapi::http

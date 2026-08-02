@@ -55,24 +55,20 @@ namespace elastic::http
    * Нельзя вызывать её напрямую из ThreadPool.
    */
   template<bool SSL>
-  void send_json_response(response_context<SSL> *ctx, const service_response &response) {
-    assert(ctx != nullptr && "Invalid response context");
-    if (ctx->aborted.load(std::memory_order_acquire)) {
+  void send_json_response(uWS::HttpResponse<SSL> *resp, const service_response &response) {
+    assert(resp != nullptr && "Invalid response context");
+    if (resp == nullptr) {
       return;
     }
 
-    if (ctx->response == nullptr) {
-      return;
-    }
-
-    ctx->response->writeStatus(http::to_string(response.status));
-    ctx->response->writeHeader("Content-Type", response.content_type.empty() ? "application/json" : response.content_type);
-    ctx->response->writeHeader("Content-Length", std::to_string(response.body.size()));
-    ctx->response->end(response.body);
+    resp->writeStatus(http::to_string(response.status));
+    resp->writeHeader("Content-Type", response.content_type.empty() ? "application/json" : response.content_type);
+    resp->writeHeader("Content-Length", std::to_string(response.body.size()));
+    resp->end(response.body);
   }
 
   template<bool SSL>
-  void send_error_response(response_context<SSL> *ctx, status_codes status, std::string_view error_type, std::string_view reason) {
+  void send_error_response(uWS::HttpResponse<SSL> *resp, status_codes status, std::string_view error_type, std::string_view reason) {
     service_response response{
       .status = status,
       .content_type = "application/json",
@@ -94,19 +90,19 @@ namespace elastic::http
     response.body += http::to_string(status);
     response.body += '}';
 
-    send_json_response(ctx, response);
+    send_json_response(resp, response);
   }
 //-------------------------------------------------------------------------//
   template
-  void send_json_response<false>(response_context<false> *, const service_response &);
+  void send_json_response<false>(uWS::HttpResponse<false> *, const service_response &);
 
   template
-  void send_json_response<true>(response_context<true> *, const service_response &);
+  void send_json_response<true>(uWS::HttpResponse<true> *, const service_response &);
 
   template
-  void send_error_response<false>(response_context<false> *, http::status_codes, std::string_view, std::string_view);
+  void send_error_response<false>(uWS::HttpResponse<false> *, http::status_codes, std::string_view, std::string_view);
 
   template
-  void send_error_response<true>(response_context<true> *, http::status_codes, std::string_view, std::string_view);
+  void send_error_response<true>(uWS::HttpResponse<true> *, http::status_codes, std::string_view, std::string_view);
 //-------------------------------------------------------------------------//
 }// namespace elastic::http

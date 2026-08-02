@@ -1,4 +1,4 @@
-#include "../server.h"
+#include "../elastic-api-server.h"
 //-------------------------------------------------------------------------//
 #include <utility>
 //-------------------------------------------------------------------------//
@@ -13,7 +13,7 @@ auto CreateServer(palmira::IServer **server, palmira::IService *service, const m
       // Releasing allocated resources.
       (*server)->Detach();
     }
-    *server = new elastic::HttpServer(service, config.to_zmap());
+    *server = new elastic::http_server(service, config.to_zmap());
 
     // Incrementing a reference.
     (*server)->Attach();
@@ -23,9 +23,4 @@ auto CreateServer(palmira::IServer **server, palmira::IService *service, const m
     return std::fprintf(stderr, "%s\n", exc.what()), -EINVAL;
   }
   return 0;
-}
-
-extern "C" auto getListenPort() -> std::uint16_t
-{
-  return elastic::getListenPort();
 }

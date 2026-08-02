@@ -1,30 +1,13 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          docapi-req.h
-* - Created:       06/23/2026
-* - Author:        Vitaly Bulganin
-* - Description:
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __DOCAPI_REQ_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __DOCAPI_REQ_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <string>
 #include <vector>
 //-------------------------------------------------------------------------//
 #include <service.hpp>
 //-------------------------------------------------------------------------//
-#include "../http/http-req.h"
+#include "../../http/http-req.h"
 //-------------------------------------------------------------------------//
-namespace elastic::http::docapi
+namespace elastic::docapi::http
 {
 //-------------------------------------------------------------------------//
   struct document_get_options
@@ -103,7 +86,7 @@ namespace elastic::http::docapi
    * @param params [in] - Query params to parse.
    * @return Parsed get options.
    */
-  document_get_options parse_get_options(const query_params_t &params);
+  document_get_options parse_get_options(const elastic::http::query_params_t &params);
 
   /**
    * Makes index document request.
@@ -113,7 +96,7 @@ namespace elastic::http::docapi
    * @param params [in] - Query params.
    * @return Index document request.
    */
-  palmira::InsertArgs make_index_request(std::string index, std::string id, std::string body, const query_params_t &params);
+  palmira::InsertArgs make_index_request(std::string index, std::string id, std::string body, const elastic::http::query_params_t &params);
 
   /**
    * Makes index document request.
@@ -123,8 +106,6 @@ namespace elastic::http::docapi
    * @param params [in] - Query params.
    * @return Index document request.
    */
-  palmira::UpdateArgs make_update_request(std::string index, std::string id, std::string body, const query_params_t &params);
+  palmira::UpdateArgs make_update_request(std::string index, std::string id, std::string body, const elastic::http::query_params_t &params);
 //-------------------------------------------------------------------------//
-} // namespace elastic::http::docapi
-//-------------------------------------------------------------------------//
-#endif // __DOCAPI_REQ_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+} // namespace elastic::docapi::http

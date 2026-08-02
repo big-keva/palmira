@@ -36,6 +36,7 @@ namespace uWS
 namespace elastic::http
 {
 //-------------------------------------------------------------------------//
+/*
   template<bool SSL>
   struct response_context
   {
@@ -45,6 +46,7 @@ namespace elastic::http
     //!< Keeps a status of aborted or not.
     std::atomic_bool aborted = false;
   };
+*/
 
   struct service_response
   {
@@ -59,10 +61,10 @@ namespace elastic::http
   };
 //-------------------------------------------------------------------------//
   template<bool SSL>
-  void send_json_response(response_context<SSL> *ctx, const service_response &response);
+  void send_json_response(uWS::HttpResponse<SSL> *resp, const service_response &response);
 
   template<bool SSL>
-  void send_error_response(response_context<SSL> *ctx, status_codes status, std::string_view error_type, std::string_view reason);
+  void send_error_response(uWS::HttpResponse<SSL> *resp, status_codes status, std::string_view error_type, std::string_view reason);
 //-------------------------------------------------------------------------//
 }// namespace elastic::http
 //-------------------------------------------------------------------------//

@@ -11,9 +11,9 @@
 #include "../../json/serializer.h"
 #include "../../common/utils.h"
 //-------------------------------------------------------------------------//
-#include "../docapi-resp.h"
+#include "docapi-resp.h"
 //-------------------------------------------------------------------------//
-namespace elastic::http::docapi
+namespace elastic::docapi::http
 {
 //-------------------------------------------------------------------------//
   namespace
@@ -205,126 +205,189 @@ namespace elastic::http::docapi
   } // namespace
 //-------------------------------------------------------------------------//
   template<bool SSL>
-  void send_index_json_response(response_context<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid)
+  void send_index_json_response(uWS::HttpResponse<SSL> *reply, const mtc::zmap &resp, std::string_view index, std::string_view docid)
   {
-    assert(ctx != nullptr && "Invalid response context");
-    if (ctx->aborted.load(std::memory_order_acquire)) {
+    if (reply == nullptr) {
       return;
     }
 
-    if (ctx->response == nullptr) {
-      return;
-    }
+    reply->writeHeader("Content-Type", "application/json");
 
-    ctx->response->writeHeader("Content-Type", "application/json");
-
-    const auto error = check_resp_on_error(resp);
+    const auto error = elastic::http::check_resp_on_error(resp);
     if (error.code != 0)
     {
-      ctx->response->writeStatus(http::to_string(http::status_codes::BAD_REQUEST));
-      ctx->response->writeHeader("Content-Length", get_error_context_length(index, docid));
+      reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::BAD_REQUEST));
+      reply->writeHeader("Content-Length", get_error_context_length(index, docid));
 
-      braces_guard guard(ctx->response, "{}");
+      braces_guard guard(reply, "{}");
       // Writing a body.
-      ctx->response->write(R"("_index": ")");
-      ctx->response->write(index);
-      ctx->response->write(R"(","_id": ")");
-      ctx->response->write(docid);
-      ctx->response->write(R"(","found": false)");
+      reply->write(R"("_index": ")");
+      reply->write(index);
+      reply->write(R"(","_id": ")");
+      reply->write(docid);
+      reply->write(R"(","found": false)");
     }
     else
     {
-      ctx->response->writeStatus(http::to_string(http::status_codes::OK));
+      reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::OK));
 
-      braces_guard guard(ctx->response, "{}");
+      braces_guard guard(reply, "{}");
       // Getting metadata.
       const auto &mdata = resp.get_zmap("metadata", {});
 
       if (resp.get_zmap("status", {}).get_word16("code", 0) != 0)
       {// Not found a document by id
-        ctx->response->writeHeader("Content-Length", get_error_context_length(index, docid));
+        reply->writeHeader("Content-Length", get_error_context_length(index, docid));
 
         // Writing a body.
-        ctx->response->write(R"("_index":")");
-        ctx->response->write(mdata.get_charstr("_index", index.data()));
-        ctx->response->write(R"(","_id":")");
-        ctx->response->write(mdata.get_charstr("_id", docid.data()));
-        ctx->response->write(R"(","found":false)");
+        reply->write(R"("_index":")");
+        reply->write(mdata.get_charstr("_index", index.data()));
+        reply->write(R"(","_id":")");
+        reply->write(mdata.get_charstr("_id", docid.data()));
+        reply->write(R"(","found":false)");
       }
       else
       {
-        ctx->response->write(R"("_index": ")");
-        ctx->response->write(mdata.get_charstr("_index", index.data()));
-        ctx->response->write(R"(",)");
+        reply->write(R"("_index": ")");
+        reply->write(mdata.get_charstr("_index", index.data()));
+        reply->write(R"(",)");
 
-        ctx->response->write(R"("_id": ")");
-        ctx->response->write(mdata.get_charstr("_id", docid.data()));
-        ctx->response->write(R"(",)");
+        reply->write(R"("_id": ")");
+        reply->write(mdata.get_charstr("_id", docid.data()));
+        reply->write(R"(",)");
 
-        ctx->response->write(R"("_version": )"); //<TODO> Need to include value into response from search engine.
-        ctx->response->write(std::to_string(mdata.get_int64("_version", 0LL)));
-        ctx->response->write(R"(,)");
+        reply->write(R"("_version": )"); //<TODO> Need to include value into response from search engine.
+        reply->write(std::to_string(mdata.get_int64("_version", 0LL)));
+        reply->write(R"(,)");
 
-        ctx->response->write(R"("result": "created",)");
+        reply->write(R"("result": "created",)");
 
-        ctx->response->write(R"("_shards": {},)"); //<TODO> Need to include value into response from search engine.
+        reply->write(R"("_shards": {},)"); //<TODO> Need to include value into response from search engine.
 
-        ctx->response->write(R"("_seq_no": )"); //<TODO> Need to include value into response from search engine.
-        ctx->response->write(std::to_string(mdata.get_int64("_seq_no", 0LL)));
-        ctx->response->write(R"(,)");
+        reply->write(R"("_seq_no": )"); //<TODO> Need to include value into response from search engine.
+        reply->write(std::to_string(mdata.get_int64("_seq_no", 0LL)));
+        reply->write(R"(,)");
 
-        ctx->response->write(R"("_primary_term": )"); //<TODO> Need to include value into response from search engine.
-        ctx->response->write(std::to_string(mdata.get_int64("_primary_term", 0LL)));
-        ctx->response->write(R"(,)");
+        reply->write(R"("_primary_term": )"); //<TODO> Need to include value into response from search engine.
+        reply->write(std::to_string(mdata.get_int64("_primary_term", 0LL)));
+        reply->write(R"(,)");
       }
     }
 
-    ctx->response->end();
+    reply->end();
   }
 
   template<bool SSL>
-  void send_get_json_response(response_context<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid)
+  void send_update_json_response(uWS::HttpResponse<SSL> *reply, const mtc::zmap &resp, std::string_view index, std::string_view docid)
   {
-    assert(ctx != nullptr && "Invalid response context");
-    if (ctx->aborted.load(std::memory_order_acquire)) {
+    if (reply == nullptr) {
       return;
     }
 
-    if (ctx->response == nullptr) {
-      return;
-    }
+    reply->writeHeader("Content-Type", "application/json");
 
-    ctx->response->writeHeader("Content-Type", "application/json");
-
-    const auto error = check_resp_on_error(resp);
+    const auto error = elastic::http::check_resp_on_error(resp);
     if (error.code != 0)
     {
-      ctx->response->writeStatus(http::to_string(http::status_codes::BAD_REQUEST));
-      ctx->response->writeHeader("Content-Length", get_error_context_length(index, docid));
+      reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::BAD_REQUEST));
+      reply->writeHeader("Content-Length", get_error_context_length(index, docid));
 
-      braces_guard guard(ctx->response, "{}");
-
+      braces_guard guard(reply, "{}");
       // Writing a body.
-      ctx->response->write(R"("_index": ")");
-      ctx->response->write(index);
-      ctx->response->write(R"(","_id": ")");
-      ctx->response->write(docid);
-      ctx->response->write(R"(","found": false)");
+      reply->write(R"("_index": ")");
+      reply->write(index);
+      reply->write(R"(","_id": ")");
+      reply->write(docid);
+      reply->write(R"(","found": false)");
     }
     else
     {
-      ctx->response->writeStatus(http::to_string(http::status_codes::OK));
+      reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::OK));
 
-      braces_guard guard(ctx->response, "{}");
+      braces_guard guard(reply, "{}");
+      // Getting metadata.
+      const auto &mdata = resp.get_zmap("metadata", {});
+
+      if (resp.get_zmap("status", {}).get_word16("code", 0) != 0)
+      {// Not found a document by id
+        reply->writeHeader("Content-Length", get_error_context_length(index, docid));
+
+        // Writing a body.
+        reply->write(R"("_index":")");
+        reply->write(mdata.get_charstr("_index", index.data()));
+        reply->write(R"(","_id":")");
+        reply->write(mdata.get_charstr("_id", docid.data()));
+        reply->write(R"(","found":false)");
+      }
+      else
+      {
+        reply->write(R"("_index": ")");
+        reply->write(mdata.get_charstr("_index", index.data()));
+        reply->write(R"(",)");
+
+        reply->write(R"("_id": ")");
+        reply->write(mdata.get_charstr("_id", docid.data()));
+        reply->write(R"(",)");
+
+        reply->write(R"("_version": )"); //<TODO> Need to include value into response from search engine.
+        reply->write(std::to_string(mdata.get_int64("_version", 0LL)));
+        reply->write(R"(,)");
+
+        reply->write(R"("result": "created",)");
+
+        reply->write(R"("_shards": {},)"); //<TODO> Need to include value into response from search engine.
+
+        reply->write(R"("_seq_no": )"); //<TODO> Need to include value into response from search engine.
+        reply->write(std::to_string(mdata.get_int64("_seq_no", 0LL)));
+        reply->write(R"(,)");
+
+        reply->write(R"("_primary_term": )"); //<TODO> Need to include value into response from search engine.
+        reply->write(std::to_string(mdata.get_int64("_primary_term", 0LL)));
+        reply->write(R"(,)");
+      }
+    }
+
+    reply->end();
+  }
+
+  template<bool SSL>
+  void send_get_json_response(uWS::HttpResponse<SSL> *reply, const mtc::zmap &resp, std::string_view index, std::string_view docid)
+  {
+    if (reply == nullptr) {
+      return;
+    }
+
+    reply->writeHeader("Content-Type", "application/json");
+
+    const auto error = elastic::http::check_resp_on_error(resp);
+    if (error.code != 0)
+    {
+      reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::BAD_REQUEST));
+      reply->writeHeader("Content-Length", get_error_context_length(index, docid));
+
+      braces_guard guard(reply, "{}");
+
+      // Writing a body.
+      reply->write(R"("_index": ")");
+      reply->write(index);
+      reply->write(R"(","_id": ")");
+      reply->write(docid);
+      reply->write(R"(","found": false)");
+    }
+    else
+    {
+      reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::OK));
+
+      braces_guard guard(reply, "{}");
 
       if (resp.get_word32("found", 0) == 0)
       {// Not found a document by id
         // Writing a body.
-        ctx->response->write(R"("_index":")");
-        ctx->response->write(index);
-        ctx->response->write(R"(","_id":")");
-        ctx->response->write(docid);
-        ctx->response->write(R"(","found":false)");
+        reply->write(R"("_index":")");
+        reply->write(index);
+        reply->write(R"(","_id":")");
+        reply->write(docid);
+        reply->write(R"(","found":false)");
       }
       else
       {
@@ -332,136 +395,135 @@ namespace elastic::http::docapi
         const auto &items = resp.get_array_zmap("items", {});
         for (const auto &item : items)
         {
-          ctx->response->write(R"("_index": ")");
-          ctx->response->write(item.get_zmap("extra", {}).get_charstr("_index", ""));
-          ctx->response->write(R"(",)");
+          reply->write(R"("_index": ")");
+          reply->write(item.get_zmap("extra", {}).get_charstr("_index", ""));
+          reply->write(R"(",)");
 
-          ctx->response->write(R"("_id": ")");
-          ctx->response->write(item.get_charstr("_id", item.get_zmap("extra", {}).get_charstr("_id", "")));
-          ctx->response->write(R"(",)");
+          reply->write(R"("_id": ")");
+          reply->write(item.get_charstr("_id", item.get_zmap("extra", {}).get_charstr("_id", "")));
+          reply->write(R"(",)");
 
-          ctx->response->write(R"("_version": )");
-          ctx->response->write(std::to_string(item.get_zmap("extra", {}).get_int64("_version", 0LL)));
-          ctx->response->write(R"(,)");
+          reply->write(R"("_version": )");
+          reply->write(std::to_string(item.get_zmap("extra", {}).get_int64("_version", 0LL)));
+          reply->write(R"(,)");
 
-          ctx->response->write(R"("_seq_no": )");
-          ctx->response->write(std::to_string(item.get_zmap("extra", {}).get_int64("_seq_no", 0LL)));
-          ctx->response->write(R"(,)");
+          reply->write(R"("_seq_no": )");
+          reply->write(std::to_string(item.get_zmap("extra", {}).get_int64("_seq_no", 0LL)));
+          reply->write(R"(,)");
 
-          ctx->response->write(R"("_primary_term": )");
-          ctx->response->write(std::to_string(item.get_zmap("extra", {}).get_int64("_primary_term", 0LL)));
-          ctx->response->write(R"(,)");
+          reply->write(R"("_primary_term": )");
+          reply->write(std::to_string(item.get_zmap("extra", {}).get_int64("_primary_term", 0LL)));
+          reply->write(R"(,)");
 
-          ctx->response->write(R"("found": true)");
+          reply->write(R"("found": true)");
 
           if (item.get_array_zval("quote", {}).empty())
           {
             continue;
           }
 
-          ctx->response->write(R"(,)");
-          ctx->response->write(R"("_source": )");
+          reply->write(R"(,)");
+          reply->write(R"("_source": )");
 
           // Serializing response result.
-          serialize(ctx->response, item.get_array_zval("quote", {}));
+          serialize(reply, item.get_array_zval("quote", {}));
         }
       }
     }
-    ctx->response->end();
+    reply->end();
   }
 
   template<bool SSL>
-  void send_del_json_response(response_context<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid)
+  void send_del_json_response(uWS::HttpResponse<SSL> *reply, const mtc::zmap &resp, std::string_view index, std::string_view docid)
   {
-    assert(ctx != nullptr && "Invalid response context");
-    if (ctx->aborted.load(std::memory_order_acquire)) {
+    if (reply == nullptr) {
       return;
     }
+    reply->writeHeader("Content-Type", "application/json");
 
-    if (ctx->response == nullptr) {
-      return;
-    }
-
-    ctx->response->writeHeader("Content-Type", "application/json");
-
-    const auto error = check_resp_on_error(resp);
+    const auto error = elastic::http::check_resp_on_error(resp);
     if (error.code != 0)
     {
-      ctx->response->writeStatus(http::to_string(http::status_codes::BAD_REQUEST));
-      ctx->response->writeHeader("Content-Length", get_error_context_length(index, docid));
+      reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::BAD_REQUEST));
+      reply->writeHeader("Content-Length", get_error_context_length(index, docid));
 
-      braces_guard guard(ctx->response, "{}");
+      braces_guard guard(reply, "{}");
       // Writing a body.
-      ctx->response->write(R"("_index": ")");
-      ctx->response->write(index);
-      ctx->response->write(R"(","_id": ")");
-      ctx->response->write(docid);
-      ctx->response->write(R"(","found": false)");
+      reply->write(R"("_index": ")");
+      reply->write(index);
+      reply->write(R"(","_id": ")");
+      reply->write(docid);
+      reply->write(R"(","found": false)");
     }
     else
     {
-      ctx->response->writeStatus(http::to_string(http::status_codes::OK));
+      reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::OK));
 
-      braces_guard guard(ctx->response, "{}");
+      braces_guard guard(reply, "{}");
 
       if (resp.get_zmap("status", {}).get_word16("code", 0) != 0)
       {// Not found a document by id
-        ctx->response->writeHeader("Content-Length", get_error_context_length(index, docid));
+        reply->writeHeader("Content-Length", get_error_context_length(index, docid));
 
-        braces_guard guard(ctx->response, "{}");
         // Writing a body.
-        ctx->response->write(R"("_index":")");
-        ctx->response->write(index);
-        ctx->response->write(R"(","_id":")");
-        ctx->response->write(docid);
-        ctx->response->write(R"(","found":false)");
+        reply->write(R"("_index":")");
+        reply->write(index);
+        reply->write(R"(","_id":")");
+        reply->write(docid);
+        reply->write(R"(","found":false)");
       }
       else
       {
-        ctx->response->write(R"("_index": ")");
-        ctx->response->write(index);
-        ctx->response->write(R"(",)");
+        reply->write(R"("_index": ")");
+        reply->write(index);
+        reply->write(R"(",)");
 
-        ctx->response->write(R"("_id": ")");
-        ctx->response->write(docid);
-        ctx->response->write(R"(",)");
+        reply->write(R"("_id": ")");
+        reply->write(docid);
+        reply->write(R"(",)");
 
-        ctx->response->write(R"("_version": )");
-        ctx->response->write(std::to_string(resp.get_int64("_version", 0LL))); //<TODO> Need to include value into response from search engine.
-        ctx->response->write(R"(,)");
+        reply->write(R"("_version": )");
+        reply->write(std::to_string(resp.get_int64("_version", 0LL))); //<TODO> Need to include value into response from search engine.
+        reply->write(R"(,)");
 
-        ctx->response->write(R"("result": "deleted",)");
+        reply->write(R"("result": "deleted",)");
 
-        ctx->response->write(R"("_shards": {},)"); //<TODO> Need to include value into response from search engine.
+        reply->write(R"("_shards": {},)"); //<TODO> Need to include value into response from search engine.
 
-        ctx->response->write(R"("_seq_no": )");
-        ctx->response->write(std::to_string(resp.get_int64("_seq_no", 0))); //<TODO> Need to include value into response from search engine.
-        ctx->response->write(R"(,)");
+        reply->write(R"("_seq_no": )");
+        reply->write(std::to_string(resp.get_int64("_seq_no", 0))); //<TODO> Need to include value into response from search engine.
+        reply->write(R"(,)");
 
-        ctx->response->write(R"("_primary_term": )");
-        ctx->response->write(std::to_string(resp.get_int64("_primary_term", 0LL)));  //<TODO> Need to include value into response from search engine.
+        reply->write(R"("_primary_term": )");
+        reply->write(std::to_string(resp.get_int64("_primary_term", 0LL)));  //<TODO> Need to include value into response from search engine.
       }
     }
 
-    ctx->response->end();
+    reply->end();
   }
 //-------------------------------------------------------------------------//
   template
-  void send_index_json_response<false>(response_context<false> *, const mtc::zmap &, std::string_view, std::string_view);
+  void send_index_json_response<false>(uWS::HttpResponse<false> *, const mtc::zmap &, std::string_view, std::string_view);
 
   template
-  void send_index_json_response<true>(response_context<true> *, const mtc::zmap &, std::string_view, std::string_view);
+  void send_index_json_response<true>(uWS::HttpResponse<true> *, const mtc::zmap &, std::string_view, std::string_view);
 
   template
-  void send_get_json_response<false>(response_context<false> *, const mtc::zmap &, std::string_view, std::string_view);
+  void send_update_json_response<false>(uWS::HttpResponse<false> *, const mtc::zmap &, std::string_view, std::string_view);
 
   template
-  void send_get_json_response<true>(response_context<true> *, const mtc::zmap &, std::string_view, std::string_view);
+  void send_update_json_response<true>(uWS::HttpResponse<true> *, const mtc::zmap &, std::string_view, std::string_view);
 
   template
-  void send_del_json_response<false>(response_context<false> *, const mtc::zmap &, std::string_view, std::string_view);
+  void send_get_json_response<false>(uWS::HttpResponse<false> *, const mtc::zmap &, std::string_view, std::string_view);
 
   template
-  void send_del_json_response<true>(response_context<true> *, const mtc::zmap &, std::string_view, std::string_view);
+  void send_get_json_response<true>(uWS::HttpResponse<true> *, const mtc::zmap &, std::string_view, std::string_view);
+
+  template
+  void send_del_json_response<false>(uWS::HttpResponse<false> *, const mtc::zmap &, std::string_view, std::string_view);
+
+  template
+  void send_del_json_response<true>(uWS::HttpResponse<true> *, const mtc::zmap &, std::string_view, std::string_view);
 //-------------------------------------------------------------------------//
-} // namespace elastic::http::docapi
+} // namespace elasti::docapic::http

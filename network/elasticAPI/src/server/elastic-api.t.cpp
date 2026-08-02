@@ -13,7 +13,7 @@
  * ============================================================================
  */
 //-------------------------------------------------------------------------//
-#include "../server.h"
+#include "http-server.h"
 //-------------------------------------------------------------------------//
 #include <gtest/gtest.h>
 //-------------------------------------------------------------------------//
@@ -186,8 +186,8 @@ namespace
         EXPECT_EQ(doc["_id"].get_string().value(), document_id);
         EXPECT_EQ(doc["_version"].get_int64().value(), 1);
         EXPECT_TRUE(doc["found"].get_bool().value());
-        //<???> EXPECT_EQ(doc["_source"]["name"].get_string().value(), "brave");
-        //<???> EXPECT_EQ(doc["_source"]["age"].get_string().value(), "42");
+        EXPECT_EQ(doc["_source"]["name"].get_string().value(), "brave");
+        EXPECT_EQ(doc["_source"]["age"].get_int64().value(), 42);
       });
     }
     {// Simple array JSON document
@@ -218,8 +218,7 @@ namespace
         EXPECT_EQ(doc["_version"].get_int64().value(), 1);
         EXPECT_TRUE(doc["found"].get_bool().value());
         EXPECT_EQ(doc["_source"]["name"].get_string().value(), "brave");
-        EXPECT_EQ(doc["_source"]["age"].get_string().value(), "42");
-        //<TODO> EXPECT_EQ(doc["_source"]["age"].get_int64().value(), 42);
+        EXPECT_EQ(doc["_source"]["age"].get_int64().value(), 42);
 
         std::uint16_t index = 0;
         auto actual_array = doc["_source"]["array"].get_array();

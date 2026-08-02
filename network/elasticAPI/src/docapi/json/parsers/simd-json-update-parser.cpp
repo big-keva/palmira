@@ -1,4 +1,4 @@
-#include "../simd-json-index-parser.h"
+#include "../simd-json-update-parser.h"
 //-------------------------------------------------------------------------//
 #include <DeliriX/DOM-dump.hpp>
 //-------------------------------------------------------------------------//
@@ -11,7 +11,7 @@
 namespace elastic::docapi::json
 {
 //-------------------------------------------------------------------------//
-  auto parse_index_request(std::string_view body, const mtc::zmap &params) -> palmira::InsertArgs
+  auto parse_update_request(std::string_view body, const mtc::zmap &params) -> palmira::UpdateArgs
   {
     palmira::InsertArgs args;
     // Making a new unique document id.

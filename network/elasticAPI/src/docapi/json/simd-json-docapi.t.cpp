@@ -66,7 +66,7 @@ TEST(SimdJsonDocumentApiParserTest, ParseMgetDocsForm)
         ]
       })json";
 
-  auto request = elastic::json::docapi::parse_mget_request(body, "");
+  auto request = elastic::docapi::json::parse_mget_request(body, "");
   ASSERT_EQ(request.docs.size(), 2U);
 
   EXPECT_EQ(request.docs[0].index, "test");
@@ -83,7 +83,7 @@ TEST(SimdJsonDocumentApiParserTest, ParseMgetIdsFormWithDefaultIndex)
         "ids": ["1", "2", "3"]
       })json";
 
-  auto request = elastic::json::docapi::parse_mget_request(body, "test");
+  auto request = elastic::docapi::json::parse_mget_request(body, "test");
 
   ASSERT_EQ(request.docs.size(), 3U);
 
@@ -104,7 +104,7 @@ TEST(SimdJsonDocumentApiParserTest, RejectMgetIdsFormWithoutDefaultIndex)
         "ids": ["1", "2"]
       })json";
 
-  EXPECT_THROW(elastic::json::docapi::parse_mget_request(body, ""),
+  EXPECT_THROW(elastic::docapi::json::parse_mget_request(body, ""),
                elastic::json::parse_error);
 }
 
@@ -124,7 +124,7 @@ TEST(SimdJsonDocumentApiParserTest, ParseMgetSourceFiltering)
         ]
       })json";
 
-  auto request = elastic::json::docapi::parse_mget_request(body, "");
+  auto request = elastic::docapi::json::parse_mget_request(body, "");
   ASSERT_EQ(request.docs.size(), 1U);
 
   const auto &doc = request.docs[0];
@@ -155,7 +155,7 @@ TEST(SimdJsonDocumentApiParserTest, ParseMgetSourceDisabled)
         ]
       })json";
 
-  auto request = elastic::json::docapi::parse_mget_request(body, "");
+  auto request = elastic::docapi::json::parse_mget_request(body, "");
   ASSERT_EQ(request.docs.size(), 1U);
 
   EXPECT_FALSE(request.docs[0].source.enabled);
@@ -172,7 +172,7 @@ TEST(SimdJsonDocumentApiParserTest, RejectMgetDocWithoutIndex)
         ]
       })json";
 
-  EXPECT_THROW(elastic::json::docapi::parse_mget_request(body, ""),
+  EXPECT_THROW(elastic::docapi::json::parse_mget_request(body, ""),
                elastic::json::parse_error);
 }
 
@@ -187,7 +187,7 @@ TEST(SimdJsonDocumentApiParserTest, RejectMgetDocWithoutId)
         ]
       })json";
 
-  EXPECT_THROW(elastic::json::docapi::parse_mget_request(body, ""),
+  EXPECT_THROW(elastic::docapi::json::parse_mget_request(body, ""),
                elastic::json::parse_error);
 }
 //-------------------------------------------------------------------------//

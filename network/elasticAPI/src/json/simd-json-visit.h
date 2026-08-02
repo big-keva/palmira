@@ -1,27 +1,4 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          simd-json.h
-* - Created:       07/04/2026
-* - Author:        Vitaly Bulganin
-* - Description:   Модуль предназначен для последовательного обхода
-*                  JSON-документов:
-*                   - обычных JSON body;
-*                   - NDJSON body для будущего _bulk API;
-*                   - поисковых запросов;
-*                   - create index body;
-*                   - document body.
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_VISIT_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_VISIT_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <cstdint>
 #include <functional>
@@ -467,5 +444,3 @@ namespace elastic::json
   auto to_string_view(json_value_types type) -> std::string_view;
 //-------------------------------------------------------------------------//
 } // namespace elastic::json
-//-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_VISIT_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__

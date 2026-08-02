@@ -1,21 +1,4 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          simd-json-source-parser.h
-* - Created:       07/08/2026
-* - Author:        Vitaly Bulganin
-* - Description:
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_SOURCE_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_SOURCE_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <simdjson.h>
 //-------------------------------------------------------------------------//
@@ -53,5 +36,3 @@ namespace elastic::json
   auto parse_source_value(simdjson::ondemand::value value, source_filter &source) -> void;
 //-------------------------------------------------------------------------//
 } // namespace elastic::json
-//-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_SOURCE_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__

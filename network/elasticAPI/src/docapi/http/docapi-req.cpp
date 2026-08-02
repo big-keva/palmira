@@ -1,13 +1,13 @@
-#include "../docapi-req.h"
+#include "docapi-req.h"
 //-------------------------------------------------------------------------//
 #include <sstream>
 //-------------------------------------------------------------------------//
-namespace elastic::http::docapi
+namespace elastic::docapi::http
 {
 //-------------------------------------------------------------------------//
   namespace {
 //-------------------------------------------------------------------------//
-    auto parse_bool(const query_params_t &params, const std::string &key, bool default_value) -> bool
+    auto parse_bool(const elastic::http::query_params_t &params, const std::string &key, bool default_value) -> bool
     {
       const auto found = params.find(key);
       if (found == std::end(params))
@@ -42,7 +42,7 @@ namespace elastic::http::docapi
     return {};
   }
 //-------------------------------------------------------------------------//
-  document_get_options parse_get_options(const query_params_t &params)
+  document_get_options parse_get_options(const elastic::http::query_params_t &params)
   {
     document_get_options options;
 
@@ -97,4 +97,4 @@ namespace elastic::http::docapi
     return options;
   }
 //-------------------------------------------------------------------------//
-} // namespace elastic::http::docapi
+} // namespace elastic::docapi::http

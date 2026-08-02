@@ -1,21 +1,4 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          simd-json-load-document.h
-* - Created:       07/19/2026
-* - Author:        Vitaly Bulganin
-* - Description:
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_LOAD_DOCUMENT_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_LOAD_DOCUMENT_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <string_view>
 #include <functional>
@@ -44,5 +27,3 @@ namespace elastic::json
   auto load_document(simdjson::ondemand::value value, std::function<mtc::api<DeliriX::IText>()> onadd) -> void;
 //-------------------------------------------------------------------------//
 } // namespace elastic::json
-//-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_LOAD_DOCUMENT_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__

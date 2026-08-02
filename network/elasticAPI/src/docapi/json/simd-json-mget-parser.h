@@ -1,21 +1,4 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          simd-json-mget-parser.h
-* - Created:       07/08/2026
-* - Author:        Vitaly Bulganin
-* - Description:
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_MGET_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_MGET_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <string>
 #include <string_view>
@@ -27,7 +10,7 @@
 //-------------------------------------------------------------------------//
 #include "../../json/parsers/simd-json-source-parser.h"
 //-------------------------------------------------------------------------//
-namespace elastic::json::docapi
+namespace elastic::docapi::json
 {
 //-------------------------------------------------------------------------//
   struct mget_doc
@@ -39,7 +22,7 @@ namespace elastic::json::docapi
     //!< Keeps a routing.
     std::string routing;
     //!< Keeps a source filter.
-    source_filter source;
+    elastic::json::source_filter source;
   };
 
   struct mget_request
@@ -65,6 +48,4 @@ namespace elastic::json::docapi
    */
   auto parse_mget_request(const std::string &index, const std::string &id, const mtc::zmap &params) -> mget_request;
 //-------------------------------------------------------------------------//
-} // namespace elastic::json::docapi
-//-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_MGET_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+} // namespace elastic::docapi::json

@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(ELASTIC_ENABLE_SSL "Enable SSL support through uWebSockets" ON)
+option(ELASTIC_SSL_ENABLED "Enable SSL support through uWebSockets" ON)
 option(BUILD_USOCKETS_ENABLED "Build usockets library" ON)
 option(BUILD_TESTS "Building tests" ON)
 
@@ -42,12 +42,14 @@ if (BUILD_USOCKETS_ENABLED)
 
     add_library(${USOCKETS_NAME} STATIC ${USOCKETS_SOURCES})
     set_target_properties(${USOCKETS_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_include_directories(${USOCKETS_NAME}
-        PRIVATE ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
+    target_include_directories(${USOCKETS_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
         ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src
     )
 
     if (ELASTIC_SSL_ENABLED)
+        find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
+
         target_compile_definitions(${USOCKETS_NAME} PUBLIC LIBUS_USE_OPENSSL)
         target_link_libraries(${USOCKETS_NAME} PUBLIC OpenSSL::SSL OpenSSL::Crypto)
     else ()
@@ -63,7 +65,11 @@ list(FILTER SOURCE_FILES EXCLUDE REGEX ".*\\.t\\.cpp$")
 # Building a module.
 add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src)
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
+    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src
+)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC Threads::Threads simdjson::simdjson PRIVATE
     tripoli
@@ -79,14 +85,8 @@ target_link_libraries(${PROJECT_NAME} PUBLIC Threads::Threads simdjson::simdjson
     z
 )
 
-if (ELASTIC_ENABLE_SSL)
-    target_compile_definitions(${PROJECT_NAME} PUBLIC ELASTIC_ENABLE_SSL=1)
-else ()
-    target_compile_definitions(${PROJECT_NAME} PUBLIC ELASTIC_ENABLE_SSL=0)
-endif ()
-
 if (BUILD_TESTS)
-    set(TEST_NAME test-elastic-api)
+    set(TEST_PROJECT_NAME test-elastic-api)
 
     find_package(GTest REQUIRED)
     find_package(Threads REQUIRED)
@@ -99,8 +99,8 @@ if (BUILD_TESTS)
     # Collecting source test files.
     file(GLOB_RECURSE TEST_SOURCE_FILES src/*.t.cpp)
 
-    add_executable(${TEST_NAME} ${TEST_SOURCE_FILES})
-    target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME}
+    add_executable(${TEST_PROJECT_NAME} ${TEST_SOURCE_FILES})
+    target_link_libraries(${TEST_PROJECT_NAME} PRIVATE ${PROJECT_NAME}
         elastic-client
         tripoli
         structo
@@ -111,11 +111,19 @@ if (BUILD_TESTS)
         simdjson::simdjson
         z
     )
-    target_include_directories(${TEST_NAME} PRIVATE
+
+    if (ELASTIC_SSL_ENABLED)
+        target_link_libraries(${TEST_PROJECT_NAME} PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+    endif (ELASTIC_SSL_ENABLED)
+
+    target_include_directories(${TEST_PROJECT_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/utils/elastic-client/include
+        ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
+        ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src
     )
 
-    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-    set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 30)
+    add_test(NAME ${TEST_PROJECT_NAME} COMMAND ${TEST_PROJECT_NAME})
+    set_tests_properties(${TEST_PROJECT_NAME} PROPERTIES TIMEOUT 30)
 endif ()
