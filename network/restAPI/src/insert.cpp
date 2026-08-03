@@ -320,7 +320,6 @@ namespace restAPI
       {
         auto  obj = val.get_object().value();
         auto  tag = mtc::api<DeliriX::IText>();
-        auto  mkx = mtc::api<DeliriX::IText>();
 
         for ( auto field: obj )
         {
@@ -330,9 +329,7 @@ namespace restAPI
             {
               if ( tag == nullptr )
                 tag = add();
-              if ( mkx == nullptr )
-                mkx = tag->AddMarkupTag( { "\x1", 1 } );
-              return mkx->AddMarkupTag( key );
+              return tag->AddMarkupTag( key );
             } );
         }
         break;
