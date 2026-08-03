@@ -118,7 +118,7 @@ namespace
     }
   };
 //-------------------------------------------------------------------------//
-  class DocumentClientTest : public ::testing::Test
+  class ElasticApiTest : public ::testing::Test
   {
   protected:
     DocumentApiHttpTest server;
@@ -126,7 +126,7 @@ namespace
     const std::string index;
 
   protected:
-    DocumentClientTest() : index(g_document_index)
+    ElasticApiTest() : index(g_document_index)
     {
     }
 
@@ -157,7 +157,7 @@ namespace
     }
   };
 //-------------------------------------------------------------------------//
-  TEST_F(DocumentClientTest, PutAndGetDocument)
+  TEST_F(ElasticApiTest, PutAndGetDocument)
   {
     {
       const auto document_id = get_rand_document_id();
@@ -237,7 +237,7 @@ namespace
     }
   }
 
-  TEST_F(DocumentClientTest, DeleteDocument)
+  TEST_F(ElasticApiTest, DeleteDocument)
   {
     {// Simple array JSON document
       const auto document_id = get_rand_document_id();

@@ -74,9 +74,9 @@ namespace elastic::json
 
           if (mkx == nullptr)
           {
-              mkx = tag->AddMarkupTag( { "\x1", 1 } );
+              mkx = tag->AddMarkupTag({"\x1", 1});
           }
-          return mkx->AddMarkupTag( key );
+          return mkx->AddMarkupTag(key);
         });
       }
       break;
@@ -91,18 +91,33 @@ namespace elastic::json
         throw (std::invalid_argument("making a new tag failed"));
       }
 
-      tag->AddString(DeliriX::IText::persistent, string_value);
+      if (not string_value.empty())
+      {
+        tag->AddString(codepages::mbcstowide(codepages::codepage_utf8, string_value));
+        //<???> tag->AddString(DeliriX::IText::persistent, string_value);
+      }
       break;
     }
     case simdjson::ondemand::json_type::number: {
-      const auto raw_number = value.raw_json_token();
+      simdjson::ondemand::number number = value.get_number();
       auto tag = onadd();
       if (tag == nullptr)
       {
         throw (std::invalid_argument("making a new tag failed"));
       }
 
-      tag->AddNumber(std::stod(raw_number.data()));
+      switch (number.get_number_type())
+      {
+      case simdjson::ondemand::number_type::floating_point_number:
+        tag->AddNumber(number.get_double());
+        break;
+      case simdjson::ondemand::number_type::signed_integer:
+        tag->AddNumber(static_cast<double>(number.get_int64()));
+        break;
+      case simdjson::ondemand::number_type::unsigned_integer:
+        tag->AddNumber(static_cast<double>(number.get_uint64()));
+        break;
+      }
       break;
     }
     case simdjson::ondemand::json_type::boolean: {

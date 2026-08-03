@@ -27,7 +27,22 @@ curl -X PUT "127.0.0.1:9300/tests/_doc/1" -H 'Content-Type: application/json' -d
 }
 '
 
+curl -X PUT "127.0.0.1:9300/tests/_doc/2" -H 'Content-Type: application/json' -d'
+{
+  "title": "The first testing record",
+  "author": "Ivan Ivanovich",
+  "content": "This is the first record in my blog."
+}
+'
+
 curl -X PUT "127.0.0.1:9300/tests/_doc/3" -H 'Content-Type: application/json' -d'
+{
+  "name": "brave",
+  "age": 42
+}
+'
+
+curl -X PUT "127.0.0.1:9300/tests/_doc/4" -H 'Content-Type: application/json' -d'
 {
   "name": "brave",
   "age": 42,

@@ -1,9 +1,10 @@
 #include "routes.h"
 //-------------------------------------------------------------------------//
+#include <App.h>
+//-------------------------------------------------------------------------//
 #include "docapi-req.h"
 #include "docapi-resp.h"
-//-------------------------------------------------------------------------//
-#include <App.h>
+#include "reports.hpp"
 //-------------------------------------------------------------------------//
 #include "../../common/thread-pool.h"
 //-------------------------------------------------------------------------//
@@ -212,7 +213,6 @@ namespace elastic::docapi::http
             {"_params",  params},
             {"_started", started}
           });
-
           // Sending a document to search engine.
           auto resp = service->Insert(args, [res, state, index, id](const mtc::zmap &resp) {
 #ifdef __DEBUG__
