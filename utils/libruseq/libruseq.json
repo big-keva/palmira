@@ -2,9 +2,10 @@
   "api": "http-server",
 
   "http-server": {
-    "type": "http",
-    "port": 57571,
-    "timeout": 60
+    "module": "builtin:RESTAPI",
+    "config": {
+      "port": 57571
+    }
   },
 
   "grpc-server": {
