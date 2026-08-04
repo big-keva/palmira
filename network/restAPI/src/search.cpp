@@ -110,10 +110,16 @@ namespace
 {
   using namespace restAPI;
 
+  template <class O, class V, class D>
+  O*  PrintKeyValue( O* o, const char* key, const V& value, const D& d )
+  {
+    return mtc::json::Print( d.Space( ::Serialize( PrintKey( d.Shift( o ), key ), ':' ) ),
+      value, d );
+  }
+
   void  Dump( Responder::Response* to, const palmira::SearchReport& report )
   {
     auto  decorg = mtc::json::print::decorated();
-    auto  decres = mtc::json::print::decorated( decorg );
     auto  docset = report.items();
 
     if ( report.status().code() == 0 && report.found() != 0 )
@@ -127,81 +133,62 @@ namespace
         ->WriteHeader( "Content-Type", "application/json; charset=utf-8" );
     }
 
-    decres.Break( ::Serialize( to, '{' ) );
-
-    decres.Break( ::Serialize(
-      mtc::json::Print( decres.Space( ::Serialize( PrintKey( decres.Shift( to ), "status" ), ':' ) ),
-        report.status(), decres ),
-    ',' ) );
-
-    decres.Break( ::Serialize(
-      mtc::json::Print( decres.Space( ::Serialize( PrintKey( decres.Shift( to ), "elapced" ), ':' ) ),
-        report.timing().elapced(), decres ),
-    ',' ) );
-
-    decres.Break( ::Serialize(
-      mtc::json::Print( decres.Space( ::Serialize( PrintKey( decres.Shift( to ), "first" ), ':' ) ),
-        report.first(), decres ),
-    ',' ) );
-
-    decres.Break( ::Serialize(
-      mtc::json::Print( decres.Space( ::Serialize( PrintKey( decres.Shift( to ), "found" ), ':' ) ),
-        report.found(), decres ),
-    ',' ) );
-
-    mtc::json::Print( decres.Space( ::Serialize( PrintKey( decres.Shift( to ), "count" ), ':' ) ),
-      report.count(), decres );
-
-    if ( docset.size() != 0 )
+    decorg.Break( ::Serialize( to, '{' ) );
     {
-      auto  arrdec = mtc::json::print::decorated( decres );
-      auto  doccnt = 0;
+      auto  decres = mtc::json::print::decorated( decorg );
 
-    // print array header
-      decres.Break( ::Serialize( to, ',' ) );
-      decres.Break( ::Serialize( decres.Space( ::Serialize( PrintKey( decres.Shift( to ), "cache" ),
-        ':' ) ), '[' ) );
+      PrintKeyValue( to,
+        "status", report.status(), decres );
+      PrintKeyValue( decres.Break( ::Serialize( to, ',' ) ),
+        "elapced", report.timing().elapced(), decres );
+      PrintKeyValue( decres.Break( ::Serialize( to, ',' ) ),
+        "first", report.first(), decres );
+      PrintKeyValue( decres.Break( ::Serialize( to, ',' ) ),
+        "found", report.found(), decres );
+      PrintKeyValue( decres.Break( ::Serialize( to, ',' ) ),
+        "count", report.count(), decres );
 
-      for ( auto& next: docset )
+      if ( docset.size() != 0 )
       {
-        if ( doccnt++ != 0 )
-          arrdec.Break( ::Serialize( to, ',' ) );
+        auto  arrdec = mtc::json::print::decorated( decres );
+        auto  doccnt = 0;
 
-        arrdec.Break( ::Serialize( arrdec.Shift( to ), '{' ) );
+      // print array header
+        decres.Break( ::Serialize( to, ',' ) );
+        decres.Break( ::Serialize( decres.Space( ::Serialize( PrintKey( decres.Shift( to ), "cache" ),
+          ':' ) ), '[' ) );
+
+        for ( auto& next: docset )
         {
-          auto  docdec = mtc::json::print::decorated( arrdec );
-          auto  pquote = next.get_array_zval( "quote" );
+          if ( doccnt++ != 0 )
+            arrdec.Break( ::Serialize( to, ',' ) );
 
-          to = ::Serialize( PrintKey( docdec.Shift(
-            to ), "id" ), ':' );
+          arrdec.Break( ::Serialize( arrdec.Shift( to ), '{' ) );
           {
-            to = mtc::json::Print( docdec.Space( to ),
-              next.get_charstr( "id", "?" ), docdec );
-          }
+            auto  docdec = mtc::json::print::decorated( arrdec );
+            auto  pquote = next.get_array_zval( "quote" );
 
-          to = ::Serialize( PrintKey( docdec.Shift( docdec.Break( ::Serialize( to, ',' ) ) ),
-            "metadata" ), ':' );
-          {
-            to = mtc::json::Print( docdec.Space( to ),
-              next.get_zmap( "extra", {} ), docdec );
-          }
+            PrintKeyValue( to,
+              "id", next.get_charstr( "id", "?" ), docdec );
+            PrintKeyValue( docdec.Break( ::Serialize( to, ',' ) ),
+              "metadata", next.get_zmap( "extra", {} ), docdec );
 
-          if ( pquote != nullptr )
-          {
-            to = ::Serialize( PrintKey( docdec.Shift( docdec.Break( ::Serialize( to, ',' ) ) ),
-              "document" ), ':' );
+            if ( pquote != nullptr )
+            {
+              to = ::Serialize( PrintKey( docdec.Shift( docdec.Break( ::Serialize( to, ',' ) ) ),
+                "document" ), ':' );
 
-            mtc::json::Print( docdec.Space( to ),
-              *pquote, docdec );
+              mtc::json::Print( docdec.Space( to ),
+                *pquote, docdec );
+            }
           }
+          ::Serialize( arrdec.Shift( arrdec.Break( to ) ), '}' );
         }
-        ::Serialize( arrdec.Shift( arrdec.Break( to ) ), '}' );
+
+        decres.Break( ::Serialize( decres.Shift( decres.Break( to ) ), ']' ) );
       }
-
-      decres.Break( ::Serialize( decres.Shift( decres.Break( to ) ), ']' ) );
     }
-
-    ::Serialize( decres.Break( to ), '}' )->FinishWrite();
+    ::Serialize( decorg.Break( to ), '}' )->FinishWrite();
   }
 
   void  GetIntParam( palmira::SearchArgs& search, const mtc::zmap& params, const char* key )
