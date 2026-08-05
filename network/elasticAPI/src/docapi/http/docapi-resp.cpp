@@ -134,6 +134,7 @@ namespace elastic::docapi::http
         std::sprintf(buf, "%g", *zval.get_float());
         // Writing a string into response.
         output->write(buf);
+        break;
       }
       case mtc::zval::z_double: {
         char buf[64] = {0};
@@ -267,7 +268,7 @@ namespace elastic::docapi::http
         reply->write(R"(",)");
 
         reply->write(R"("_version": )"); //<TODO> Need to include value into response from search engine.
-        reply->write(std::to_string(resp.get_int64("_version", 0LL)));
+        reply->write(std::to_string(resp.get_int64("_version", 1)));
         reply->write(R"(,)");
 
         reply->write(R"("result": "created",)");
