@@ -8,7 +8,9 @@ set(CMAKE_CXX_STANDARD 17)
 option(SANITIZE_ENABLED "Enable sanitize" OFF)
 option(PROFILER_ENABLED "Enable profile" OFF)
 
-option(USE_BUILTIN_REST "Enable builtin RestAPI library" ON)
+option(USE_BUILTIN_REST "Enable builtin RestAPI library" OFF)
+option(USE_BUILTIN_GRPC "Enable builtin gRPCAPI library" OFF)
+option(USE_BUILTIN_ELASTIC "Enable builtin ElasticAPI library" ON)
 
 option(BUILD_MTC_ENABLED "Enable build mtc module" OFF)
 option(BUILD_MOONYCODE_ENABLED "Enable build moonycode module" OFF)
@@ -43,13 +45,11 @@ else()
   endif()
 endif()
 
-find_package(MoonyCode REQUIRED)
-
-if(USE_BUILTIN_REST)
+if (USE_BUILTIN_REST)
   find_package(simdjson REQUIRED)
 
   set(MODULE_LIBS ${MODULE_LIBS} $<LINK_LIBRARY:WHOLE_ARCHIVE,palmira-restAPI> uSockets ssl crypto simdjson::simdjson)
-endif()
+endif ()
 
 include_directories(
   ./
@@ -83,8 +83,17 @@ set_target_properties(mtc PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 set(NETWORK_SOURCE_DIR ${PROJECT_SOURCE_DIR}/network)
 
-add_subdirectory(network/restAPI)
-add_subdirectory(network/grpcAPI)
+if (USE_BUILTIN_REST)
+	add_subdirectory(network/restAPI)
+endif ()
+
+if (USE_BUILTIN_GRPC)
+	add_subdirectory(network/grpcAPI)
+endif ()
+
+if (USE_BUILTIN_ELASTIC)
+	add_subdirectory(network/elasticAPI)
+endif ()
 
 add_library(tripoli
   src/objects/read-zip.cpp

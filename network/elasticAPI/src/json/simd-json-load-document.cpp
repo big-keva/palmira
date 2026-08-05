@@ -94,7 +94,6 @@ namespace elastic::json
       if (not string_value.empty())
       {
         tag->AddString(codepages::mbcstowide(codepages::codepage_utf8, string_value));
-        //<???> tag->AddString(DeliriX::IText::persistent, string_value);
       }
       break;
     }

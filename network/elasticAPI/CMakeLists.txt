@@ -86,14 +86,13 @@ target_link_libraries(${PROJECT_NAME} PUBLIC Threads::Threads simdjson::simdjson
 )
 
 if (BUILD_TESTS)
-    set(TEST_PROJECT_NAME test-elastic-api)
+    enable_testing()
 
     find_package(GTest REQUIRED)
     find_package(Threads REQUIRED)
 
-    enable_testing()
+    set(TEST_PROJECT_NAME test-elastic-api)
 
-    #
     add_subdirectory(utils)
 
     # Collecting source test files.
@@ -126,4 +125,4 @@ if (BUILD_TESTS)
 
     add_test(NAME ${TEST_PROJECT_NAME} COMMAND ${TEST_PROJECT_NAME})
     set_tests_properties(${TEST_PROJECT_NAME} PROPERTIES TIMEOUT 30)
-endif ()
+endif (BUILD_TESTS)

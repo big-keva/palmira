@@ -31,7 +31,6 @@ namespace elastic::docapi::json
       {"_started", params.get_int64("_started", 0)
     }};
 
-    DeliriX::Text text;
     // Parsing request body as JSON.
     elastic::json::load_document(body, [&]() -> mtc::api<DeliriX::IText> {
       return &args.GetTextAPI();

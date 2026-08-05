@@ -26,4 +26,7 @@ namespace elastic::json
    */
   auto load_document(simdjson::ondemand::value value, std::function<mtc::api<DeliriX::IText>()> onadd) -> void;
 //-------------------------------------------------------------------------//
+  void load_from_view(std::string_view body, std::function<mtc::api<DeliriX::IText>()> onadd);
+  void load(simdjson::ondemand::value value, std::function<mtc::api<DeliriX::IText>()> onadd);
+//-------------------------------------------------------------------------//
 } // namespace elastic::json

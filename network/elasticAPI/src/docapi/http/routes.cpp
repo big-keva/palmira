@@ -430,9 +430,10 @@ namespace elastic::docapi::http
               {"mode", "source"}
             }}
           };
-
           args.query = mtc::zmap{
-            {"get", mtc::array_charstr{id}}
+            {"get", mtc::zmap{
+              {"id", id}
+            }}
           };
 
 /*<TODO> Adding support a list of docs.

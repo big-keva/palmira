@@ -120,16 +120,29 @@ namespace elastic::docapi::http
 
       switch (zval.get_type())
       {
-      case mtc::zval::z_char:       output->write(std::to_string(*zval.get_char())); break;
-      case mtc::zval::z_byte:       output->write(std::to_string(*zval.get_byte())); break;
-      case mtc::zval::z_int16:      output->write(std::to_string(*zval.get_int16())); break;
-      case mtc::zval::z_word16:     output->write(std::to_string(*zval.get_word16())); break;
-      case mtc::zval::z_int32:      output->write(std::to_string(*zval.get_int32())); break;
-      case mtc::zval::z_word32:     output->write(std::to_string(*zval.get_word32())); break;
-      case mtc::zval::z_int64:      output->write(std::to_string(*zval.get_int64())); break;
-      case mtc::zval::z_word64:     output->write(std::to_string(*zval.get_word64())); break;
-      case mtc::zval::z_float:      output->write(std::to_string(*zval.get_float())); break;
-      case mtc::zval::z_double:     output->write(std::to_string(*zval.get_double())); break;
+      case mtc::zval::z_char:   output->write(std::to_string(*zval.get_char())); break;
+      case mtc::zval::z_byte:   output->write(std::to_string(*zval.get_byte())); break;
+      case mtc::zval::z_int16:  output->write(std::to_string(*zval.get_int16())); break;
+      case mtc::zval::z_word16: output->write(std::to_string(*zval.get_word16())); break;
+      case mtc::zval::z_int32:  output->write(std::to_string(*zval.get_int32())); break;
+      case mtc::zval::z_word32: output->write(std::to_string(*zval.get_word32())); break;
+      case mtc::zval::z_int64:  output->write(std::to_string(*zval.get_int64())); break;
+      case mtc::zval::z_word64: output->write(std::to_string(*zval.get_word64())); break;
+      case mtc::zval::z_float: {
+        char buf[64] = {0};
+        // Converting double into string.
+        std::sprintf(buf, "%g", *zval.get_float());
+        // Writing a string into response.
+        output->write(buf);
+      }
+      case mtc::zval::z_double: {
+        char buf[64] = {0};
+        // Converting double into string.
+        std::sprintf(buf, "%g", *zval.get_double());
+        // Writing a string into response.
+        output->write(buf);
+        break;
+      }
       case mtc::zval::z_bool:       output->write(*zval.get_bool() ? "true" : "false"); break;
       case mtc::zval::z_uuid: {
         braces_guard guard_uuid(output, guard.empty() ? g_braces_types.find(mtc::zval::z_uuid)->second.data() : "");
@@ -232,32 +245,29 @@ namespace elastic::docapi::http
       reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::OK));
 
       braces_guard guard(reply, "{}");
-      // Getting metadata.
-      const auto &mdata = resp.get_zmap("metadata", {});
-
       if (resp.get_zmap("status", {}).get_word16("code", 0) != 0)
       {// Not found a document by id
         reply->writeHeader("Content-Length", get_error_context_length(index, docid));
 
         // Writing a body.
         reply->write(R"("_index":")");
-        reply->write(mdata.get_charstr("_index", index.data()));
+        reply->write(resp.get_charstr("_index", index.data()));
         reply->write(R"(","_id":")");
-        reply->write(mdata.get_charstr("_id", docid.data()));
+        reply->write(resp.get_charstr("_id", docid.data()));
         reply->write(R"(","found":false)");
       }
       else
       {
         reply->write(R"("_index": ")");
-        reply->write(mdata.get_charstr("_index", index.data()));
+        reply->write(resp.get_charstr("_index", index.data()));
         reply->write(R"(",)");
 
         reply->write(R"("_id": ")");
-        reply->write(mdata.get_charstr("_id", docid.data()));
+        reply->write(resp.get_charstr("_id", docid.data()));
         reply->write(R"(",)");
 
         reply->write(R"("_version": )"); //<TODO> Need to include value into response from search engine.
-        reply->write(std::to_string(mdata.get_int64("_version", 0LL)));
+        reply->write(std::to_string(resp.get_int64("_version", 0LL)));
         reply->write(R"(,)");
 
         reply->write(R"("result": "created",)");
@@ -265,11 +275,11 @@ namespace elastic::docapi::http
         reply->write(R"("_shards": {},)"); //<TODO> Need to include value into response from search engine.
 
         reply->write(R"("_seq_no": )"); //<TODO> Need to include value into response from search engine.
-        reply->write(std::to_string(mdata.get_int64("_seq_no", 0LL)));
+        reply->write(std::to_string(resp.get_int64("_seq_no", 0LL)));
         reply->write(R"(,)");
 
         reply->write(R"("_primary_term": )"); //<TODO> Need to include value into response from search engine.
-        reply->write(std::to_string(mdata.get_int64("_primary_term", 0LL)));
+        reply->write(std::to_string(resp.get_int64("_primary_term", 0LL)));
         reply->write(R"(,)");
       }
     }
