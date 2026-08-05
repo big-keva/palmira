@@ -237,6 +237,60 @@ namespace
     }
   }
 
+  TEST_F(ElasticApiTest, UpdateDocument)
+  {
+    {// Simple array JSON document
+      const auto document_id = get_rand_document_id();
+      auto index_resp = this->client->index(this->index, document_id)
+                                                         .body(R"json({"name":"brave","age":42})json")
+                                                         .query("refresh", "wait_for")
+                                                         .timeout(10000)
+                                                         .execute();
+      ASSERT_TRUE(index_resp.ok());
+      ASSERT_TRUE(index_resp.is_json());
+      index_resp.parse_json([&](simdjson::ondemand::document &doc) {
+        EXPECT_EQ(doc["_index"].get_string().value(), this->index);
+        EXPECT_EQ(doc["_id"].get_string().value(), document_id);
+        EXPECT_EQ(doc["_version"].get_int64().value(), 1);
+        EXPECT_EQ(doc["result"].get_string().value(), "created");
+      });
+
+      auto get_resp = this->client->get_document(this->index, document_id)
+                                                     .timeout(10000)
+                                                     .execute();
+      ASSERT_TRUE(get_resp.ok());
+      ASSERT_TRUE(get_resp.is_json());
+      get_resp.parse_json([&](simdjson::ondemand::document &doc) {
+        EXPECT_EQ(doc["_index"].get_string().value(), this->index);
+        EXPECT_EQ(doc["_id"].get_string().value(), document_id);
+        EXPECT_EQ(doc["_version"].get_int64().value(), 1);
+        EXPECT_TRUE(doc["found"].get_bool().value());
+        EXPECT_EQ(doc["_source"]["name"].get_string().value(), "brave");
+        EXPECT_EQ(doc["_source"]["age"].get_int64().value(), 42);
+      });
+
+      auto update_resp = this->client->update(this->index, document_id)
+                                                         .body(R"json({"name":"brave","age":45})json")
+                                                         .query("refresh", "wait_for")
+                                                         .timeout(10000)
+                                                         .execute();
+      ASSERT_TRUE(update_resp.ok());
+      ASSERT_TRUE(update_resp.is_json());
+
+      auto get_after_update_resp = this->client->get_document(this->index, document_id)
+                                                     .timeout(10000)
+                                                     .execute();
+      get_after_update_resp.parse_json([&](simdjson::ondemand::document &doc) {
+        EXPECT_EQ(doc["_index"].get_string().value(), this->index);
+        EXPECT_EQ(doc["_id"].get_string().value(), document_id);
+        EXPECT_EQ(doc["_version"].get_int64().value(), 1);
+        EXPECT_TRUE(doc["found"].get_bool().value());
+        EXPECT_EQ(doc["_source"]["name"].get_string().value(), "brave");
+        EXPECT_EQ(doc["_source"]["age"].get_int64().value(), 45);
+      });
+    }
+  }
+
   TEST_F(ElasticApiTest, DeleteDocument)
   {
     {// Simple array JSON document

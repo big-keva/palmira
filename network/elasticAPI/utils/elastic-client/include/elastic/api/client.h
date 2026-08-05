@@ -90,6 +90,9 @@ namespace elastic::api
     auto index(std::string_view index_name, std::string_view document_id) -> typed_request_builder<docapi::index_document_response>;
 
     [[nodiscard]]
+    auto update(std::string_view index_name, std::string_view document_id) -> typed_request_builder<docapi::index_document_response>;
+
+    [[nodiscard]]
     auto get_document(std::string_view index_name, std::string_view document_id) -> typed_request_builder<docapi::get_document_response>;
 
     [[nodiscard]]

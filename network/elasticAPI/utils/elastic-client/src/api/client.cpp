@@ -80,6 +80,21 @@ namespace elastic::api
     return typed_request_builder<docapi::index_document_response>{std::move(builder)};
   }
 
+  auto client::update(std::string_view index_name, std::string_view document_id) -> typed_request_builder<docapi::index_document_response>
+  {
+    validate_path_segment(index_name, "Document update must not be empty");
+    validate_path_segment(document_id, "Document id must not be empty");
+
+    auto builder = method(http::method_types::post);
+    builder.segment(index_name)
+           .segment("_update")
+           .segment(document_id)
+           .accept_json()
+           .content_type_json();
+
+    return typed_request_builder<docapi::index_document_response>{std::move(builder)};
+  }
+
   auto client::get_document(std::string_view index_name, std::string_view document_id) -> typed_request_builder<docapi::get_document_response>
   {
     validate_path_segment(index_name, "Document index must not be empty");
