@@ -11,7 +11,7 @@
 namespace elastic::docapi::json
 {
 //-------------------------------------------------------------------------//
-  auto parse_update_request(std::string_view body, const mtc::zmap &params) -> palmira::UpdateArgs
+  auto parse_update_request(std::string_view body, const mtc::zmap &params) -> palmira::InsertArgs
   {
     palmira::InsertArgs args;
     // Making a new unique document id.

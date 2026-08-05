@@ -87,25 +87,5 @@ namespace elastic::docapi::http
    * @return Parsed get options.
    */
   document_get_options parse_get_options(const elastic::http::query_params_t &params);
-
-  /**
-   * Makes index document request.
-   * @param index [in] - Index name.
-   * @param id [in] - Document ID.
-   * @param body [in] - Document body.
-   * @param params [in] - Query params.
-   * @return Index document request.
-   */
-  palmira::InsertArgs make_index_request(std::string index, std::string id, std::string body, const elastic::http::query_params_t &params);
-
-  /**
-   * Makes index document request.
-   * @param index [in] - Index name.
-   * @param id [in] - Document ID.
-   * @param body [in] - Document body.
-   * @param params [in] - Query params.
-   * @return Index document request.
-   */
-  palmira::UpdateArgs make_update_request(std::string index, std::string id, std::string body, const elastic::http::query_params_t &params);
 //-------------------------------------------------------------------------//
 } // namespace elastic::docapi::http

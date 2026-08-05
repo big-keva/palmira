@@ -4,7 +4,6 @@
 //-------------------------------------------------------------------------//
 #include "docapi-req.h"
 #include "docapi-resp.h"
-#include "reports.hpp"
 //-------------------------------------------------------------------------//
 #include "../../common/thread-pool.h"
 //-------------------------------------------------------------------------//
@@ -14,6 +13,10 @@
 #include "../../http/http-resp.h"
 //-------------------------------------------------------------------------//
 #include "../../json/simd-json-errors.h"
+//-------------------------------------------------------------------------//
+#include "../json/simd-json-index-parser.h"
+#include "../json/simd-json-update-parser.h"
+#include "../json/simd-json-mget-parser.h"
 //-------------------------------------------------------------------------//
 namespace elastic
 {
@@ -319,7 +322,8 @@ namespace elastic::docapi::http
           });
 
           // Sending a document to search engine.
-          auto resp = service->Update(args, [res, state, index, id](const mtc::zmap &resp) {
+          //<???> auto resp = service->Update(args, [res, state, index, id](const mtc::zmap &resp) {
+          auto resp = service->Insert(args, [res, state, index, id](const mtc::zmap &resp) {
 #ifdef __DEBUG__
             mtc::json::Print(stdout, resp, mtc::json::print::decorated());
 #else

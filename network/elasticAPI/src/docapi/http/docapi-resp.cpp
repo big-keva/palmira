@@ -8,7 +8,6 @@
 #include <mtc/json.h>
 //-------------------------------------------------------------------------//
 #include "../../logger/logger.h"
-#include "../../json/serializer.h"
 #include "../../common/utils.h"
 //-------------------------------------------------------------------------//
 #include "docapi-resp.h"
@@ -316,8 +315,6 @@ namespace elastic::docapi::http
       reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::OK));
 
       braces_guard guard(reply, "{}");
-      // Getting metadata.
-      const auto &mdata = resp.get_zmap("metadata", {});
 
       if (resp.get_zmap("status", {}).get_word16("code", 0) != 0)
       {// Not found a document by id
@@ -325,23 +322,23 @@ namespace elastic::docapi::http
 
         // Writing a body.
         reply->write(R"("_index":")");
-        reply->write(mdata.get_charstr("_index", index.data()));
+        reply->write(resp.get_charstr("_index", index.data()));
         reply->write(R"(","_id":")");
-        reply->write(mdata.get_charstr("_id", docid.data()));
+        reply->write(resp.get_charstr("_id", docid.data()));
         reply->write(R"(","found":false)");
       }
       else
       {
         reply->write(R"("_index": ")");
-        reply->write(mdata.get_charstr("_index", index.data()));
+        reply->write(resp.get_charstr("_index", index.data()));
         reply->write(R"(",)");
 
         reply->write(R"("_id": ")");
-        reply->write(mdata.get_charstr("_id", docid.data()));
+        reply->write(resp.get_charstr("_id", docid.data()));
         reply->write(R"(",)");
 
         reply->write(R"("_version": )"); //<TODO> Need to include value into response from search engine.
-        reply->write(std::to_string(mdata.get_int64("_version", 0LL)));
+        reply->write(std::to_string(resp.get_int64("_version", 1LL)));
         reply->write(R"(,)");
 
         reply->write(R"("result": "created",)");
@@ -349,11 +346,11 @@ namespace elastic::docapi::http
         reply->write(R"("_shards": {},)"); //<TODO> Need to include value into response from search engine.
 
         reply->write(R"("_seq_no": )"); //<TODO> Need to include value into response from search engine.
-        reply->write(std::to_string(mdata.get_int64("_seq_no", 0LL)));
+        reply->write(std::to_string(resp.get_int64("_seq_no", 0LL)));
         reply->write(R"(,)");
 
         reply->write(R"("_primary_term": )"); //<TODO> Need to include value into response from search engine.
-        reply->write(std::to_string(mdata.get_int64("_primary_term", 0LL)));
+        reply->write(std::to_string(resp.get_int64("_primary_term", 0LL)));
         reply->write(R"(,)");
       }
     }

@@ -19,20 +19,5 @@ namespace elastic::docapi::json
    * @return A document in search engine format.
    */
   auto parse_index_request(std::string_view body, const mtc::zmap &params) -> palmira::InsertArgs;
-
-  /**
-   * Parses a document for updating into index.
-   * @param body [in] - A document.
-   * @param params [in] - A list of query parameters.
-   * @return A document in search engine format.
-   */
-  auto parse_update_request(std::string_view body, const mtc::zmap &params) -> palmira::UpdateArgs;
-
-  /**
-   * Loads JSON document into IText.
-   * @param value [in] - JSON value.
-   * @param onadd [in] - A callback method.
-   */
-  auto load_document(simdjson::ondemand::value value, std::function<mtc::api<DeliriX::IText>()> onadd) -> void;
 //-------------------------------------------------------------------------//
 } // namespace elastic::docapi::json
