@@ -2,6 +2,8 @@
 //-------------------------------------------------------------------------//
 #include "../logger/logger.h"
 //-------------------------------------------------------------------------//
+#include "../http/http-resp.h"
+//-------------------------------------------------------------------------//
 #include "../docapi/http/docapi-req.h"
 #include "../docapi/http/routes.h"
 //-------------------------------------------------------------------------//
@@ -41,6 +43,33 @@ namespace elastic
           throw (std::invalid_argument("dh_params file path is empty"));
         }
       }
+    }
+//-------------------------------------------------------------------------//
+    template<typename app_t>
+    auto register_default_route(app_t &app) -> void
+    {
+      app.get("/", [](auto *resp, auto *) {
+        auto state = std::make_shared<async_response_state>();
+
+        resp->onAborted([state]() {
+          state->aborted.store(true, std::memory_order_release);
+        });
+
+        // Replying default route.
+        http::send_default_response(resp);
+      });
+
+      app.any("/*", [](auto *resp, auto* /* request */) {
+        auto state = std::make_shared<async_response_state>();
+
+        resp->onAborted([state]() {
+          state->aborted.store(true, std::memory_order_release);
+        });
+
+        http::send_default_response(resp)->writeStatus("404 Not Found")
+                                         ->writeHeader("Content-Type", "application/json")
+                                         ->end(R"({"error":"route not found","status":404})");
+      });
     }
 //-------------------------------------------------------------------------//
   } // namespace
@@ -142,6 +171,9 @@ namespace elastic
       );
     },
     this->routes);
+
+    // Registering default route.
+    register_default_route(app);
   }
 //-------------------------------------------------------------------------//
   auto http_server::onloop() -> void

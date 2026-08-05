@@ -65,6 +65,9 @@ namespace elastic::http
 
   template<bool SSL>
   void send_error_response(uWS::HttpResponse<SSL> *resp, status_codes status, std::string_view error_type, std::string_view reason);
+
+  template<typename response_t>
+  auto send_default_response(response_t *resp) -> response_t *;
 //-------------------------------------------------------------------------//
 }// namespace elastic::http
 //-------------------------------------------------------------------------//
