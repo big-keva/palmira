@@ -386,7 +386,6 @@ namespace elastic::docapi::http
 
     // Reading payload.
     res->onData([this, res, index, id, params, routing, state, payload, body_size, request_started](std::string_view chunk, bool last) mutable {
-      const auto timeout = this->config.get_int32("request_timeout", request_timeout);
       if (state->aborted.load(std::memory_order_acquire))
       {
         return;
@@ -511,7 +510,6 @@ namespace elastic::docapi::http
 
     // Reading payload.
     res->onData([this, res, index, id, params, routing, state, payload, body_size, request_started](std::string_view chunk, bool last) mutable {
-      const auto timeout = this->config.get_int32("request_timeout", request_timeout);
       if (state->aborted.load(std::memory_order_acquire))
       {
         return;

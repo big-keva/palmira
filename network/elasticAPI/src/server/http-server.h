@@ -17,8 +17,10 @@
 //-------------------------------------------------------------------------//
 #include "../common/thread-pool.h"
 //-------------------------------------------------------------------------//
-#include "../docapi/http/routes.h"
 #include "../http/method-type.h"
+#include "../http/routes.h"
+//-------------------------------------------------------------------------//
+#include "../docapi/http/routes.h"
 //-------------------------------------------------------------------------//
 namespace elastic
 {
@@ -45,7 +47,8 @@ namespace elastic
 
     //!< Keeps a list of servers.
     std::tuple<
-      docapi::http::routes
+      http::routes,         // default routes
+      docapi::http::routes  // Document API routes
     > routes;
 
     std::thread thread;
@@ -71,7 +74,7 @@ namespace elastic
     /**
      * Destructor.
      */
-    virtual ~http_server();
+    ~http_server();
 
     // Override methods
   public:

@@ -6,6 +6,25 @@ namespace elastic::http
   namespace
   {
 //-------------------------------------------------------------------------//
+    const std::vector<std::string_view> g_headers = {
+      {"host"},
+      {"user-agent"},
+      {"accept"},
+      {"accept-encoding"},
+      {"accept-language"},
+      {"content-type"},
+      {"content-length"},
+      {"authorization"},
+      {"origin"},
+      {"referer"},
+      {"connection"},
+      {"cache-control"},
+      {"pragma"},
+      {"x-requested-with"},
+      {"access-control-request-method"},
+      {"access-control-request-headers"}
+  };
+//-------------------------------------------------------------------------//
     auto url_decode(std::string_view value)  -> std::string
     {
       std::string out;
@@ -73,6 +92,11 @@ namespace elastic::http
       return found->c_str();
     }
     return default_value;
+  }
+//-------------------------------------------------------------------------//
+  auto get_supported_headers() -> const std::vector<std::string_view> &
+  {
+    return g_headers;
   }
 //-------------------------------------------------------------------------//
 } // namespace elastic::http

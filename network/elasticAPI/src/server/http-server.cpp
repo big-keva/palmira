@@ -45,39 +45,13 @@ namespace elastic
       }
     }
 //-------------------------------------------------------------------------//
-    template<typename app_t>
-    auto register_default_route(app_t &app) -> void
-    {
-      app.get("/", [](auto *resp, auto *) {
-        auto state = std::make_shared<async_response_state>();
-
-        resp->onAborted([state]() {
-          state->aborted.store(true, std::memory_order_release);
-        });
-
-        // Replying default route.
-        http::send_default_response(resp);
-      });
-
-      app.any("/*", [](auto *resp, auto* /* request */) {
-        auto state = std::make_shared<async_response_state>();
-
-        resp->onAborted([state]() {
-          state->aborted.store(true, std::memory_order_release);
-        });
-
-        http::send_default_response(resp)->writeStatus("404 Not Found")
-                                         ->writeHeader("Content-Type", "application/json")
-                                         ->end(R"({"error":"route not found","status":404})");
-      });
-    }
-//-------------------------------------------------------------------------//
   } // namespace
 //-------------------------------------------------------------------------//
   http_server::http_server(palmira::IService *srv, const mtc::config &cfg)
     : config(cfg), service(srv),
       routes{
-        docapi::http::routes{srv, cfg}
+        elastic::http::routes{srv, cfg},
+        elastic::docapi::http::routes{srv, cfg}
       }
   {
     if (not this->config.has_key("port"))
@@ -171,9 +145,6 @@ namespace elastic
       );
     },
     this->routes);
-
-    // Registering default route.
-    register_default_route(app);
   }
 //-------------------------------------------------------------------------//
   auto http_server::onloop() -> void
