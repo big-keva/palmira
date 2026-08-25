@@ -27,6 +27,9 @@ namespace restAPI
       virtual Response* WriteHeader( std::string_view, std::string_view ) = 0;
       virtual Response* WriteBuffer( std::string_view ) = 0;
       virtual void      FinishWrite( std::string_view = {} ) = 0;
+
+      void  Instant( std::string_view, std::string_view );
+      void  Instant( std::string_view, const mtc::zmap& );
     };
 
   protected:
@@ -56,6 +59,7 @@ namespace restAPI
 
     void  Instant( std::string_view, std::string_view ) const;
     void  Instant( std::string_view, const mtc::zmap& ) const;
+
     void  Delayed( std::string_view, std::string_view ) const;
     void  Delayed( std::string_view, const mtc::zmap& ) const;
 

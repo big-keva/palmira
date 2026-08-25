@@ -10,13 +10,15 @@
 # include <condition_variable>
 # include <vector>
 # include <list>
-#include <DeliriX/DOM-dump.hpp>
+
+using clock_type = std::chrono::steady_clock;
+using time_point = clock_type::time_point;
 
 std::atomic_llong totalBytes = 0;
 std::atomic_long  totalBooks = 0;
+time_point        startTimer = std::chrono::steady_clock::now();
 
 volatile bool canContinue = true;
-volatile bool noMoreFiles = false;
 
 template <class Value, size_t Limit>
 class Collector
@@ -24,31 +26,39 @@ class Collector
   std::list<Value>        list;
   std::mutex              lock;
   std::condition_variable wait;
+  volatile bool           stop = false;
+
 public:
   void  Put( Value&& v )
   {
     auto  exLock = mtc::make_unique_lock( lock );
 
-    wait.wait( exLock, [&](){  return list.size() < Limit || !canContinue;  } );
-
-    list.push_back( std::forward<Value>( v ) );
-
-    wait.notify_all();
+    while ( canContinue )
+    {
+      if ( !wait.wait_for( exLock, std::chrono::seconds( 1 ), [&](){  return list.size() < Limit || !canContinue;  } ) )
+        continue;
+      if ( !canContinue )
+        continue;
+      list.push_back( std::forward<Value>( v ) );
+        wait.notify_all();
+      break;
+    }
   }
   bool  Get( Value& v )
   {
     auto  exLock = mtc::make_unique_lock( lock );
 
-    for ( ; ; )
+    while ( canContinue )
     {
-      wait.wait_for( exLock, std::chrono::seconds( 1 ),
-        [&]{  return !canContinue || !list.empty() || noMoreFiles;  } );
+      if ( !wait.wait_for( exLock, std::chrono::seconds( 1 ), [&]{  return !canContinue || !list.empty() || stop;  } ) )
+        continue;
 
       if ( !canContinue )
-        return false;
+        continue;
+
       if ( list.empty() )
       {
-        if ( noMoreFiles )
+        if ( stop )
           return false;
         continue;
       }
@@ -57,6 +67,11 @@ public:
       wait.notify_all();
         return true;
     }
+    return false;
+  }
+  void  End()
+  {
+    stop = true;
   }
 };
 
@@ -204,23 +219,26 @@ void  IndexTexts()
 
       libRusEq->Insert( { next.first, next.second, zmdata }, [&, length = next.second.GetLength()]( const mtc::zmap& )
         {
-          auto  nBooks = totalBooks.load();
-          auto  nBytes = totalBytes.load();
-
-          while ( !totalBytes.compare_exchange_strong( nBytes, nBytes + length ) )
-            (void)NULL;
-          while ( !totalBooks.compare_exchange_strong( nBooks, nBooks + 1 ) )
-            (void)NULL;
+          auto  nBooks = totalBooks += 1;
+          auto  nBytes = totalBytes += length;
 
           if ( (nBooks % 100) == 0 )
-            fprintf( stdout, "%ld books,\t%lld Mb\n", nBooks, nBytes / 1024 / 1024 );
-        } )->Wait();
+          {
+            auto  tmPass = std::chrono::duration_cast<std::chrono::milliseconds>(
+              clock_type::now() - startTimer ).count() / 1000.0;
+
+            fprintf( stdout, "%ld books,\t%lld Mb, %g Mb/s\n", nBooks, nBytes / 1024 / 1024,
+              nBytes / tmPass / 1024 / 1024 );
+
+/*            if ( nBooks > 1000 )
+              canContinue = false;*/
+          }
+        } )/*->Wait()*/;
     } else break;
   }
 }
 
 # include "structo/storage/posix-fs.hpp"
-# include "structo/indexer/layered-contents.hpp"
 
 void  ListFiles( mtc::directory folder )
 {
@@ -234,9 +252,7 @@ void  ListFiles( mtc::directory folder )
         ListFiles( mtc::directory::Open( (stnext + "/").c_str() ) );
       }
         else
-      {
-        archives.Put( std::move( stnext ) );
-      }
+      archives.Put( std::move( stnext ) );
     }
 }
 
@@ -282,50 +298,19 @@ int   main( int argc, char* argv[] )
     runthr.push_back( std::thread( ParseTexts ) );
   for ( size_t i = 0; i < std::thread::hardware_concurrency(); ++i )
     runthr.push_back( std::thread( IndexTexts ) );
-/*
-  runthr.push_back( std::thread( [&]()
-    {
-      auto  globalStart = std::chrono::steady_clock::now();
-      auto  momentStart = globalStart;
-      auto  momentBooks = 0U;
-      auto  momentBytes = 0ULL;
-
-      while ( canContinue && !noMoreBooks )
-      {
-        std::this_thread::sleep_for( std::chrono::seconds( 10 ) );
-
-        auto  momentTime = std::chrono::steady_clock::now();
-        auto  globalSecs = std::chrono::duration_cast<std::chrono::milliseconds>( momentTime - globalStart ).count() / 1000.0;
-        auto  momentSecs = std::chrono::duration_cast<std::chrono::milliseconds>( momentTime - momentStart ).count() / 1000.0;
-        auto  booksLoaded = totalBooks.load();
-        auto  bytesLoaded = totalBytes.load();
-        auto  diffBooks = booksLoaded - momentBooks;  momentBooks = booksLoaded;
-        auto  diffBytes = bytesLoaded - momentBytes;  momentBytes = bytesLoaded;
-
-        fprintf( stdout, "%u books, %uMb, %u(%u)RPS, %u(%u)MbPS\n",
-          unsigned(booksLoaded),
-          unsigned(bytesLoaded / 1024 / 1024),
-          unsigned(booksLoaded / globalSecs), unsigned(diffBooks / momentSecs),
-          unsigned(bytesLoaded / globalSecs / 1024 / 1024), unsigned(diffBytes / momentSecs / 1024 / 1024) );
-
-        momentBooks = totalBooks.load();
-        momentBytes = totalBytes.load();
-        momentStart = momentTime;
-      }
-      fprintf( stderr, "monitor finished\n" );
-    } ) );
-*/
 
 // directory reading thread as main
   ListFiles( diread );
-    noMoreFiles = true;
+    archives.End();
   ParseTexts();
+    fb2Texts.End();
   IndexTexts();
-
-  canContinue = false;
+    canContinue = false;
 
   for ( auto& th: runthr)
     th.join();
+
+  libRusEq->Commit();
 
   return 0;
 }

@@ -1,3 +1,5 @@
+#include <reports.hpp>
+
 # include "delete.hpp"
 # include "update.hpp"
 # include "insert.hpp"
@@ -170,9 +172,25 @@ namespace restAPI
     * POST  /get/{space}
     * POST  /get
     */
-    pwMain->get  (     "/:space/:id", Dispatch<GetEntity>( search, thPool ) );
-    pwMain->get  (     "/:space",     Dispatch<GetEntity>( search, thPool ) );
-    pwMain->get  (     "",            Dispatch<GetEntity>( search, thPool ) );
+    pwMain->get  (     "/object/:space/:id", Dispatch<GetEntity>( search, thPool ) );
+    pwMain->get  (     "/object/:space",     Dispatch<GetEntity>( search, thPool ) );
+
+    pwMain->get  (     "/health",            [this]( auto* res, auto )
+      {
+        MakeResponse( res )
+          ->Instant( "200 OK", palmira::StatusReport( 0, "OK" ) );
+      } );
+
+    pwMain->options( "/:action", []( auto* res, auto )
+      {
+        mtc::json::Print( MakeResponse( res )
+          ->WriteStatus( "200 OK" )
+          ->WriteHeader( "Content-Type", "application/json; charset=\"utf-8\"" )
+          ->WriteHeader( "Access-Control-Allow-Methods", "*" )
+          ->WriteHeader( "Access-Control-Allow-Headers", "content-type" ),
+            palmira::StatusReport( 0, "OK" ), mtc::json::print::decorated() )
+          ->FinishWrite();
+      } );
 
     pwMain->get  ( "/get/:space/:id", Dispatch<GetEntity>( search, thPool ) );
     pwMain->get  ( "/get/:space",     Dispatch<GetEntity>( search, thPool ) );

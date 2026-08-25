@@ -88,8 +88,8 @@ namespace restAPI
     // проверить, задан ли идентификатор документа в пути запроса
       switch ( zroute.size() )
       {
-        case 2:   getarg = { { "space", zroute[0] } };                      [[fallthrough]];
-        case 1:   getarg = { { "space", zroute[0] }, { "id", zroute[1] } }; [[fallthrough]];
+        case 2:   getarg = { { "space", zroute[0] }, { "id", zroute[1] } }; [[fallthrough]];
+        case 1:   getarg = { { "space", zroute[0] } };                      [[fallthrough]];
         case 0:   break;
         default:  throw std::logic_error( "Invalid route arguments count" );
       }

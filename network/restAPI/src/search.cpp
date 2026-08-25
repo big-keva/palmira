@@ -45,12 +45,16 @@ namespace restAPI
 
     // Границы и строка запроса могут быть задалы в body
     // - first
+    // - count
+    // - query
       if ( search.order.get( "first" ) == nullptr )
         GetIntParam( search, parsed, "first" );
       if ( search.order.get( "count" ) == nullptr )
         GetIntParam( search, parsed, "count" );
       if ( search.order.get( "query" ) == nullptr )
         GetStrQuery( search, parsed );
+
+    // - quote
 
     // Если запрос так и не задан, сообщить об ошибке
       if ( search.query.empty() )
@@ -72,7 +76,7 @@ namespace restAPI
       {
         if ( !*functor.cancel )
         {
-          auto  report = palmira::UpdateReport(
+          auto  report = palmira::SearchReport(
             functor.search->Search( search )->Wait( functor.tm_off ) );
 
           functor.evLoop->defer( [answer = functor.answer, cancel = functor.cancel, report]()
@@ -122,17 +126,14 @@ namespace
     auto  decorg = mtc::json::print::decorated();
     auto  docset = report.items();
 
-    if ( report.status().code() == 0 && report.found() != 0 )
+    if ( report.status().code() == 0 )
     {
       to->WriteStatus( "200 OK" )
         ->WriteHeader( "Content-Type", "application/json; charset=utf-8" );
     }
-      else
-    {
-      to->WriteStatus( "404 Not Found" )
-        ->WriteHeader( "Content-Type", "application/json; charset=utf-8" );
-    }
 
+/*
+    mtc::json::Print( stdout, report, mtc::json::print::decorated() );
     decorg.Break( ::Serialize( to, '{' ) );
     {
       auto  decres = mtc::json::print::decorated( decorg );
@@ -155,7 +156,7 @@ namespace
 
       // print array header
         decres.Break( ::Serialize( to, ',' ) );
-        decres.Break( ::Serialize( decres.Space( ::Serialize( PrintKey( decres.Shift( to ), "cache" ),
+        decres.Break( ::Serialize( decres.Space( ::Serialize( PrintKey( decres.Shift( to ), "items" ),
           ':' ) ), '[' ) );
 
         for ( auto& next: docset )
@@ -171,12 +172,12 @@ namespace
             PrintKeyValue( to,
               "id", next.get_charstr( "id", "?" ), docdec );
             PrintKeyValue( docdec.Break( ::Serialize( to, ',' ) ),
-              "metadata", next.get_zmap( "extra", {} ), docdec );
+              "extra", next.get_zmap( "extra", {} ), docdec );
 
             if ( pquote != nullptr )
             {
               to = ::Serialize( PrintKey( docdec.Shift( docdec.Break( ::Serialize( to, ',' ) ) ),
-                "document" ), ':' );
+                "quote" ), ':' );
 
               mtc::json::Print( docdec.Space( to ),
                 *pquote, docdec );
@@ -189,6 +190,8 @@ namespace
       }
     }
     ::Serialize( decorg.Break( to ), '}' )->FinishWrite();
+*/
+    mtc::json::Print( to, report, mtc::json::print::decorated() )->FinishWrite();
   }
 
   void  GetIntParam( palmira::SearchArgs& search, const mtc::zmap& params, const char* key )
