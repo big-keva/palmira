@@ -11,6 +11,8 @@ option(USE_BUILTIN_REST "Enable builtin RestAPI library" ON)
 
 set(REGISTER_MODULES {};)
 
+#  add_compile_options(-g -O2 -fno-omit-frame-pointer)
+
 if(MSVC)
   add_compile_options(-D_CRT_SECURE_NO_WARNINGS)
   set(XXX_SUF -win)
@@ -38,7 +40,7 @@ find_package(MoonyCode REQUIRED)
 if(USE_BUILTIN_REST)
   find_package(simdjson REQUIRED)
 
-  set(MODULE_LIBS ${MODULE_LIBS} $<LINK_LIBRARY:WHOLE_ARCHIVE,palmira-restAPI> uSockets ssl crypto simdjson::simdjson)
+  set(MODULE_LIBS ${MODULE_LIBS} $<LINK_LIBRARY:WHOLE_ARCHIVE,palmira-restAPI> ixwebsocket uSockets ssl crypto simdjson::simdjson)
 endif()
 
 include_directories(
@@ -49,6 +51,8 @@ add_subdirectory(contrib/mtc)
 add_subdirectory(contrib/DeliriX)
 add_subdirectory(contrib/structo)
 add_subdirectory(contrib/hopcalc)
+
+add_subdirectory(contrib/IXWebSocket)
 
 add_subdirectory(plugins/morpho-ru)
 
