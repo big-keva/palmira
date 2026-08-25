@@ -45,3 +45,5 @@ else()
     mtc
     simdjson::simdjson)
 endif()
+
+add_subdirectory(tests)
