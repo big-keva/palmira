@@ -17,8 +17,7 @@
 #ifndef __UTILS_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 #define __UTILS_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
-#include "libmorph/xmorph/codepages.hpp"
-
+#include <moonycode/codes.h>
 #include <cstdint>
 #include <string>
 //-------------------------------------------------------------------------//
