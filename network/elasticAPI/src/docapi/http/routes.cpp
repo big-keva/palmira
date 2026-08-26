@@ -6,6 +6,7 @@
 #include "docapi-resp.h"
 //-------------------------------------------------------------------------//
 #include "../../common/thread-pool.h"
+#include "../../common/utils.h"
 //-------------------------------------------------------------------------//
 #include "../../logger/logger.h"
 //-------------------------------------------------------------------------//
@@ -58,7 +59,7 @@ namespace elastic::docapi::http
     auto payload = std::make_shared<std::string>();
 
     const auto index = std::string(req->getParameter(0));
-    const auto id = req->getParameter(1).empty() ? std::string{} : std::string(req->getParameter(1));
+    const auto id = req->getParameter(1).empty() ? elastic::make_uid() : std::string(req->getParameter(1));
     const auto params = elastic::http::parse_query(req->getQuery());
     const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
@@ -106,9 +107,9 @@ namespace elastic::docapi::http
             LOG_D_C("Received POST request: index=%s, id=%s, payload=%s", index.c_str(), id.c_str(), body.c_str());
             // Parsing insert request.
             auto args = json::parse_index_request(std::string_view(body), mtc::zmap{
-              {"_index", index},
-              {"_id", id},
-              {"_params", params},
+              {"_index",   index},
+              {"_id",      id},
+              {"_params",  params},
               {"_started", started}
             });
 

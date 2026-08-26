@@ -20,7 +20,8 @@
                 "max_size": "10M",
                 "max_count": 5,
                 "rotate": true
-            }
+            },
+            "_source": true
         },
     }
 }

@@ -15,13 +15,8 @@ namespace elastic::docapi::json
   {
     palmira::InsertArgs args;
     // Making a new unique document id.
-    args.objectId = params.get_charstr("_id", "");
+    args.objectId = params.get_charstr("_id", elastic::make_uid());
     args.uVersion = params.get_int16("_version", 1);
-
-    if (args.objectId.empty())
-    {
-      args.objectId = elastic::make_uid();
-    }
 
     // Copying options into metadata.
     args.metadata = mtc::zmap{
