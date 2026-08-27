@@ -70,6 +70,48 @@ namespace elastic::http
       http::send_default_response(resp);
     });
 
+    app.get("/_cluster/health", [](auto *resp, auto *req) {
+#ifdef __DEBUG__
+      http::dump_request(req);
+#endif // __DEBUG__
+
+      const auto params = http::parse_query(req->getQuery());
+      const auto routing = http::get_query_param(params, "routing");
+      auto state = std::make_shared<async_response_state>();
+
+      resp->onAborted([state]() {
+        state->aborted.store(true, std::memory_order_release);
+      });
+
+      // Replying default route.
+      http::send_default_response(resp);
+    });
+
+    app.get("/_cluster/stats", [](auto *resp, auto *req) {
+#ifdef __DEBUG__
+      http::dump_request(req);
+#endif // __DEBUG__
+
+      const auto params = http::parse_query(req->getQuery());
+      const auto routing = http::get_query_param(params, "routing");
+      auto state = std::make_shared<async_response_state>();
+
+      resp->onAborted([state]() {
+        state->aborted.store(true, std::memory_order_release);
+      });
+
+      // Replying default route.
+      http::send_default_response(resp);
+    });
+
+    app.options("/*", [](auto* resp, auto*) {
+      resp->writeStatus("204 No Content")
+          ->writeHeader("Access-Control-Allow-Origin", "*")
+          ->writeHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+          ->writeHeader("Access-Control-Allow-Headers", "X-Requested-With,Content-Type,Content-Length,Authorization")
+          ->end();
+    });
+
     app.any("/*", [](auto *resp, auto *req) {
 #ifdef __DEBUG__
       http::dump_request(req);

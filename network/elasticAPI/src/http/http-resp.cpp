@@ -96,32 +96,19 @@ namespace elastic::http
   template<typename response_t>
   auto send_default_response(response_t *resp) -> response_t *
   {
-    static constexpr std::string_view s_body = R"json(
-      {
-        "name": "palmira-node-1",
-        "cluster_name": "palmira",
-        "cluster_uuid": "palmira-local",
-        "version": {
-          "number": "7.10.2",
-          "build_flavor": "default",
-          "build_type": "custom",
-          "build_hash": "unknown",
-          "build_date": "2026-08-05T00:00:00Z",
-          "build_snapshot": false,
-          "lucene_version": "8.7.0",
-          "minimum_wire_compatibility_version": "6.8.0",
-          "minimum_index_compatibility_version": "6.0.0-beta1"
-        },
-        "tagline": "You Know, for Search"
-      })json";
-
-    // Sending a reply.
-    resp->writeHeader("Access-Control-Allow-Origin", "*")
-        ->writeHeader("Access-Control-Allow-Methods", "OPTIONS, HEAD, GET, POST, PUT, DELETE")
-        ->writeHeader("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Content-Length, Authorization")
-        ->writeHeader("Access-Control-Max-Age", "86400")
-        ->end(s_body);
-
+    resp->writeStatus("200 OK")
+        ->writeHeader("Content-Type", "application/json")
+        ->writeHeader("Access-Control-Allow-Origin", "*")
+        ->writeHeader("X-Elastic-Product", "Elasticsearch")
+        ->end(R"({
+          "name":"palmira-node-1",
+          "cluster_name":"palmira",
+          "cluster_uuid":"palmira-local",
+          "version":{
+            "number":"7.10.2"
+          },
+          "tagline":"You Know, for Search"
+        })");
     return resp;
   }
 //-------------------------------------------------------------------------//
