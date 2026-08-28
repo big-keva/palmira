@@ -55,7 +55,6 @@ namespace elastic::docapi::http
   auto routes::onpost(Response *res, Request *req) -> void
   {
     auto state = std::make_shared<async_response_state>();
-    // auto resp_ctx = std::make_shared<elastic::http::response_context<SSL>>(res);
     auto payload = std::make_shared<std::string>();
 
     const auto index = std::string(req->getParameter(0));
@@ -593,6 +592,9 @@ namespace elastic::docapi::http
 
     // Adds a new document and automatically generates a unique ID.
     app.post("/:index/_doc", [this](auto *res, auto *req) {
+      this->onpost(res, req);
+    });
+    app.post("/:index/_doc/:id", [this](auto *res, auto *req) {
       this->onpost(res, req);
     });
     // Adds a new document with a specified ID or updates an existing document

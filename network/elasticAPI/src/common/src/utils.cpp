@@ -171,23 +171,13 @@ namespace elastic
 
   auto make_uid(std::uint8_t size /*= 16*/) -> std::string
   {
+    static const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    std::string id;
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, 35);
 
-    const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-    std::string id;
-    id.reserve(2 * size);
-
-    auto time = std::chrono::steady_clock::now().time_since_epoch().count();
-    std::string time_str = std::to_string(time);
-    for (char c : time_str)
-    {
-      id.push_back(charset[(c - '0') % 36]);
-    }
-
-    // 8 случайных символов
     for (auto i = 0; i < size; ++i)
     {
       id.push_back(charset[dis(gen)]);

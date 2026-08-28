@@ -236,9 +236,11 @@ namespace elastic::docapi::http
       // Writing a body.
       reply->write(R"("_index": ")");
       reply->write(index);
-      reply->write(R"(","_id": ")");
+      reply->write(R"(,)");
+      reply->write(R"(""_id": ")");
       reply->write(docid);
-      reply->write(R"(","found": false)");
+      reply->write(R"(,)");
+      reply->write(R"(""found": false)");
     }
     else
     {
@@ -250,11 +252,13 @@ namespace elastic::docapi::http
         reply->writeHeader("Content-Length", get_error_context_length(index, docid));
 
         // Writing a body.
-        reply->write(R"("_index":")");
+        reply->write(R"("_index": ")");
         reply->write(resp.get_charstr("_index", index.data()));
-        reply->write(R"(","_id":")");
+        reply->write(R"(,)");
+        reply->write(R"(""_id": ")");
         reply->write(resp.get_charstr("_id", docid.data()));
-        reply->write(R"(","found":false)");
+        reply->write(R"(,)");
+        reply->write(R"(""found":false)");
       }
       else
       {
@@ -280,7 +284,6 @@ namespace elastic::docapi::http
 
         reply->write(R"("_primary_term": )"); //<TODO> Need to include value into response from search engine.
         reply->write(std::to_string(resp.get_int64("_primary_term", 0LL)));
-        reply->write(R"(,)");
       }
     }
 
