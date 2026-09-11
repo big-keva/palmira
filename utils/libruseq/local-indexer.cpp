@@ -76,7 +76,7 @@ public:
 };
 
 Collector<std::string, 0x100>                           archives;
-Collector<std::pair<std::string, DeliriX::Text>, 0x10>  fb2Texts;
+Collector<std::pair<std::string, DeliriX::Text>, 0x20>  fb2Texts;
 
 mtc::api<palmira::IService> libRusEq;
 
