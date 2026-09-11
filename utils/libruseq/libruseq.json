@@ -17,7 +17,7 @@
   "service": {
     "contents": "Rich",  // BM25, Mini
     "languages": [
-        { "id": 0, "module": "../../cmake-build-relwithdebinfo/plugins/morpho-ru/libmorpho-ru.so" }
+        { "id": 0, "module": "../../cmake-build-release/plugins/morpho-ru/libmorpho-ru.so" }
     ],
     "index": {
       "generic_name": "index/lq"
