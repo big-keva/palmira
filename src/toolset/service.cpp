@@ -1,9 +1,18 @@
 # include "../../service.hpp"
 # include "object-zmap.hpp"
+# include <DeliriX/DOM-dump.hpp>
 # include "DeliriX/DOM-load.hpp"
 
-namespace palmira {
+template <> inline
+mtc::array_char*  Serialize( mtc::array_char* to, const void* p, size_t l )
+{
+  if ( to != nullptr )
+    to->insert( to->end(), (const char*)p, l + (const char*)p );
+  return to;
+}
 
+namespace palmira
+{
   using Document = DeliriX::Text;
 
   // TimingArgs
@@ -11,6 +20,13 @@ namespace palmira {
   TimingArgs::TimingArgs( const mtc::zmap& args ):
     fTimeout( args.get_double( "timeout", -1.0 ) )
   {
+  }
+
+  mtc::zmap&  TimingArgs::Serialize( mtc::zmap& to ) const
+  {
+    if ( fTimeout >= 0.0 )
+      to["timeout"] = fTimeout;
+    return to;
   }
 
   // AccessArgs
@@ -22,6 +38,13 @@ namespace palmira {
       throw std::invalid_argument( "absent object 'id'" );
   }
 
+  mtc::zmap&  AccessArgs::Serialize( mtc::zmap& to ) const
+  {
+    if ( !objectId.empty() )
+      to["id"] = objectId;
+    return TimingArgs::Serialize( to );
+  }
+
   // RemoveArgs implementation
 
   RemoveArgs::RemoveArgs( const mtc::zmap& args ): AccessArgs( args ),
@@ -31,11 +54,25 @@ namespace palmira {
       ifClause = *args.get( "claim" );
   };
 
+  mtc::zmap&  RemoveArgs::Serialize( mtc::zmap& to ) const
+  {
+    if ( !ifClause.empty() )
+      to["claim"] = ifClause;
+    return AccessArgs::Serialize( to );
+  }
+
   // UpdateArgs implementation
 
   UpdateArgs::UpdateArgs( const mtc::zmap& args ): RemoveArgs( args ),
     metadata( args.get_zmap( "metadata", {} ) )
   {
+  }
+
+  mtc::zmap&  UpdateArgs::Serialize( mtc::zmap& to ) const
+  {
+    if ( !metadata.empty() )
+      to["metadata"] = metadata;
+    return RemoveArgs::Serialize( to );
   }
 
   // InsertArgs implementation
@@ -50,6 +87,36 @@ namespace palmira {
     textview( document )
   {
     LoadBody( args );
+  }
+
+  mtc::zmap&  InsertArgs::Serialize( mtc::zmap& to, const text::as::json_t& ) const
+  {
+    textview.Serialize( DeliriX::dump_as::Json( [dump = to.set_charstr( "json" )]( const char* s, size_t l )
+      {  dump->append( s, l );  } ) );
+
+    return UpdateArgs::Serialize( to );
+  }
+
+  mtc::zmap&  InsertArgs::Serialize( mtc::zmap& to, const text::as::tags_t& ) const
+  {
+    textview.Serialize( DeliriX::dump_as::Tags( [dump = to.set_charstr( "tags" )]( const char* s, size_t l )
+      {  dump->append( s, l );  } ) );
+
+    return UpdateArgs::Serialize( to );
+  }
+
+  mtc::zmap&  InsertArgs::Serialize( mtc::zmap& to, const text::as::zmap_t& ) const
+  {
+    palmira::Serialize( *to.set_zmap( "zmap" ), textview );
+
+    return UpdateArgs::Serialize( to );
+  }
+
+  mtc::zmap&  InsertArgs::Serialize( mtc::zmap& to, const text::as::dump_t& ) const
+  {
+    textview.Serialize( to.set_array_char( "dump" ) );
+
+    return UpdateArgs::Serialize( to );
   }
 
   void  InsertArgs::LoadBody( const mtc::zmap& args )
@@ -74,6 +141,13 @@ namespace palmira {
       throw std::invalid_argument( "document 'dump' has to be array of char or byte" );
     }
     throw std::invalid_argument( "no document data as 'json', 'tags', 'dump' or 'zmap'" );
+  }
+
+  // SearchArgs implementation
+
+  mtc::zmap& SearchArgs::Serialize( mtc::zmap& to ) const
+  {
+    return TimingArgs::Serialize( to );
   }
 
 }

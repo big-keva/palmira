@@ -7,12 +7,25 @@
 
 namespace palmira {
 
+  struct text final
+  {
+    struct as final
+    {
+      static constexpr struct json_t{} json{};
+      static constexpr struct tags_t{} tags{};
+      static constexpr struct dump_t{} dump{};
+      static constexpr struct zmap_t{} zmap{};
+    };
+  };
+
   struct TimingArgs
   {
     double      fTimeout = -1.0;
 
     TimingArgs() = default;
     TimingArgs( const mtc::zmap& );
+
+    mtc::zmap&  Serialize( mtc::zmap& ) const;
   };
 
   template <typename T, typename = std::enable_if_t<std::is_base_of_v<TimingArgs, T>>>
@@ -34,6 +47,8 @@ namespace palmira {
     AccessArgs() = default;
     AccessArgs( const std::string& entId ): objectId( entId ) {}
     AccessArgs( const mtc::zmap& );
+
+    mtc::zmap&  Serialize( mtc::zmap& ) const;
   };
 
   template <typename T, typename = std::enable_if_t<std::is_base_of_v<AccessArgs, T>>>
@@ -59,6 +74,8 @@ namespace palmira {
       uint64_t            uVers = 0,
       const mtc::zval&    icond = {} ): AccessArgs( entId ), uVersion( uVers ), ifClause( icond ) {}
     RemoveArgs( const mtc::zmap& );
+
+    mtc::zmap&  Serialize( mtc::zmap& ) const;
   };
 
   struct UpdateArgs: RemoveArgs
@@ -72,6 +89,8 @@ namespace palmira {
       uint64_t            uVers = 0,
       const mtc::zval&    icond = {} ): RemoveArgs( entId, uVers, icond ), metadata( mdata ) {}
     UpdateArgs( const mtc::zmap& );
+
+    mtc::zmap&  Serialize( mtc::zmap& ) const;
   };
 
   class InsertArgs: public UpdateArgs
@@ -95,6 +114,11 @@ namespace palmira {
     auto  GetTextAPI() -> DeliriX::IText& {  return document;  }
     auto  SetDocText( DeliriX::Text&& txt ) -> InsertArgs& {  return document = std::move( txt ), *this;  }
 
+    mtc::zmap&  Serialize( mtc::zmap&, const text::as::json_t& ) const;
+    mtc::zmap&  Serialize( mtc::zmap&, const text::as::tags_t& ) const;
+    mtc::zmap&  Serialize( mtc::zmap&, const text::as::dump_t& ) const;
+    mtc::zmap&  Serialize( mtc::zmap&, const text::as::zmap_t& ) const;
+
   private:
     void  LoadBody( const mtc::zmap& );
 
@@ -111,7 +135,9 @@ namespace palmira {
       query( req ),
       order( ord ),
       terms( tms )  {}
-};
+
+    mtc::zmap&  Serialize( mtc::zmap& ) const;
+  };
 
   struct IService: mtc::Iface
   {

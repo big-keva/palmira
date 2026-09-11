@@ -54,8 +54,8 @@ namespace palmira
 
     return indexer::layered::Index( OpenStorage( config ) )
       .Set( indexer::dynamic::Settings()
-        .SetMaxEntities( 1024 )
-        .SetMaxAllocate( 1024 * 1024 * 1024 ) )
+        .SetMaxEntities( 8 * 1024 )
+        .SetMaxAllocate( 512 * 1024 * 1024 ) )
       .Create();
   }
 

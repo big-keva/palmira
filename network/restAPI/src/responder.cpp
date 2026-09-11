@@ -25,6 +25,25 @@ namespace restAPI
     implement_lifetime_control
   };
 
+  // Responder::Response implementation
+
+  void  Responder::Response::Instant( std::string_view status, std::string_view message )
+  {
+      WriteStatus( status )
+    ->WriteHeader( "Content-Type", "text/plain; charset=\"utf-8\"" )
+    ->WriteHeader( "Connection", "keep-alive" )
+    ->FinishWrite( message );
+  }
+
+  void  Responder::Response::Instant( std::string_view status, const mtc::zmap& message )
+  {
+    mtc::json::Print(
+        WriteStatus( status )
+      ->WriteHeader( "Content-Type", "application/json; charset=\"utf-8\"" )
+      ->WriteHeader( "Connection", "keep-alive" ), message, mtc::json::print::decorated() )
+      ->FinishWrite();
+  }
+
   // Responder implementation
 
   Responder::Responder( mtc::api<IService> service, mtc::api<Response> respond ):
@@ -69,20 +88,12 @@ namespace restAPI
 
   void  Responder::Instant( std::string_view status, std::string_view message ) const
   {
-    answer
-      ->WriteStatus( status )
-      ->WriteHeader( "Content-Type", "text/plain; charset=\"utf-8\"" )
-      ->FinishWrite( message );
-    *cancel = true;
+    return answer->Instant( status, message ), void(*cancel = true);
   }
 
   void  Responder::Instant( std::string_view status, const mtc::zmap& message ) const
   {
-    mtc::json::Print( answer
-      ->WriteStatus( status )
-      ->WriteHeader( "Content-Type", "application/json; charset=\"utf-8\"" ), message, mtc::json::print::decorated() )
-      ->FinishWrite();
-    *cancel = true;
+    return answer->Instant( status, message ), void(*cancel = true);
   }
 
   void  Responder::Delayed( std::string_view status, std::string_view message ) const
@@ -126,7 +137,8 @@ namespace restAPI
   template <bool SSL>
   auto  MakeResponse( uWS::HttpResponse<SSL>* response ) -> mtc::api<Responder::Response>
   {
-    return new ResponseImpl<uWS::HttpResponse<SSL>>( response );
+    return new ResponseImpl<uWS::HttpResponse<SSL>>(
+      response->writeHeader( "Access-Control-Allow-Origin", "*" ) );
   }
 
   auto  JsonError( int status, const char* type, const char* reason ) -> mtc::zmap

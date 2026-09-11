@@ -23,6 +23,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin CACHE PATH "Single 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib CACHE PATH "Single Directory for all")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib CACHE PATH "Single Directory for all")
 
+#  add_compile_options(-g -O2 -fno-omit-frame-pointer)
+
 if(MSVC)
   add_compile_options(-D_CRT_SECURE_NO_WARNINGS)
   set(XXX_SUF -win)
@@ -48,8 +50,8 @@ endif()
 if (USE_BUILTIN_REST)
   find_package(simdjson REQUIRED)
 
-  set(MODULE_LIBS ${MODULE_LIBS} $<LINK_LIBRARY:WHOLE_ARCHIVE,palmira-restAPI> uSockets ssl crypto simdjson::simdjson)
-endif ()
+  set(MODULE_LIBS ${MODULE_LIBS} $<LINK_LIBRARY:WHOLE_ARCHIVE,palmira-restAPI> ixwebsocket uSockets ssl crypto simdjson::simdjson)
+endif()
 
 include_directories(
   ./
@@ -72,6 +74,8 @@ endif (BUILD_MOONYCODE_ENABLED)
 add_subdirectory(contrib/DeliriX)
 add_subdirectory(contrib/structo)
 add_subdirectory(contrib/hopcalc)
+
+add_subdirectory(contrib/IXWebSocket)
 
 add_subdirectory(plugins/morpho-ru)
 
