@@ -1,5 +1,8 @@
-set(PROJECT_NAME elasticAPI)
+set(PROJECT_NAME palmira-elastic)
 project(${PROJECT_NAME})
+
+set(TARGET
+  ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -62,28 +65,45 @@ file(GLOB_RECURSE SOURCE_FILES src/*.cpp)
 # Removing unit-tests files from target module.
 list(FILTER SOURCE_FILES EXCLUDE REGEX ".*\\.t\\.cpp$")
 
-# Building a module.
-add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
-set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
-    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src
-)
+if(MSVC)
+  set(EXPORT_TABLE ${NETWORK_SOURCE_DIR}/network.msvc.def)
+else()
+  set(SYMBOLS_FILE ${NETWORK_SOURCE_DIR}/network.unix.def)
 
-target_link_libraries(${PROJECT_NAME} PUBLIC Threads::Threads simdjson::simdjson PRIVATE
-    tripoli
+  add_compile_options(-W -Wall -Wextra)
+  add_compile_options(-fPIC)
+
+  if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(-fno-stack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0)
+  else()
+    add_compile_options(-fstack-protector-all -g)
+  endif()
+
+  set(CMAKE_SHARED_LINKER_FLAGS
+    "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--dynamic-list=${SYMBOLS_FILE} -static-libgcc -static-libstdc++" )
+endif()
+
+if(USE_BUILTIN_ELASTIC)
+  add_library(${TARGET} STATIC ${SOURCE} src/static.cpp)
+else()
+  add_library(${TARGET} SHARED ${SOURCE} src/shared.cpp)
+
+  target_link_libraries(${TARGET}
     structo
     DeliriX
-    ${MoonyCode_LIB}
+    moonycode
     mtc
-    tinyxml2
-    minizip
-    Threads::Threads
     dl
     usockets
     z
-)
+    Threads::Threads
+    simdjson::simdjson)
+endif()
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
+    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src)
 
 if (BUILD_TESTS)
     enable_testing()
