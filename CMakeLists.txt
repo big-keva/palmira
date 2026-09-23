@@ -75,7 +75,7 @@ add_subdirectory(contrib/DeliriX)
 add_subdirectory(contrib/structo)
 add_subdirectory(contrib/hopcalc)
 
-add_subdirectory(contrib/IXWebSocket)
+# add_subdirectory(contrib/IXWebSocket)
 
 add_subdirectory(plugins/morpho-ru)
 
@@ -85,15 +85,15 @@ set_target_properties(mtc PROPERTIES POSITION_INDEPENDENT_CODE ON)
 set(NETWORK_SOURCE_DIR ${PROJECT_SOURCE_DIR}/network)
 
 if (USE_BUILTIN_REST)
-	add_subdirectory(network/restAPI)
+	add_subdirectory(${NETWORK_SOURCE_DIR}/restAPI)
 endif ()
 
 if (USE_BUILTIN_GRPC)
-	add_subdirectory(network/grpcAPI)
+	add_subdirectory(${NETWORK_SOURCE_DIR}/grpcAPI)
 endif ()
 
 if (USE_BUILTIN_ELASTIC)
-	add_subdirectory(network/elasticAPI)
+	add_subdirectory(${NETWORK_SOURCE_DIR}/elasticAPI)
 endif ()
 
 add_library(tripoli

@@ -1,9 +1,6 @@
 set(PROJECT_NAME palmira-elastic)
 project(${PROJECT_NAME})
 
-set(TARGET
-  ${PROJECT_NAME})
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -65,9 +62,9 @@ file(GLOB_RECURSE SOURCE_FILES src/*.cpp)
 # Removing unit-tests files from target module.
 list(FILTER SOURCE_FILES EXCLUDE REGEX ".*\\.t\\.cpp$")
 
-if(MSVC)
+if (MSVC)
   set(EXPORT_TABLE ${NETWORK_SOURCE_DIR}/network.msvc.def)
-else()
+else ()
   set(SYMBOLS_FILE ${NETWORK_SOURCE_DIR}/network.unix.def)
 
   add_compile_options(-W -Wall -Wextra)
@@ -75,74 +72,87 @@ else()
 
   if (CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options(-fno-stack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0)
-  else()
+  else ()
     add_compile_options(-fstack-protector-all -g)
-  endif()
+  endif ()
 
-  set(CMAKE_SHARED_LINKER_FLAGS
-    "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--dynamic-list=${SYMBOLS_FILE} -static-libgcc -static-libstdc++" )
-endif()
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--dynamic-list=${SYMBOLS_FILE} -static-libgcc -static-libstdc++")
+endif ()
 
-if(USE_BUILTIN_ELASTIC)
-  add_library(${TARGET} STATIC ${SOURCE} src/static.cpp)
+#[[
+if (USE_BUILTIN_ELASTIC)
+  add_library(${PROJECT_NAME} STATIC ${SOURCE} src/static.cpp)
 else()
-  add_library(${TARGET} SHARED ${SOURCE} src/shared.cpp)
+  add_library(${PROJECT_NAME} SHARED ${SOURCE} src/shared.cpp)
+endif ()
+]]
 
-  target_link_libraries(${TARGET}
-    structo
-    DeliriX
-    moonycode
-    mtc
-    dl
-    usockets
-    z
-    Threads::Threads
-    simdjson::simdjson)
-endif()
+# Building a module.
+add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
+set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+#<!!!> Add this to the target(s) that include the problematic header
+if (MSVC)
+  target_link_options(${PROJECT_NAME} PRIVATE "time_ms()=__forceinline time_ms()")
+else ()
+  target_link_options(${PROJECT_NAME} PRIVATE "-Wl,--allow-multiple-definition")
+endif (MSVC)
+
+target_link_libraries(${PROJECT_NAME}
+  structo
+  DeliriX
+  moonycode
+  mtc
+  dl
+  usockets
+  z
+  Threads::Threads
+  simdjson::simdjson)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
-    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src)
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
+  ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src)
 
 if (BUILD_TESTS)
-    enable_testing()
+  enable_testing()
 
-    find_package(GTest REQUIRED)
-    find_package(Threads REQUIRED)
+  find_package(GTest REQUIRED)
+  find_package(Threads REQUIRED)
 
-    set(TEST_PROJECT_NAME test-elastic-api)
+  set(TEST_PROJECT_NAME test-elastic-api)
 
-    add_subdirectory(utils)
+  add_subdirectory(utils)
 
-    # Collecting source test files.
-    file(GLOB_RECURSE TEST_SOURCE_FILES src/*.t.cpp)
+  # Collecting source test files.
+  file(GLOB_RECURSE TEST_SOURCE_FILES src/*.t.cpp)
 
-    add_executable(${TEST_PROJECT_NAME} ${TEST_SOURCE_FILES})
-    target_link_libraries(${TEST_PROJECT_NAME} PRIVATE ${PROJECT_NAME}
-        elastic-client
-        tripoli
-        structo
-        mtc
-        GTest::gtest
-        GTest::gtest_main
-        Threads::Threads
-        simdjson::simdjson
-        z
-    )
+  add_executable(${TEST_PROJECT_NAME} ${TEST_SOURCE_FILES})
+  target_link_libraries(${TEST_PROJECT_NAME} PRIVATE ${PROJECT_NAME}
+    ${PROJECT_NAME}
+    elastic-client
+    tripoli
+    structo
+    moonycode
+    mtc
+    GTest::gtest
+    GTest::gtest_main
+    Threads::Threads
+    simdjson::simdjson
+    z
+  )
 
-    if (ELASTIC_SSL_ENABLED)
-        target_link_libraries(${TEST_PROJECT_NAME} PUBLIC OpenSSL::SSL OpenSSL::Crypto)
-    endif (ELASTIC_SSL_ENABLED)
+  if (ELASTIC_SSL_ENABLED)
+    target_link_libraries(${TEST_PROJECT_NAME} PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+  endif (ELASTIC_SSL_ENABLED)
 
-    target_include_directories(${TEST_PROJECT_NAME} PRIVATE
-        ${CMAKE_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/utils/elastic-client/include
-        ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
-        ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src
-    )
+  target_include_directories(${TEST_PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/utils/elastic-client/include
+    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/src
+    ${CMAKE_SOURCE_DIR}/contrib/uWebSockets/uSockets/src
+  )
 
-    add_test(NAME ${TEST_PROJECT_NAME} COMMAND ${TEST_PROJECT_NAME})
-    set_tests_properties(${TEST_PROJECT_NAME} PROPERTIES TIMEOUT 30)
+  add_test(NAME ${TEST_PROJECT_NAME} COMMAND ${TEST_PROJECT_NAME})
+  set_tests_properties(${TEST_PROJECT_NAME} PROPERTIES TIMEOUT 30)
 endif (BUILD_TESTS)
