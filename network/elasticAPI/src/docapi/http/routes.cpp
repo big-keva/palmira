@@ -18,6 +18,7 @@
 #include "../json/simd-json-index-parser.h"
 #include "../json/simd-json-update-parser.h"
 #include "../json/simd-json-mget-parser.h"
+#include "../json/simd-json-bulk-parser.h"
 //-------------------------------------------------------------------------//
 namespace elastic
 {
@@ -39,10 +40,10 @@ namespace elastic::docapi::http
     // Keeps a global pool of threads.
     thread_pool *g_thread_pool = nullptr;
 //-------------------------------------------------------------------------//
-  struct async_response_state final
-  {
-    std::atomic_bool aborted{false};
-  };
+    struct async_response_state final
+    {
+      std::atomic_bool aborted{false};
+    };
 //-------------------------------------------------------------------------//
   } // namespace
 //-------------------------------------------------------------------------//
@@ -114,11 +115,8 @@ namespace elastic::docapi::http
 
             // Sending a document to search engine.
             service->Insert(args, [res, state, index, id](const mtc::zmap &resp) {
-#ifdef __DEBUG__
-              mtc::json::Print(stdout, resp, mtc::json::print::decorated());
-#else
-              LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
-#endif // __DEBUG__
+              LOG_T_C("Received a response: %s", mtc::to_string(resp).c_str());
+
               if (g_ws_loop != nullptr)
               {
                 g_ws_loop->defer([res, resp, state, index, id]() mutable {
@@ -133,6 +131,211 @@ namespace elastic::docapi::http
                 });
               }
             });
+          }
+          catch (const elastic::json::parse_error &exc)
+          {
+            LOG_E_C("Proceeding POST request failed: %s", exc.what());
+            elastic::http::send_error_response(res, elastic::http::status_codes::BAD_REQUEST, "payload_bad_request", exc.what());
+          }
+          catch (const std::exception &exc)
+          {
+            LOG_E_C("Proceeding POST request failed: %s", exc.what());
+            elastic::http::send_error_response(res, elastic::http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", exc.what());
+          }
+          catch (...)
+          {
+            LOG_E_C("Proceeding POST request failed: %unknown");
+            elastic::http::send_error_response(res, elastic::http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", "unknown");
+          }
+        });
+    });
+  }
+
+  template<typename Response, typename Request>
+  auto routes::onbulk(Response *res, Request *req) -> void
+  {
+    auto state = std::make_shared<async_response_state>();
+    auto payload = std::make_shared<std::string>();
+
+    const auto query_params = elastic::http::parse_query(req->getQuery());
+    const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
+    const auto request_started = std::chrono::steady_clock::now();
+
+/*
+    { "index" : { "_index" : "test", "_id" : "1" } }
+    { "field1" : "value1" }
+    { "delete" : { "_index" : "test", "_id" : "2" } }
+    { "create" : { "_index" : "test", "_id" : "3" } }
+    { "field1" : "value3" }
+    { "update" : {"_id" : "1", "_index" : "test"} }
+    { "doc" : {"field2" : "value2"} }
+*/
+    // Reserving resources.
+    payload->reserve(body_size);
+
+    LOG_D_C("Received BULK request");
+    res->onAborted([state]() {
+      state->aborted.store(true, std::memory_order_release);
+    });
+
+    if (g_thread_pool == nullptr)
+    {
+      g_thread_pool = get_thread_pool();
+    }
+
+    // Reading a payload of request.
+    res->onData([this, res, state, query_params, payload, body_size, started = request_started.time_since_epoch().count()](std::string_view chunk, bool last) mutable {
+      const auto timeout = this->config.get_int32("request_timeout", request_timeout);
+
+      if (state->aborted.load(std::memory_order_acquire))
+      {
+        return;
+      }
+
+      if (payload->size() + chunk.size() > body_size)
+      {
+        state->aborted.store(true, std::memory_order_release);
+
+        // Replying error message.
+        elastic::http::send_error_response(res, elastic::http::status_codes::INTERNAL_SERVER_ERROR, "payload_too_large", "request body is too large");
+        return;
+      }
+      payload->append(chunk.data(), chunk.size());
+
+      if (not last)
+      {
+        return;
+      }
+
+      assert(g_thread_pool != nullptr && "Invalid pointer on thread pool");
+      // Forwarding a request to search engine.
+      g_thread_pool->enqueue([service = this->service, res, body = std::move(*payload), query_params, timeout, &state, started]() mutable -> void {
+          try
+          {
+            mtc::zmap bulk_resp;
+            uint64_t requests_count = 0;
+            LOG_D_C("Received BULK request: payload=%s", body.c_str());
+
+            // Parsing bulk request.
+            json::parse_bulk_request(std::string_view(body), [&](json::request_types type, const json::bulk_params_t &command_params, std::string_view body) {
+              auto get_cmd_param_value = [](const json::bulk_params_t &params, std::string_view name, std::string_view default_value = "") -> std::string_view {
+                auto found = params.find(name.data());
+                if (found != std::end(params))
+                {
+                  return not found->second.empty() ? found->second : default_value;
+                }
+                return default_value;
+              };
+              LOG_T_C("Received BULK request: %s", body.data());
+              auto set_http_code = [](json::request_types type, mtc::zmap &resp) {
+                auto status = resp.get_zmap("status");
+                if (status != nullptr)
+                {
+                  const auto status_code = status->get_int32("code", -1);
+                  if (type == json::request_types::create || type == json::request_types::index)
+                  {
+                    status->set_word16("http_code", static_cast<mtc::word16_t>(status_code == 0
+                      ? elastic::http::status_codes::CREATED
+                      : elastic::http::status_codes::BAD_REQUEST));
+                  }
+                  else if (type == json::request_types::remove || type == json::request_types::update)
+                  {
+                    status->set_word16("http_code", static_cast<mtc::word16_t>(status_code == 0
+                      ? elastic::http::status_codes::OK
+                      : elastic::http::status_codes::NOT_FOUND));
+                  }
+                }
+              };
+
+              mtc::zmap resp = {};
+              const auto _index = std::string(get_cmd_param_value(command_params, "_index"));
+              const auto _id = std::string(get_cmd_param_value(command_params, "_id", make_uid()));
+              const auto _version = std::string(get_cmd_param_value(command_params, "_version", "0"));
+
+              if (_index.empty()) { LOG_E_C("Invalid request command [%s]: index is empty", to_string(type).data()); return; }
+              if (_id.empty()) { LOG_E_C("Invalid request command [%s]: index is empty", to_string(type).data()); return; }
+
+              auto params = mtc::zmap{
+                {"_index",   _index},
+                {"_id",      _id},
+                {"_params",  query_params},
+                {"_started", started}
+              };
+
+              switch (type)
+              {
+                case json::request_types::create:
+                case json::request_types::index: {
+                  // Making insert request to the engine.
+                  const auto args = json::parse_index_request(body, params);
+
+                  // Sending a document to search engine.
+                  resp = service->Insert(args)->Wait(timeout);
+                  break;
+                }
+                case json::request_types::update: {
+                  // Making update request to the engine.
+                  auto args = json::parse_update_request(body, params);
+
+                  // Sending a document to search engine.
+                  resp = service->Insert(args)->Wait(timeout);
+                  break;
+                }
+                case json::request_types::remove: {
+                  palmira::RemoveArgs args; //<??? - sigfault> (_id, std::atoi(_version.c_str()));
+
+                  args.objectId = _id;
+                  args.uVersion = std::atoi(_version.c_str());
+
+                  // Forwarding a remove request into the engine.
+                  resp = service->Remove(args)->Wait(timeout);
+                  break;
+                }
+                default:
+                  LOG_W_C("Unsupported request type: %s", to_string(type).data());
+              }
+
+              LOG_T_C("Received a response from the engine: %s", mtc::to_string(resp).c_str());
+              if (resp.empty())
+              {
+                LOG_E_C("Received index/create request failed: timeout");
+                return;
+              }
+              auto *array_zmap = bulk_resp.get_array_zmap(to_string(type).data());
+              if (array_zmap == nullptr)
+              {
+                array_zmap = bulk_resp.set_array_zmap(to_string(type).data());
+              }
+
+              if (array_zmap != nullptr)
+              {
+                // Incrementing a count of requests.
+                ++requests_count;
+
+                // Setting HTTP status code.
+                set_http_code(type, resp);
+
+                // Adding a response.
+                array_zmap->push_back(std::move(resp));
+              }
+            });
+
+            if (g_ws_loop != nullptr)
+            {
+              g_ws_loop->defer([res, bulk_resp, requests_count, state]() mutable {
+                if (state->aborted.load(std::memory_order_acquire))
+                {
+                  return;
+                }
+
+                // Adding a count of requests.
+                bulk_resp.set_int64("requests_count", static_cast<std::int64_t>(requests_count));
+
+                LOG_T_C("Replying BULK response: %s", mtc::to_string(bulk_resp).c_str());
+                // Replying a response to client.
+                http::send_bulk_json_response(res, bulk_resp);
+              });
+            }
           }
           catch (const elastic::json::parse_error &exc)
           {
@@ -536,13 +739,13 @@ namespace elastic::docapi::http
         {
           if (service == nullptr)
           {
-            throw(std::invalid_argument("Search engine not created"));
+            throw (std::invalid_argument("Search engine not created"));
           }
 
           palmira::RemoveArgs args;
-          args.objectId = id;
 
-          // Forwarding a search request into search engine.
+          args.objectId = id;
+          // Forwarding a remove request into the engine.
           service->Remove(args, [res, index, id, state](const mtc::zmap &resp) {
 #ifdef __DEBUG__
             mtc::json::Print(stdout, resp, mtc::json::print::decorated());
@@ -622,11 +825,26 @@ namespace elastic::docapi::http
       this->onget(res, req);
     });
 
+    // Packaging requests handling.
+    app.post("/:index/_bulk", [this](auto *res, auto *req) {
+      this->onbulk(res, req);
+    });
+    app.post("/:index/:index/_bulk", [this](auto *res, auto *req) {
+      this->onbulk(res, req);
+    });
+    app.put("/_bulk", [this](auto *res, auto *req) {
+      this->onbulk(res, req);
+    });
+    app.put("/:index/_bulk", [this](auto *res, auto *req) {
+      this->onbulk(res, req);
+    });
+
+    // Getting a source info by id.
     app.get("/:index/_source/:id", [this](auto *res, auto *req) {
       this->onget(res, req);
     });
 
-    // Deleting a document.
+    // Deleting a document by id.
     app.del("/:index/_doc/:id", [this](auto *res, auto *req) {
       this->ondel(res, req);
     });

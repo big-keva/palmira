@@ -1,4 +1,4 @@
-set(PROJECT_NAME palmira-elastic)
+set(PROJECT_NAME elasticAPI)
 project(${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 20)
@@ -79,16 +79,14 @@ else ()
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--dynamic-list=${SYMBOLS_FILE} -static-libgcc -static-libstdc++")
 endif ()
 
-#[[
 if (USE_BUILTIN_ELASTIC)
-  add_library(${PROJECT_NAME} STATIC ${SOURCE} src/static.cpp)
+  add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES} src/static.cpp)
 else()
-  add_library(${PROJECT_NAME} SHARED ${SOURCE} src/shared.cpp)
+  add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
 endif ()
-]]
 
 # Building a module.
-add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
+#<TODO> add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 #<!!!> Add this to the target(s) that include the problematic header
 if (MSVC)
@@ -98,6 +96,7 @@ else ()
 endif (MSVC)
 
 target_link_libraries(${PROJECT_NAME}
+  tripoli
   structo
   DeliriX
   moonycode
@@ -127,7 +126,7 @@ if (BUILD_TESTS)
   file(GLOB_RECURSE TEST_SOURCE_FILES src/*.t.cpp)
 
   add_executable(${TEST_PROJECT_NAME} ${TEST_SOURCE_FILES})
-  target_link_libraries(${TEST_PROJECT_NAME} PRIVATE ${PROJECT_NAME}
+  target_link_libraries(${TEST_PROJECT_NAME} PRIVATE
     ${PROJECT_NAME}
     elastic-client
     tripoli

@@ -14,12 +14,11 @@
 ===========================================================================*/
 #pragma once
 //-------------------------------------------------------------------------//
-#ifndef __UTILS_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __UTILS_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-//-------------------------------------------------------------------------//
-#include <moonycode/codes.h>
 #include <cstdint>
 #include <string>
+#include <functional>
+//-------------------------------------------------------------------------//
+#include <moonycode/codes.h>
 //-------------------------------------------------------------------------//
 namespace elastic
 {
@@ -51,7 +50,13 @@ namespace elastic
    * @return A string in UTF8.
    */
   auto to_utf8(const codepages::widestring &src) -> std::string;
+
+  /**
+   * Splits a string by separated string.
+   * @param text [in] - A text.
+   * @param sep [in] - A separate string.
+   * @param onsubstr [in] - A callback method.
+   */
+  auto split_string(const std::string_view &text, const std::string_view &sep, std::function<void(std::string_view)> onsubstr) -> void;
 //-------------------------------------------------------------------------//
 } // namespace elastic
-//-------------------------------------------------------------------------//
-#endif // __UTILS_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__

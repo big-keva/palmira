@@ -29,6 +29,32 @@ namespace elastic::http
     return "unknown";
   }
 
+  auto to_string_as_short(status_codes code) -> std::string_view
+  {
+    switch (code)
+    {
+      case status_codes::OK: return "ok";
+      case status_codes::CREATED: return "created";
+      case status_codes::ACCEPTED: return "accepted";
+      case status_codes::NO_CONTENT: return "no_content";
+
+      case status_codes::BAD_REQUEST: return "bad_request";
+      case status_codes::UNAUTHORIZED: return "unauthorized";
+      case status_codes::FORBIDDEN: return "forbidden";
+      case status_codes::NOT_FOUND: return "not_found";
+      case status_codes::METHOD_NOT_ALLOWED: return "method_not_allowed";
+      case status_codes::CONFLICT: return "conflict";
+      case status_codes::PAYLOAD_TOO_LARGE: return "payload_too_large";
+      case status_codes::UNSUPPORTED_MEDIA_TYPE: return "unsupported_media_type";
+      case status_codes::TOO_MANY_REQUESTS: return "too_many_requests";
+
+      case status_codes::INTERNAL_SERVER_ERROR: return "internal_server_error";
+      case status_codes::NOT_IMPLEMENTED: return "not_implemented";
+      case status_codes::SERVICE_UNAVAILABLE: return "service_unavailable";
+    }
+    return "unknown";
+  }
+
   auto make_error_json(status_codes code, std::string type, std::string reason) -> std::string
   {
     return R"({"error":{"type":")" + type + R"(","reason":")" + reason + R"(","status": ")" + std::string(to_string(code)) + """}";

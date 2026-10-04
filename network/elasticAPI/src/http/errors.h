@@ -62,6 +62,13 @@ namespace elastic::http
    */
   auto to_string(status_codes code) -> std::string_view;
 
+/**
+   * Gets status as a string.
+   * @param code [in] - A status code.
+   * @return A status as a string.
+   */
+  auto to_string_as_short(status_codes code) -> std::string_view;
+
   /**
    * Makes a JSON error response.
    * @param code [in] - Error code.

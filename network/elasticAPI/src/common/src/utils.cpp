@@ -6,6 +6,7 @@
 #include <thread>
 //-------------------------------------------------------------------------//
 #include <moonycode/codes.h>
+#include <ranges>
 //-------------------------------------------------------------------------//
 namespace elastic
 {
@@ -137,23 +138,23 @@ namespace elastic
     {
       auto val = as_ulong(size.c_str(), {
         {"", 1},
-      {"B", 1},
-      {"b", 1},
-      {"K", 1024},
-      {"k", 1024},
-      {"Kb", 1024},
-      {"KB", 1024},
-      {"kb", 1024},
-      {"M", 1024 * 1024},
-      {"m", 1024 * 1024},
-      {"MB", 1024 * 1024},
-      {"Mb", 1024 * 1024},
-      {"mb", 1024 * 1024},
-      {"G", 1024 * 1024 * 1024},
-      {"g", 1024 * 1024 * 1024},
-      {"GB", 1024 * 1024 * 1024},
-      {"Gb", 1024 * 1024 * 1024},
-      {"gb", 1024 * 1024 * 1024}
+        {"B", 1},
+        {"b", 1},
+        {"K", 1024},
+        {"k", 1024},
+        {"Kb", 1024},
+        {"KB", 1024},
+        {"kb", 1024},
+        {"M", 1024 * 1024},
+        {"m", 1024 * 1024},
+        {"MB", 1024 * 1024},
+        {"Mb", 1024 * 1024},
+        {"mb", 1024 * 1024},
+        {"G", 1024 * 1024 * 1024},
+        {"g", 1024 * 1024 * 1024},
+        {"GB", 1024 * 1024 * 1024},
+        {"Gb", 1024 * 1024 * 1024},
+        {"gb", 1024 * 1024 * 1024}
       });
 
       if (val < UINT64_MAX)
@@ -189,6 +190,17 @@ namespace elastic
   auto to_utf8(const codepages::widestring &src) -> std::string
   {
     return codepages::widetombcs(codepages::codepage_utf8, src);
+  }
+
+  auto split_string(const std::string_view &text, const std::string_view &sep, std::function<void(std::string_view)> onsubstr) -> void
+  {
+    auto pch = std::strtok(const_cast<char *>(text.data()), sep.data());
+    while (pch != nullptr && onsubstr) {
+      // Raising substr event.
+      onsubstr(std::string_view(pch, std::strlen(pch)));
+
+      pch = std::strtok(nullptr, sep.data());
+    }
   }
 //-------------------------------------------------------------------------//
 } // namespace elastic
