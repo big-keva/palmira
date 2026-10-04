@@ -1,4 +1,4 @@
-#include "../../http/http-resp.h"
+#include "docapi-resp.h"
 //-------------------------------------------------------------------------//
 #include <string>
 #include <filesystem>
@@ -9,12 +9,9 @@
 //-------------------------------------------------------------------------//
 #include "../../logger/logger.h"
 #include "../../common/utils.h"
+#include "../../http/http-resp.h"
 //-------------------------------------------------------------------------//
-#include "docapi-resp.h"
-
-#include "network/elasticAPI/src/docapi/json/simd-json-bulk-parser.h"
-
-#include <simdjson.h>
+#include "../json/simd-json-bulk-parser.h"
 //-------------------------------------------------------------------------//
 namespace elastic::docapi::http
 {
@@ -648,6 +645,138 @@ namespace elastic::docapi::http
 
     reply->end();
   }
+
+  template<bool SSL>
+  auto send_mget_json_response(uWS::HttpResponse<SSL> *reply, const mtc::zmap &resp) -> void
+  {
+    auto need_comma = false;
+    if (reply == nullptr) {
+      return;
+    }
+    reply->writeHeader("Content-Type", "application/json");
+
+    const auto error = elastic::http::check_resp_on_error(resp);
+    if (error.code != 0)
+    {
+      reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::BAD_REQUEST));
+      // reply->writeHeader("Content-Length", get_error_context_length(index, docid));
+
+      braces_guard guard(reply, "{}");
+      // Writing a body.
+      reply->write(R"("took": 0,")");
+      reply->write(R"("errors": true,")");
+      reply->write(R"("found": false)");
+    }
+    else
+    {
+      reply->writeStatus(elastic::http::to_string(elastic::http::status_codes::OK));
+
+      braces_guard guard(reply, "{}");
+
+      reply->write(R"("took":")");
+      reply->write(std::to_string(resp.get_int64("requests_count", 0)));
+      reply->write(R"(",)");
+
+      reply->write(R"("errors":false,)");
+
+      reply->write(R"("items":)");
+      braces_guard guard_array(reply, "[]");
+
+      for (const auto &array_resps_by_type : resp)
+      {
+        if (array_resps_by_type.second.get_type() != mtc::zval::z_type::z_array_zmap)
+        {// proceeding ONLY array of zmap in response.
+          continue;
+        }
+
+        auto need_comma_resp = false;
+        const auto request_type = json::request_type_from(array_resps_by_type.first.to_charstr());
+        const auto *array_resps = array_resps_by_type.second.get_array_zmap();
+
+        if ((array_resps != nullptr && array_resps->empty()) || array_resps == nullptr)
+        {
+          LOG_W_C("No response found in a result: %s", array_resps_by_type.first.to_charstr());
+          continue;
+        }
+
+        if (need_comma)
+        {
+          reply->write(R"(,)");
+        }
+
+        for (const auto &array_resp : *array_resps)
+        {
+          const auto &_status = array_resp.get_zmap("status", {});
+          const auto _status_http_code = static_cast<elastic::http::status_codes>(_status.get_word16("http_code",
+                                                                                  static_cast<std::uint16_t>(elastic::http::status_codes::BAD_REQUEST)));
+          const auto &zextra = array_resp.get_zmap("extra", {});
+          const auto _index = zextra.get_charstr("_index", "");
+          const auto _id = zextra.get_charstr("_id", "");
+          const auto _version = zextra.get_word16("_version", 1);
+          auto get_http_status_as_str = [](json::request_types type, elastic::http::status_codes code) -> std::string_view {
+            if (type == json::request_types::update && code == elastic::http::status_codes::OK)
+            {
+              return "updated";
+            }
+            else if (type == json::request_types::remove &&  code == elastic::http::status_codes::OK)
+            {
+              return "deleted";
+            }
+
+            return elastic::http::to_string_as_short(code);
+          };
+
+          if (need_comma_resp)
+          {
+            reply->write(R"(,)");
+          }
+
+          braces_guard guard_object(reply, "{}");
+          reply->write(R"(")");
+          reply->write(array_resps_by_type.first.to_charstr());
+          reply->write(R"(":)");
+          {
+            braces_guard guard_req_type(reply, "{}");
+
+            reply->write(R"("_index":")");
+            reply->write(_index);
+            reply->write(R"(",)");
+
+            reply->write(R"("_id":")");
+            reply->write(_id);
+            reply->write(R"(",)");
+
+            reply->write(R"("_version":)");
+            reply->write(std::to_string(_version));
+            reply->write(R"(,)");
+
+            reply->write(R"("result":")");
+            reply->write(get_http_status_as_str(request_type, _status_http_code));
+            reply->write(R"(",)");
+
+            reply->write(R"("_shards":{},)");
+
+            reply->write(R"("status":)");
+            reply->write(std::to_string(static_cast<std::uint16_t>(_status_http_code)));
+            reply->write(R"(,)");
+
+            reply->write(R"("_seq_no":)");
+            reply->write(std::to_string(array_resp.get_int64("_seq_no", 1LL)));
+            reply->write(R"(,)");
+
+            reply->write(R"("_primary_term":)");
+            reply->write(std::to_string(array_resp.get_int64("_primary_term", 1LL)));
+          }
+
+          need_comma_resp = true;
+        }
+
+        need_comma = true;
+      }
+    }
+
+    reply->end();
+  }
 //-------------------------------------------------------------------------//
   template
   void send_index_json_response<false>(uWS::HttpResponse<false> *, const mtc::zmap &, std::string_view, std::string_view);
@@ -678,5 +807,11 @@ namespace elastic::docapi::http
 
   template
   void send_bulk_json_response<true>(uWS::HttpResponse<true> *, const mtc::zmap &);
+
+  template
+  void send_mget_json_response<false>(uWS::HttpResponse<false> *, const mtc::zmap &);
+
+  template
+  void send_mget_json_response<true>(uWS::HttpResponse<true> *, const mtc::zmap &);
 //-------------------------------------------------------------------------//
 } // namespace elasti::docapic::http

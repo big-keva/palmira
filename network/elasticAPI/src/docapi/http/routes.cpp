@@ -17,6 +17,7 @@
 //-------------------------------------------------------------------------//
 #include "../json/simd-json-index-parser.h"
 #include "../json/simd-json-update-parser.h"
+#include "../json/simd-json-get-parser.h"
 #include "../json/simd-json-mget-parser.h"
 #include "../json/simd-json-bulk-parser.h"
 //-------------------------------------------------------------------------//
@@ -157,6 +158,7 @@ namespace elastic::docapi::http
     auto state = std::make_shared<async_response_state>();
     auto payload = std::make_shared<std::string>();
 
+    const auto _index = std::string(req->getParameter(0));
     const auto query_params = elastic::http::parse_query(req->getQuery());
     const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
@@ -184,7 +186,7 @@ namespace elastic::docapi::http
     }
 
     // Reading a payload of request.
-    res->onData([this, res, state, query_params, payload, body_size, started = request_started.time_since_epoch().count()](std::string_view chunk, bool last) mutable {
+    res->onData([this, res, state, query_params, payload, _index, body_size, started = request_started.time_since_epoch().count()](std::string_view chunk, bool last) mutable {
       const auto timeout = this->config.get_int32("request_timeout", request_timeout);
 
       if (state->aborted.load(std::memory_order_acquire))
@@ -209,7 +211,7 @@ namespace elastic::docapi::http
 
       assert(g_thread_pool != nullptr && "Invalid pointer on thread pool");
       // Forwarding a request to search engine.
-      g_thread_pool->enqueue([service = this->service, res, body = std::move(*payload), query_params, timeout, &state, started]() mutable -> void {
+      g_thread_pool->enqueue([service = this->service, res, body = std::move(*payload), query_params, default_index = _index, timeout, &state, started]() mutable -> void {
           try
           {
             mtc::zmap bulk_resp;
@@ -248,7 +250,7 @@ namespace elastic::docapi::http
               };
 
               mtc::zmap resp = {};
-              const auto _index = std::string(get_cmd_param_value(command_params, "_index"));
+              const auto _index = default_index.empty() ? std::string(get_cmd_param_value(command_params, "_index")) : default_index;
               const auto _id = std::string(get_cmd_param_value(command_params, "_id", make_uid()));
               const auto _version = std::string(get_cmd_param_value(command_params, "_version", "0"));
 
@@ -353,6 +355,97 @@ namespace elastic::docapi::http
             elastic::http::send_error_response(res, elastic::http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", "unknown");
           }
         });
+    });
+  }
+
+  template<typename Response, typename Request>
+  auto routes::onmget(Response *res, Request *req) -> void
+  {
+    auto payload = std::make_shared<std::string>();
+    auto state = std::make_shared<async_response_state>();
+
+    const auto params = elastic::http::parse_query(req->getQuery());
+    const auto _index = std::string(req->getParameter(0));
+    const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
+    const auto request_started = std::chrono::steady_clock::now();
+
+    LOG_T_C("Received MGET request: _index=%s", _index.c_str());
+    res->onAborted([state]() {
+      state->aborted.store(true, std::memory_order_release);
+    });
+
+    // Reserving resources.
+    payload->reserve(body_size);
+
+    // Reading payload.
+    res->onData([this, res, _index, params, state, payload, body_size, request_started](std::string_view chunk, bool last) mutable {
+      if (state->aborted.load(std::memory_order_acquire))
+      {
+        return;
+      }
+      if (payload->size() + chunk.size() > body_size)
+      {
+        state->aborted.store(true, std::memory_order_release);
+
+        // Replying error message.
+        elastic::http::send_error_response(res, elastic::http::status_codes::PAYLOAD_TOO_LARGE, "payload_too_large", "request body is too large");
+        return;
+      }
+      payload->append(chunk.data(), chunk.size());
+
+      if (not last)
+      {
+        return;
+      }
+
+      assert(g_thread_pool != nullptr && "Invalid pointer on thread pool");
+      //<!!!> uWebSockets response lives in original event-loop inside.
+      g_thread_pool->enqueue([service = this->service, res, _index, params, payload, started = request_started.time_since_epoch().count(), state, loop = uWS::Loop::get()]() mutable {
+        try
+        {
+          if (service == nullptr)
+          {
+            throw(std::invalid_argument("Search engine not created"));
+          }
+
+          // Parsing a search request.
+          palmira::SearchArgs args = elastic::docapi::json::parse_mget_request(*payload, _index);
+
+          // Forwarding a search request into search engine.
+          service->Search(args, [res, _index, state](const mtc::zmap &resp) {
+#ifdef __DEBUG__
+            mtc::json::Print(stdout, resp, mtc::json::print::decorated());
+#else
+            LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
+#endif // __DEBUG__
+            if (g_ws_loop != nullptr)
+            {
+              g_ws_loop->defer([res, resp, state, _index]() mutable {
+                if (state->aborted.load(std::memory_order_acquire))
+                {
+                  return;
+                }
+
+                LOG_T_C("Replying MGET response: =%s", mtc::to_string(resp).c_str());
+                // Replying a response to client.
+                http::send_mget_json_response(res, resp);
+              });
+            }
+          });
+        }
+        catch (const std::exception &exc)
+        {
+          LOG_E_C("Proceeding MGET request failed: %s", exc.what());
+          // Replying to error response.
+          elastic::http::send_error_response(res, elastic::http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", exc.what());
+        }
+        catch (...)
+        {
+          LOG_E_C("Proceeding MGET request failed: unknown");
+          // Replying to error response.
+          elastic::http::send_error_response(res, elastic::http::status_codes::INTERNAL_SERVER_ERROR, "internal_server_error", "unknown");
+        }
+      });
     });
   }
 
@@ -572,14 +665,14 @@ namespace elastic::docapi::http
     auto payload = std::make_shared<std::string>();
     auto state = std::make_shared<async_response_state>();
 
+    const auto _index = std::string(req->getParameter(0));
+    const auto _id = std::string(req->getParameter(1));
     const auto params = elastic::http::parse_query(req->getQuery());
     const auto routing = elastic::http::get_query_param(params, "routing");
-    const auto index = std::string(req->getParameter(0));
-    const auto id = std::string(req->getParameter(1));
     const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
 
-    LOG_T_C("Received GET request: index=%s, id=%s", index.c_str(), id.c_str());
+    LOG_T_C("Received GET request: index=%s, id=%s", _index.c_str(), _id.c_str());
     res->onAborted([state]() {
       state->aborted.store(true, std::memory_order_release);
     });
@@ -588,7 +681,7 @@ namespace elastic::docapi::http
     payload->reserve(body_size);
 
     // Reading payload.
-    res->onData([this, res, index, id, params, routing, state, payload, body_size, request_started](std::string_view chunk, bool last) mutable {
+    res->onData([this, res, _index, _id, params, routing, state, payload, body_size, request_started](std::string_view chunk, bool last) mutable {
       if (state->aborted.load(std::memory_order_acquire))
       {
         return;
@@ -610,7 +703,7 @@ namespace elastic::docapi::http
 
       assert(g_thread_pool != nullptr && "Invalid pointer on thread pool");
       //<!!!> uWebSockets response lives in original event-loop inside.
-      g_thread_pool->enqueue([service = this->service, res, index, id, params, routing, payload, started = request_started.time_since_epoch().count(), state, loop = uWS::Loop::get()]() mutable {
+      g_thread_pool->enqueue([service = this->service, res, _index, _id, params, routing, payload, started = request_started.time_since_epoch().count(), state, loop = uWS::Loop::get()]() mutable {
         try
         {
           if (service == nullptr)
@@ -619,57 +712,22 @@ namespace elastic::docapi::http
           }
 
           // Parsing a search request.
-          const auto req = payload != nullptr && not payload->empty() ? json::parse_mget_request(*payload, index)
-                                                                                 : json::parse_mget_request(index, id, mtc::zmap{
-                                                                                    {"_index", index},
-                                                                                    {"_id", id},
-                                                                                    {"_routing", routing.has_value() ? routing.value() : ""},
-                                                                                    {"_source", {}}
-                                                                                   });
-
-          palmira::SearchArgs args;
-          // Setting an order of searching.
-          args.order = mtc::zmap{
-            {"first", 1},
-            {"count", 10},
-            {"quote", mtc::zmap{
-              {"mode", "source"}
-            }}
-          };
-          args.query = mtc::zmap{
-            {"get", mtc::zmap{
-              {"id", id}
-            }}
-          };
-
-/*<TODO> Adding support a list of docs.
-          mtc::array_zmap docs;
-          for (const auto &doc : req.docs)
-          {
-            docs.push_back({{"id", id}});
-          }
-          // Applying a list of docs.
-          args.query = docs;
-*/
+          const auto args = json::parse_get_request(_index, _id, params);
 
           // Forwarding a search request into search engine.
-          service->Search(args, [res, index, id, state](const mtc::zmap &resp) {
-#ifdef __DEBUG__
-            mtc::json::Print(stdout, resp, mtc::json::print::decorated());
-#else
+          service->Search(args, [res, _index, _id, state](const mtc::zmap &resp) {
             LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
-#endif // __DEBUG__
             if (g_ws_loop != nullptr)
             {
-              g_ws_loop->defer([res, resp, state, index, id]() mutable {
+              g_ws_loop->defer([res, resp, state, _index, _id]() mutable {
                 if (state->aborted.load(std::memory_order_acquire))
                 {
                   return;
                 }
 
-                LOG_T_C("Replying a response: index=%s, id=%s, status=%s", index.data(), id.data(), mtc::to_string(resp).c_str());
+                LOG_T_C("Replying a response: %s", mtc::to_string(resp).c_str());
                 // Replying a response to client.
-                http::send_get_json_response(res, resp, index, id);
+                http::send_get_json_response(res, resp, _index, _id);
               });
             }
           });
@@ -829,7 +887,7 @@ namespace elastic::docapi::http
     app.post("/:index/_bulk", [this](auto *res, auto *req) {
       this->onbulk(res, req);
     });
-    app.post("/:index/:index/_bulk", [this](auto *res, auto *req) {
+    app.post("/:index/_bulk", [this](auto *res, auto *req) {
       this->onbulk(res, req);
     });
     app.put("/_bulk", [this](auto *res, auto *req) {
@@ -837,6 +895,20 @@ namespace elastic::docapi::http
     });
     app.put("/:index/_bulk", [this](auto *res, auto *req) {
       this->onbulk(res, req);
+    });
+
+    // Reading packaging documents handling.
+    app.post("/:index/_mget", [this](auto *res, auto *req) {
+      this->onmget(res, req);
+    });
+    app.post("/:index/_mget", [this](auto *res, auto *req) {
+      this->onmget(res, req);
+    });
+    app.put("/_mget", [this](auto *res, auto *req) {
+      this->onmget(res, req);
+    });
+    app.put("/:index/_mget", [this](auto *res, auto *req) {
+      this->onmget(res, req);
     });
 
     // Getting a source info by id.

@@ -37,6 +37,13 @@ namespace elastic::docapi::http
    */
   auto make_bulk_response(const mtc::zmap &resp) -> std::string;
 
+  /**
+   * Makes a response of multi-getting request.
+   * @param resp [in] - A response.
+   * @return A response in JSON format.
+   */
+  auto make_mget_response(const mtc::zmap &resp) -> std::string;
+
   template<bool SSL>
   auto send_index_json_response(uWS::HttpResponse<SSL> *ctx, const mtc::zmap &resp, std::string_view index, std::string_view docid) -> void;
 
@@ -51,5 +58,8 @@ namespace elastic::docapi::http
 
   template<bool SSL>
   auto send_bulk_json_response(uWS::HttpResponse<SSL> *ctx, const mtc::zmap &resp) -> void;
+
+  template<bool SSL>
+  auto send_mget_json_response(uWS::HttpResponse<SSL> *ctx, const mtc::zmap &resp) -> void;
 //-------------------------------------------------------------------------//
 } // namespace elastic::docapi::http

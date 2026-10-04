@@ -55,6 +55,9 @@ namespace elastic::docapi::http
     auto onbulk(Response *res, Request *req) -> void;
 
     template<typename Response, typename Request>
+    auto onmget(Response *res, Request *req) -> void;
+
+    template<typename Response, typename Request>
     auto onput(Response *res, Request *req) -> void;
 
     template<typename Response, typename Request>
