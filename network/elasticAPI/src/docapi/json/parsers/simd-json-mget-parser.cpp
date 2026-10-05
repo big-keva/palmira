@@ -33,13 +33,22 @@ namespace elastic::docapi::json
     }
 */
 //-------------------------------------------------------------------------//
+    auto normalize_doc_fields(std::string_view key) -> std::string_view
+    {
+      if (key.front() == '_')
+      {
+        return {key.data() + 1, key.length() - 1};
+      }
+      return key;
+    }
+
     auto parse_mget_doc_object(mtc::array_zmap *docs, simdjson::ondemand::object object, std::string_view default_index) -> void
     {
       auto zdoc = mtc::zmap{};
 
       if (not default_index.empty())
       {
-        zdoc.set_charstr("_index", default_index.data());
+        zdoc.set_charstr("index", default_index.data());
       }
 
       for (auto field_result : object)
@@ -49,8 +58,10 @@ namespace elastic::docapi::json
 
         const std::string_view key = elastic::json::read_key(field);
         simdjson::ondemand::value value = field.value();
+        const auto key_value = elastic::json::read_string(value);
 
-        zdoc.set_charstr(key, elastic::json::read_string(value).data());
+        // Setting a key-value into document.
+        zdoc.set_charstr(normalize_doc_fields(key), key_value.data(), key_value.length());
       }
 
       if (zdoc.empty())

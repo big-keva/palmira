@@ -15,11 +15,12 @@
 //-------------------------------------------------------------------------//
 #include "../../json/simd-json-errors.h"
 //-------------------------------------------------------------------------//
-#include "../json/simd-json-index-parser.h"
-#include "../json/simd-json-update-parser.h"
-#include "../json/simd-json-get-parser.h"
-#include "../json/simd-json-mget-parser.h"
 #include "../json/simd-json-bulk-parser.h"
+#include "../json/simd-json-get-parser.h"
+#include "../json/simd-json-index-parser.h"
+#include "../json/simd-json-mget-parser.h"
+#include "../json/simd-json-update-parser.h"
+#include "network/elasticAPI/utils/elastic-client/include/elastic/http/request.h"
 //-------------------------------------------------------------------------//
 namespace elastic
 {
@@ -46,6 +47,28 @@ namespace elastic::docapi::http
       std::atomic_bool aborted{false};
     };
 //-------------------------------------------------------------------------//
+    template<typename Response, typename OnReply>
+    auto reply_resp(uWS::Loop *ctx,
+                    Response *res,
+                    const std::shared_ptr<async_response_state> &state,
+                    mtc::zmap resp,
+                    OnReply &&onreply) -> void
+    {
+      if (ctx != nullptr)
+      {
+        ctx->defer([res, state, resp = std::move(resp), onreply = std::forward<OnReply>(onreply)]() mutable {
+          if (state->aborted.load(std::memory_order_acquire))
+          {
+            return;
+          }
+
+          LOG_T_C("Replying a response: %s", mtc::to_string(resp).c_str());
+          // Replying a response to client.
+          std::invoke(onreply, res, std::as_const(resp));
+        });
+      }
+    }
+//-------------------------------------------------------------------------//
   } // namespace
 //-------------------------------------------------------------------------//
   routes::routes(palmira::IService *srv, const mtc::config &cfg)
@@ -59,13 +82,13 @@ namespace elastic::docapi::http
     auto state = std::make_shared<async_response_state>();
     auto payload = std::make_shared<std::string>();
 
-    const auto index = std::string(req->getParameter(0));
-    const auto id = req->getParameter(1).empty() ? elastic::make_uid() : std::string(req->getParameter(1));
+    const auto _index = std::string(req->getParameter(0));
+    const auto _id = req->getParameter(1).empty() ? elastic::make_uid() : std::string(req->getParameter(1));
     const auto params = elastic::http::parse_query(req->getQuery());
     const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
 
-    LOG_D_C("Received POST request: index=%s, id=%s", index.c_str(), id.c_str());
+    LOG_D_C("Received POST request: index=%s, id=%s", _index.c_str(), _id.c_str());
     // Reserving resources.
     payload->reserve(body_size);
 
@@ -77,7 +100,7 @@ namespace elastic::docapi::http
     {
       g_thread_pool = get_thread_pool();
     }
-    res->onData([this, res, state, index, id, params, payload, body_size, started = request_started.time_since_epoch().count()](std::string_view chunk, bool last) mutable {
+    res->onData([this, res, state, _index, _id, params, payload, body_size, started = request_started.time_since_epoch().count()](std::string_view chunk, bool last) mutable {
       const auto timeout = this->config.get_int32("request_timeout", request_timeout);
 
       if (state->aborted.load(std::memory_order_acquire))
@@ -102,35 +125,25 @@ namespace elastic::docapi::http
 
       assert(g_thread_pool != nullptr && "Invalid pointer on thread pool");
       // Forwarding a request to search engine.
-      g_thread_pool->enqueue([service = this->service, res, index, id, body = std::move(*payload), params, timeout, &state, started]() mutable -> void {
+      g_thread_pool->enqueue([service = this->service, res, _index, _id, body = std::move(*payload), params, timeout, &state, started]() mutable -> void {
           try
           {
-            LOG_D_C("Received POST request: index=%s, id=%s, payload=%s", index.c_str(), id.c_str(), body.c_str());
+            LOG_T_C("Received POST request: index=%s, id=%s, payload=%s", _index.c_str(), _id.c_str(), body.c_str());
             // Parsing insert request.
             auto args = json::parse_index_request(std::string_view(body), mtc::zmap{
-              {"_index",   index},
-              {"_id",      id},
+              {"_index",   _index},
+              {"_id",      _id},
               {"_params",  params},
               {"_started", started}
             });
 
             // Sending a document to search engine.
-            service->Insert(args, [res, state, index, id](const mtc::zmap &resp) {
-              LOG_T_C("Received a response: %s", mtc::to_string(resp).c_str());
+            auto resp = service->Insert(args)->Wait(timeout);
 
-              if (g_ws_loop != nullptr)
-              {
-                g_ws_loop->defer([res, resp, state, index, id]() mutable {
-                  if (state->aborted.load(std::memory_order_acquire))
-                  {
-                    return;
-                  }
-
-                  LOG_T_C("Replying a response: index=%s, id=%s, status=%s", index.data(), id.data(), mtc::to_string(resp).c_str());
-                  // Replying a response to client.
-                  http::send_index_json_response(res, resp, index, id);
-                });
-              }
+            // Replying a response.
+            reply_resp(g_ws_loop, res, state, std::move(resp), [_index, _id](Response *res, const mtc::zmap &resp) {
+              // Replying a response to client.
+              http::send_index_json_response(res, resp, _index, _id);
             });
           }
           catch (const elastic::json::parse_error &exc)
@@ -322,22 +335,14 @@ namespace elastic::docapi::http
               }
             });
 
-            if (g_ws_loop != nullptr)
-            {
-              g_ws_loop->defer([res, bulk_resp, requests_count, state]() mutable {
-                if (state->aborted.load(std::memory_order_acquire))
-                {
-                  return;
-                }
+            // Adding a count of requests.
+            bulk_resp.set_int64("requests_count", static_cast<std::int64_t>(requests_count));
 
-                // Adding a count of requests.
-                bulk_resp.set_int64("requests_count", static_cast<std::int64_t>(requests_count));
-
-                LOG_T_C("Replying BULK response: %s", mtc::to_string(bulk_resp).c_str());
-                // Replying a response to client.
-                http::send_bulk_json_response(res, bulk_resp);
-              });
-            }
+            // Replying a response.
+            reply_resp(g_ws_loop, res, state, std::move(bulk_resp), [](Response *res, const mtc::zmap &resp) {
+              // Replying a response to client.
+              http::send_bulk_json_response(res, resp);
+          });
           }
           catch (const elastic::json::parse_error &exc)
           {
@@ -379,6 +384,8 @@ namespace elastic::docapi::http
 
     // Reading payload.
     res->onData([this, res, _index, params, state, payload, body_size, request_started](std::string_view chunk, bool last) mutable {
+      const auto timeout = this->config.get_int32("request_timeout", request_timeout);
+
       if (state->aborted.load(std::memory_order_acquire))
       {
         return;
@@ -400,7 +407,7 @@ namespace elastic::docapi::http
 
       assert(g_thread_pool != nullptr && "Invalid pointer on thread pool");
       //<!!!> uWebSockets response lives in original event-loop inside.
-      g_thread_pool->enqueue([service = this->service, res, _index, params, payload, started = request_started.time_since_epoch().count(), state, loop = uWS::Loop::get()]() mutable {
+      g_thread_pool->enqueue([service = this->service, res, _index, params, payload, started = request_started.time_since_epoch().count(), state, timeout, loop = uWS::Loop::get()]() mutable {
         try
         {
           if (service == nullptr)
@@ -409,28 +416,15 @@ namespace elastic::docapi::http
           }
 
           // Parsing a search request.
-          palmira::SearchArgs args = elastic::docapi::json::parse_mget_request(*payload, _index);
+          auto args = elastic::docapi::json::parse_mget_request(*payload, _index);
 
           // Forwarding a search request into search engine.
-          service->Search(args, [res, _index, state](const mtc::zmap &resp) {
-#ifdef __DEBUG__
-            mtc::json::Print(stdout, resp, mtc::json::print::decorated());
-#else
-            LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
-#endif // __DEBUG__
-            if (g_ws_loop != nullptr)
-            {
-              g_ws_loop->defer([res, resp, state, _index]() mutable {
-                if (state->aborted.load(std::memory_order_acquire))
-                {
-                  return;
-                }
+          auto resp = service->Search(args)->Wait(timeout);
 
-                LOG_T_C("Replying MGET response: =%s", mtc::to_string(resp).c_str());
-                // Replying a response to client.
-                http::send_mget_json_response(res, resp);
-              });
-            }
+          // Replying a response.
+          reply_resp(g_ws_loop, res, state, std::move(resp), [](Response *res, const mtc::zmap &resp) {
+            // Replying a response to client.
+            http::send_mget_json_response(res, resp);
           });
         }
         catch (const std::exception &exc)
@@ -455,8 +449,8 @@ namespace elastic::docapi::http
     auto state = std::make_shared<async_response_state>();
     auto payload = std::make_shared<std::string>();
 
-    const auto index = std::string(req->getParameter(0));
-    const auto id = req->getParameter(1).empty() ? std::string{} : std::string(req->getParameter(1));
+    const auto _index = std::string(req->getParameter(0));
+    const auto _id = req->getParameter(1).empty() ? std::string{} : std::string(req->getParameter(1));
     const auto params = elastic::http::parse_query(req->getQuery());
     const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
@@ -465,7 +459,7 @@ namespace elastic::docapi::http
       state->aborted.store(true, std::memory_order_release);
     });
 
-    if (id.empty())
+    if (_id.empty())
     { // This ID is required
       state->aborted.store(true, std::memory_order_release);
 
@@ -476,7 +470,7 @@ namespace elastic::docapi::http
     // Reserving resources.
     payload->reserve(body_size);
 
-    res->onData([this, res, state, index, id, params, started = request_started.time_since_epoch().count(), payload, body_size](std::string_view chunk, bool last) mutable {
+    res->onData([this, res, state, _index, _id, params, started = request_started.time_since_epoch().count(), payload, body_size](std::string_view chunk, bool last) mutable {
       const auto timeout = this->config.get_int32("request_timeout", request_timeout);
 
       if (state->aborted.load(std::memory_order_acquire))
@@ -501,37 +495,24 @@ namespace elastic::docapi::http
 
       assert(g_thread_pool != nullptr && "Invalid pointer on thread pool");
       // Forwarding a request to search engine.
-      g_thread_pool->enqueue([service = this->service, res, index, id, payload, params, timeout, state, started]() mutable -> void {
+      g_thread_pool->enqueue([service = this->service, res, _index, _id, payload, params, timeout, state, started]() mutable -> void {
         try
         {
-          LOG_D_C("Received PUT request: index=%s, id=%s, payload=%s", index.c_str(), id.c_str(), payload->c_str());
+          LOG_T_C("Received PUT request: index=%s, id=%s, payload=%s", _index.c_str(), _id.c_str(), payload->c_str());
           // Parsing insert request.
           auto args = json::parse_index_request(std::string_view(*payload), mtc::zmap{
-            {"_index",   index},
-            {"_id",      id},
+            {"_index",   _index},
+            {"_id",      _id},
             {"_params",  params},
             {"_started", started}
           });
           // Sending a document to search engine.
-          auto resp = service->Insert(args, [res, state, index, id](const mtc::zmap &resp) {
-#ifdef __DEBUG__
-            mtc::json::Print(stdout, resp, mtc::json::print::decorated());
-#else
-            LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
-#endif // __DEBUG__
+          auto resp = service->Insert(args)->Wait(timeout);
 
-            if (g_ws_loop != nullptr)
-            {
-              g_ws_loop->defer([res, resp, state, index, id]() mutable {
-                if (state->aborted.load(std::memory_order_acquire))
-                {
-                  return;
-                }
-                LOG_T_C("Replying a response: index=%s, id=%s, status=%s", index.data(), id.data(), mtc::to_string(resp).c_str());
-                // Replying a response to client.
-                docapi::http::send_index_json_response(res, resp, index, id);
-              });
-            }
+          // Replying a response.
+          reply_resp(g_ws_loop, res, state, std::move(resp), [_index, _id](Response *res, const mtc::zmap &resp) {
+            // Replying a response to client.
+            docapi::http::send_index_json_response(res, resp, _index, _id);
           });
         }
         catch (const elastic::json::parse_error &exc)
@@ -559,8 +540,8 @@ namespace elastic::docapi::http
     auto state = std::make_shared<async_response_state>();
     auto payload = std::make_shared<std::string>();
 
-    const auto index = std::string(req->getParameter(0));
-    const auto id = req->getParameter(1).empty() ? std::string{} : std::string(req->getParameter(1));
+    const auto _index = std::string(req->getParameter(0));
+    const auto _id = req->getParameter(1).empty() ? std::string{} : std::string(req->getParameter(1));
     const auto params = elastic::http::parse_query(req->getQuery());
     const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
@@ -569,7 +550,7 @@ namespace elastic::docapi::http
       state->aborted.store(true, std::memory_order_release);
     });
 
-    if (id.empty())
+    if (_id.empty())
     { // This ID is required
       state->aborted.store(true, std::memory_order_release);
 
@@ -580,7 +561,7 @@ namespace elastic::docapi::http
     // Reserving resources.
     payload->reserve(body_size);
 
-    res->onData([this, res, state, index, id, params, started = request_started.time_since_epoch().count(), payload, body_size](std::string_view chunk, bool last) mutable {
+    res->onData([this, res, state, _index, _id, params, started = request_started.time_since_epoch().count(), payload, body_size](std::string_view chunk, bool last) mutable {
       const auto timeout = this->config.get_int32("request_timeout", request_timeout);
 
       if (state->aborted.load(std::memory_order_acquire))
@@ -605,39 +586,26 @@ namespace elastic::docapi::http
 
       assert(g_thread_pool != nullptr && "Invalid pointer on thread pool");
       // Forwarding a request to search engine.
-      g_thread_pool->enqueue([service = this->service, res, index, id, payload, params, timeout, state, started]() mutable -> void {
+      g_thread_pool->enqueue([service = this->service, res, _index, _id, payload, params, timeout, state, started]() mutable -> void {
         try
         {
-          LOG_D_C("Received UPDATE request: index=%s, id=%s, payload=%s", index.c_str(), id.c_str(), payload->c_str());
+          LOG_D_C("Received UPDATE request: index=%s, id=%s, payload=%s", _index.c_str(), _id.c_str(), payload->c_str());
           // Parsing insert request.
           auto args = json::parse_update_request(std::string_view(*payload), mtc::zmap{
-            {"_index",   index},
-            {"_id",      id},
+            {"_index",   _index},
+            {"_id",      _id},
             {"_params",  params},
             {"_started", started}
           });
 
           // Sending a document to search engine.
           //<???> auto resp = service->Update(args, [res, state, index, id](const mtc::zmap &resp) {
-          auto resp = service->Insert(args, [res, state, index, id](const mtc::zmap &resp) {
-#ifdef __DEBUG__
-            mtc::json::Print(stdout, resp, mtc::json::print::decorated());
-#else
-            LOG_T_C("Received UPDATE response: %s", mtc::to_string(resp).c_str());
-#endif // __DEBUG__
+          auto resp = service->Insert(args)->Wait(timeout);
 
-            if (g_ws_loop != nullptr)
-            {
-              g_ws_loop->defer([res, resp, state, index, id]() mutable {
-                if (state->aborted.load(std::memory_order_acquire))
-                {
-                  return;
-                }
-                LOG_T_C("Replying a response: index=%s, id=%s, status=%s", index.data(), id.data(), mtc::to_string(resp).c_str());
-                // Replying a response to client.
-                http::send_update_json_response(res, resp, index, id);
-              });
-            }
+          // Replying a response.
+          reply_resp(g_ws_loop, res, state, std::move(resp), [_index, _id](Response *res, const mtc::zmap &resp) {
+            // Replying a response to client.
+            http::send_update_json_response(res, resp, _index, _id);
           });
         }
         catch (const elastic::json::parse_error &exc)
@@ -682,6 +650,8 @@ namespace elastic::docapi::http
 
     // Reading payload.
     res->onData([this, res, _index, _id, params, routing, state, payload, body_size, request_started](std::string_view chunk, bool last) mutable {
+      const auto timeout = this->config.get_int32("request_timeout", request_timeout);
+
       if (state->aborted.load(std::memory_order_acquire))
       {
         return;
@@ -703,7 +673,7 @@ namespace elastic::docapi::http
 
       assert(g_thread_pool != nullptr && "Invalid pointer on thread pool");
       //<!!!> uWebSockets response lives in original event-loop inside.
-      g_thread_pool->enqueue([service = this->service, res, _index, _id, params, routing, payload, started = request_started.time_since_epoch().count(), state, loop = uWS::Loop::get()]() mutable {
+      g_thread_pool->enqueue([service = this->service, res, _index, _id, params, routing, payload, started = request_started.time_since_epoch().count(), state, timeout, loop = uWS::Loop::get()]() mutable {
         try
         {
           if (service == nullptr)
@@ -715,21 +685,12 @@ namespace elastic::docapi::http
           const auto args = json::parse_get_request(_index, _id, params);
 
           // Forwarding a search request into search engine.
-          service->Search(args, [res, _index, _id, state](const mtc::zmap &resp) {
-            LOG_T_C("Received GET response: %s", mtc::to_string(resp).c_str());
-            if (g_ws_loop != nullptr)
-            {
-              g_ws_loop->defer([res, resp, state, _index, _id]() mutable {
-                if (state->aborted.load(std::memory_order_acquire))
-                {
-                  return;
-                }
+          auto resp = service->Search(args)->Wait(timeout);
 
-                LOG_T_C("Replying a response: %s", mtc::to_string(resp).c_str());
-                // Replying a response to client.
-                http::send_get_json_response(res, resp, _index, _id);
-              });
-            }
+          // Replying a response.
+          reply_resp(g_ws_loop, res, state, std::move(resp), [_index, _id](Response *res, const mtc::zmap &resp) {
+            // Replying a response to client.
+            http::send_get_json_response(res, resp, _index, _id);
           });
         }
         catch (const std::exception &exc)
@@ -753,14 +714,14 @@ namespace elastic::docapi::http
   {
     auto state = std::make_shared<async_response_state>();
 
+    const auto _index = std::string(req->getParameter(0));
+    const auto _id = std::string(req->getParameter(1));
     const auto params = elastic::http::parse_query(req->getQuery());
     const auto routing = elastic::http::get_query_param(params, "routing");
-    const auto index = std::string(req->getParameter(0));
-    const auto id = std::string(req->getParameter(1));
     const auto body_size = static_cast<size_t>(this->config.get_int64("max_body_size", max_body_size));
     const auto request_started = std::chrono::steady_clock::now();
 
-    LOG_T_C("Received DELETE request: index=%s, id=%s", index.c_str(), id.c_str());
+    LOG_D_C("Received DELETE request: index=%s, id=%s", _index.c_str(), _id.c_str());
     res->onAborted([state]() {
       state->aborted.store(true, std::memory_order_release);
     });
@@ -770,7 +731,9 @@ namespace elastic::docapi::http
     payload->reserve(body_size);
 
     // Reading payload.
-    res->onData([this, res, index, id, params, routing, state, payload, body_size, request_started](std::string_view chunk, bool last) mutable {
+    res->onData([this, res, _index, _id, params, routing, state, payload, body_size, request_started](std::string_view chunk, bool last) mutable {
+      const auto timeout = this->config.get_int32("request_timeout", request_timeout);
+
       if (state->aborted.load(std::memory_order_acquire))
       {
         return;
@@ -792,7 +755,7 @@ namespace elastic::docapi::http
 
       assert(g_thread_pool != nullptr && "Invalid pointer on thread pool");
       //<!!!> uWebSockets response lives in original event-loop inside.
-      g_thread_pool->enqueue([service = this->service, res, index, id, params, routing, payload, started = request_started.time_since_epoch().count(), state, loop = uWS::Loop::get()]() mutable {
+      g_thread_pool->enqueue([service = this->service, res, _index, _id, params, routing, payload, started = request_started.time_since_epoch().count(), state, timeout, loop = uWS::Loop::get()]() mutable {
         try
         {
           if (service == nullptr)
@@ -802,27 +765,14 @@ namespace elastic::docapi::http
 
           palmira::RemoveArgs args;
 
-          args.objectId = id;
+          args.objectId = _id;
           // Forwarding a remove request into the engine.
-          service->Remove(args, [res, index, id, state](const mtc::zmap &resp) {
-#ifdef __DEBUG__
-            mtc::json::Print(stdout, resp, mtc::json::print::decorated());
-#else
-            LOG_T_C("Received DELETE response: %s", mtc::to_string(resp).c_str());
-#endif // __DEBUG__
-            if (g_ws_loop != nullptr)
-            {
-              g_ws_loop->defer([res, resp, state, index, id]() mutable {
-                if (state->aborted.load(std::memory_order_acquire))
-                {
-                  return;
-                }
+          auto resp = service->Remove(args)->Wait(timeout);
 
-                LOG_T_C("Replying a response: index=%s, id=%s, status=%s", index.data(), id.data(), mtc::to_string(resp).c_str());
-                // Replying a response to client.
-                http::send_del_json_response(res, resp, index, id);
-              });
-            }
+          // Replying a response.
+          reply_resp(g_ws_loop, res, state, std::move(resp), [_index, _id](Response *res, const mtc::zmap &resp) mutable {
+            // Replying a response to client.
+            http::send_del_json_response(res, resp, _index, _id);
           });
         }
         catch (const std::exception &exc)
@@ -884,7 +834,7 @@ namespace elastic::docapi::http
     });
 
     // Packaging requests handling.
-    app.post("/:index/_bulk", [this](auto *res, auto *req) {
+    app.post("/_bulk", [this](auto *res, auto *req) {
       this->onbulk(res, req);
     });
     app.post("/:index/_bulk", [this](auto *res, auto *req) {
@@ -898,7 +848,7 @@ namespace elastic::docapi::http
     });
 
     // Reading packaging documents handling.
-    app.post("/:index/_mget", [this](auto *res, auto *req) {
+    app.post("/_mget", [this](auto *res, auto *req) {
       this->onmget(res, req);
     });
     app.post("/:index/_mget", [this](auto *res, auto *req) {
@@ -922,7 +872,7 @@ namespace elastic::docapi::http
     });
   }
 //-------------------------------------------------------------------------//
-  template auto routes::register_routes<uWS::TemplatedApp<false>>(uWS::TemplatedApp<false>& app) -> void;
-  template auto routes::register_routes<uWS::TemplatedApp<true>>(uWS::TemplatedApp<true>& app) -> void;
+  template auto routes::register_routes<uWS::TemplatedApp<false>>(uWS::TemplatedApp<false> &app) -> void;
+  template auto routes::register_routes<uWS::TemplatedApp<true>>(uWS::TemplatedApp<true> &app) -> void;
 //-------------------------------------------------------------------------//
 } // namespace elastic::docapi::http
