@@ -1,21 +1,4 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          simd-json-match-query-parser.h
-* - Created:       07/08/2026
-* - Author:        Vitaly Bulganin
-* - Description:
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_MATCH_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_MATCH_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <simdjson.h>
 //-------------------------------------------------------------------------//
@@ -23,7 +6,7 @@
 #include <string_view>
 #include <vector>
 //-------------------------------------------------------------------------//
-namespace elastic::json::searchapi
+namespace elastic::searchapi::json
 {
 //-------------------------------------------------------------------------//
   struct match_query
@@ -84,6 +67,4 @@ namespace elastic::json::searchapi
    */
   auto parse_match_query(simdjson::ondemand::object match_object) -> match_query;
 //-------------------------------------------------------------------------//
-} // namespace elastic::json::searchapi
-//-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_MATCH_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+} // namespace elastic::searchapi::json

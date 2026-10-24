@@ -1,21 +1,4 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          simd-json-bool-query-parser.h
-* - Created:       07/08/2026
-* - Author:        Vitaly Bulganin
-* - Description:
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_BOOL_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_BOOL_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <simdjson.h>
 //-------------------------------------------------------------------------//
@@ -24,7 +7,7 @@
 //-------------------------------------------------------------------------//
 #include "simd-json-query-parser.h"
 //-------------------------------------------------------------------------//
-namespace elastic::json::searchapi
+namespace elastic::searchapi::json
 {
 //-------------------------------------------------------------------------//
   struct query_node;
@@ -61,6 +44,4 @@ namespace elastic::json::searchapi
    */
   auto parse_bool_query(simdjson::ondemand::object bool_object) -> bool_query_t;
 //-------------------------------------------------------------------------//
-} // namespace elastic::json::searchapi
-//-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_BOOL_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+} // namespace elastic::searchapi::json

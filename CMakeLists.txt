@@ -92,9 +92,10 @@ if (USE_BUILTIN_GRPC)
 	add_subdirectory(${NETWORK_SOURCE_DIR}/grpcAPI)
 endif ()
 
-if (USE_BUILTIN_ELASTIC)
-	add_subdirectory(${NETWORK_SOURCE_DIR}/elasticAPI)
-endif ()
+# if (USE_BUILTIN_ELASTIC)
+#	 add_subdirectory(${NETWORK_SOURCE_DIR}/elasticAPI)
+# endif ()
+add_subdirectory(${NETWORK_SOURCE_DIR}/elasticAPI)
 
 add_library(tripoli
   src/objects/read-zip.cpp

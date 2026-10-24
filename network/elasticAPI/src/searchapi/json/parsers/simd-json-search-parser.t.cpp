@@ -4,7 +4,7 @@
 //-------------------------------------------------------------------------//
 #include <string>
 //-------------------------------------------------------------------------//
-#include "../../json/simd-json-errors.h"
+#include "../../../json/simd-json-errors.h"
 //-------------------------------------------------------------------------//
 namespace
 {
@@ -12,7 +12,7 @@ namespace
 TEST(SimdJsonParserSearchTest, ParseSimpleMatchQuery)
 {
   const std::string body = R"json({"query": {"match": {"name": "brave"}}})json";
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
 
   ASSERT_EQ(request.indices.size(), 1U);
   EXPECT_EQ(request.indices[0], "test");
@@ -20,7 +20,7 @@ TEST(SimdJsonParserSearchTest, ParseSimpleMatchQuery)
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::match);
 
-  const auto match = std::get<elastic::json::searchapi::match_query>(
+  const auto match = std::get<elastic::searchapi::json::match_query>(
       request.query.value()->data);
 
   EXPECT_EQ(match.field, "name");
@@ -60,7 +60,7 @@ TEST(SimdJsonParserSearchTest, ParseFullMatchQuery)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
 
   EXPECT_EQ(request.from, 0U);
   EXPECT_EQ(request.size, 25U);
@@ -68,7 +68,7 @@ TEST(SimdJsonParserSearchTest, ParseFullMatchQuery)
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::match);
 
-  const auto match = std::get<elastic::json::searchapi::match_query>(
+  const auto match = std::get<elastic::searchapi::json::match_query>(
       request.query.value()->data);
 
   EXPECT_EQ(match.field, "name");
@@ -95,12 +95,12 @@ TEST(SimdJsonParserSearchTest, ParseMatchQueryWithScalarNumericValue)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"users"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"users"});
 
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::match);
 
-  const auto match = std::get<elastic::json::searchapi::match_query>(
+  const auto match = std::get<elastic::searchapi::json::match_query>(
       request.query.value()->data);
 
   EXPECT_EQ(match.field, "age");
@@ -118,12 +118,12 @@ TEST(SimdJsonParserSearchTest, ParseMatchQueryWithScalarBooleanValue)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"users"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"users"});
 
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::match);
 
-  const auto match = std::get<elastic::json::searchapi::match_query>(
+  const auto match = std::get<elastic::searchapi::json::match_query>(
       request.query.value()->data);
 
   EXPECT_EQ(match.field, "active");
@@ -144,7 +144,7 @@ TEST(SimdJsonParserSearchTest, RejectInvalidMatchOperator)
         }
       })json";
 
-  EXPECT_THROW(elastic::json::searchapi::parse_search_request(body, {"test"}),
+  EXPECT_THROW(elastic::searchapi::json::parse_search_request(body, {"test"}),
                elastic::json::parse_error);
 }
 
@@ -162,7 +162,7 @@ TEST(SimdJsonParserSearchTest, RejectInvalidZeroTermsQuery)
         }
       })json";
 
-  EXPECT_THROW(elastic::json::searchapi::parse_search_request(body, {"test"}),
+  EXPECT_THROW(elastic::searchapi::json::parse_search_request(body, {"test"}),
                elastic::json::parse_error);
 }
 
@@ -175,7 +175,7 @@ TEST(SimdJsonParserSearchTest, RejectEmptyMatchObject)
         }
       })json";
 
-  EXPECT_THROW(elastic::json::searchapi::parse_search_request(body, {"test"}),
+  EXPECT_THROW(elastic::searchapi::json::parse_search_request(body, {"test"}),
                elastic::json::parse_error);
 }
 
@@ -188,13 +188,13 @@ TEST(SimdJsonParserSearchTest, DetectMatchAll)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
 
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::match_all);
 
   //<TODO> const auto match =
-  //std::get<elastic::json::searchapi::search::match_query>(request.query.value().data);
+  //std::get<elastic::searchapi::json::search::match_query>(request.query.value().data);
 }
 
 TEST(SimdJsonParserSearchTest, DetectMatchNone)
@@ -207,13 +207,13 @@ TEST(SimdJsonParserSearchTest, DetectMatchNone)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
 
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::match_none);
 
   //<TODO> const auto match =
-  //std::get<elastic::json::searchapi::search::match_query>(request.query.value().data);
+  //std::get<elastic::searchapi::json::search::match_query>(request.query.value().data);
 }
 
 TEST(SimdJsonParserSearchTest, ParseSearchRequestExtendedFields)
@@ -256,7 +256,7 @@ TEST(SimdJsonParserSearchTest, ParseSearchRequestExtendedFields)
         "min_score": 0.5
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
 
   ASSERT_EQ(request.indices.size(), 1U);
   EXPECT_EQ(request.indices[0], "test");
@@ -264,7 +264,7 @@ TEST(SimdJsonParserSearchTest, ParseSearchRequestExtendedFields)
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::match);
 
-  const auto match = std::get<elastic::json::searchapi::match_query>(
+  const auto match = std::get<elastic::searchapi::json::match_query>(
       request.query.value()->data);
 
   EXPECT_EQ(match.field, "name");
@@ -330,7 +330,7 @@ TEST(SimdJsonParserSearchTest, RejectInvalidSortOrder)
         ]
       })json";
 
-  EXPECT_THROW(elastic::json::searchapi::parse_search_request(body, {"test"}),
+  EXPECT_THROW(elastic::searchapi::json::parse_search_request(body, {"test"}),
                elastic::json::parse_error);
 }
 
@@ -341,7 +341,7 @@ TEST(SimdJsonParserSearchTest, ParseTrackTotalHitsFalse)
         "track_total_hits": false
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
 
   EXPECT_FALSE(request.track_total_hits_enabled);
   EXPECT_FALSE(request.track_total_hits_limit.has_value());
@@ -358,12 +358,12 @@ TEST(SimdJsonParserSearchTest, ParseSimpleTermQuery)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
 
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::term);
 
-  const auto term = std::get<elastic::json::searchapi::term_query>(
+  const auto term = std::get<elastic::searchapi::json::term_query>(
       request.query.value()->data);
 
   EXPECT_EQ(term.field, "name");
@@ -385,11 +385,11 @@ TEST(SimdJsonParserSearchTest, ParseExtendedTermQuery)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::term);
 
-  const auto term = std::get<elastic::json::searchapi::term_query>(
+  const auto term = std::get<elastic::searchapi::json::term_query>(
       request.query.value()->data);
 
   EXPECT_EQ(term.field, "name");
@@ -410,7 +410,7 @@ TEST(SimdJsonParserSearchTest, RejectTermWithoutValue)
         }
       })json";
 
-  EXPECT_THROW(elastic::json::searchapi::parse_search_request(body, {"test"}),
+  EXPECT_THROW(elastic::searchapi::json::parse_search_request(body, {"test"}),
                elastic::json::parse_error);
 }
 
@@ -425,11 +425,11 @@ TEST(SimdJsonParserSearchTest, ParseTermScalarValue)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::term);
 
-  const auto term = std::get<elastic::json::searchapi::term_query>(
+  const auto term = std::get<elastic::searchapi::json::term_query>(
       request.query.value()->data);
 
   EXPECT_EQ(term.field, "age");
@@ -447,11 +447,11 @@ TEST(SimdJsonParserSearchTest, ParseTermsQuery)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::terms);
 
-  const auto terms = std::get<elastic::json::searchapi::terms_query>(
+  const auto terms = std::get<elastic::searchapi::json::terms_query>(
       request.query.value()->data);
 
   EXPECT_EQ(terms.field, "status");
@@ -476,11 +476,11 @@ TEST(SimdJsonParserSearchTest, ParseRangeQuery)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"users"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"users"});
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::range);
 
-  const auto range = std::get<elastic::json::searchapi::range_query>(
+  const auto range = std::get<elastic::searchapi::json::range_query>(
       request.query.value()->data);
 
   EXPECT_EQ(range.field, "age");
@@ -505,7 +505,7 @@ TEST(SimdJsonParserSearchTest, RejectRangeWithoutBounds)
         }
       })json";
 
-  EXPECT_THROW(elastic::json::searchapi::parse_search_request(body, {"users"}),
+  EXPECT_THROW(elastic::searchapi::json::parse_search_request(body, {"users"}),
                elastic::json::parse_error);
 }
 //-------------------------------------------------------------------------//
@@ -540,11 +540,11 @@ TEST(SimdJsonParserSearchTest, ParseBoolQuery)
         }
       })json";
 
-  auto request = elastic::json::searchapi::parse_search_request(body, {"test"});
+  auto request = elastic::searchapi::json::parse_search_request(body, {"test"});
   ASSERT_TRUE(request.query.has_value());
   EXPECT_EQ(request.query.value()->kind, elastic::json::query_kinds::bool_query);
 
-  const auto bool_query = std::get<elastic::json::searchapi::bool_query_t>(
+  const auto bool_query = std::get<elastic::searchapi::json::bool_query_t>(
       request.query.value()->data);
 
   ASSERT_NE(bool_query, nullptr);

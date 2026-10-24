@@ -1,28 +1,11 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          simd-json-range-query-parser.h
-* - Created:       07/08/2026
-* - Author:        Vitaly Bulganin
-* - Description:
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_RANGE_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_RANGE_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <simdjson.h>
 //-------------------------------------------------------------------------//
 #include <string>
-#include <string_view>
+#include <optional>
 //-------------------------------------------------------------------------//
-namespace elastic::json::searchapi
+namespace elastic::searchapi::json
 {
 //-------------------------------------------------------------------------//
   struct range_query
@@ -49,6 +32,4 @@ namespace elastic::json::searchapi
    */
   auto parse_range_query(simdjson::ondemand::object range_object) -> range_query;
 //-------------------------------------------------------------------------//
-} // namespace elastic::json::searchapi
-//-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_RANGE_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+} // namespace elastic::searchapi::json

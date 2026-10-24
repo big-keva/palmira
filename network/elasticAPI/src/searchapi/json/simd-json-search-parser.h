@@ -1,21 +1,4 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          simd-json-search-parser.h
-* - Created:       06/24/2026
-* - Author:        Vitaly Bulganin
-* - Description:
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_SEARCH_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_SEARCH_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <simdjson.h>
 //-------------------------------------------------------------------------//
@@ -25,12 +8,12 @@
 #include <variant>
 #include <vector>
 //-------------------------------------------------------------------------//
-#include "../json/simd-json-common.h"
-#include "../json/parsers/simd-json-source-parser.h"
+#include "../../json/parsers/simd-json-source-parser.h"
+#include "../../json/simd-json-common.h"
 //-------------------------------------------------------------------------//
-#include "json/simd-json-query-parser.h"
+#include "simd-json-query-parser.h"
 //-------------------------------------------------------------------------//
-namespace elastic::json::searchapi
+namespace elastic::searchapi::json
 {
 //-------------------------------------------------------------------------//
   struct sort_clause
@@ -55,7 +38,7 @@ namespace elastic::json::searchapi
     std::uint64_t size = 10;
 
     //!< Keeps source filter.
-    source_filter source;
+    elastic::json::source_filter source;
 
     std::vector<sort_clause> sort;
     std::vector<std::string> stored_fields;
@@ -90,6 +73,4 @@ namespace elastic::json::searchapi
    */
   auto parse_search_request(std::string_view body, std::vector<std::string> indices) -> search_request;
 //-------------------------------------------------------------------------//
-} // namespace elastic::json::searchapi
-//-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_SEARCH_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+} // namespace elastic::searchapi::json

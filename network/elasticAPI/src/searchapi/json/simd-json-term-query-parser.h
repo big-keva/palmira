@@ -1,29 +1,11 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          simd-json-term-query-parser.h
-* - Created:       07/08/2026
-* - Author:        Vitaly Bulganin
-* - Description:
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_TERM_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_TERM_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <simdjson.h>
 //-------------------------------------------------------------------------//
 #include <string>
-#include <string_view>
 #include <vector>
 //-------------------------------------------------------------------------//
-namespace elastic::json::searchapi
+namespace elastic::searchapi::json
 {
 //-------------------------------------------------------------------------//
   struct term_query
@@ -60,6 +42,4 @@ namespace elastic::json::searchapi
    */
   auto parse_terms_query(simdjson::ondemand::object terms_object) -> terms_query;
 //-------------------------------------------------------------------------//
-} // namespace elastic::json::searchapi
-//-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_TERM_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+} // namespace elastic::searchapi::json

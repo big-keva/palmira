@@ -1,21 +1,4 @@
-/*!==========================================================================
-* \file
-* - Program:       elasticapi
-* - File:          simd-json-query-parser.h
-* - Created:       07/08/2026
-* - Author:        Vitaly Bulganin
-* - Description:
-* - Comments:
-*
------------------------------------------------------------------------------
-*
-* - History:
-*
-===========================================================================*/
 #pragma once
-//-------------------------------------------------------------------------//
-#ifndef __SIMD_JSON_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
-#define __SIMD_JSON_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
 //-------------------------------------------------------------------------//
 #include <variant>
 //-------------------------------------------------------------------------//
@@ -28,7 +11,7 @@
 #include "simd-json-range-query-parser.h"
 #include "simd-json-term-query-parser.h"
 //-------------------------------------------------------------------------//
-namespace elastic::json::searchapi
+namespace elastic::searchapi::json
 {
 //-------------------------------------------------------------------------//
   struct bool_query;
@@ -37,15 +20,17 @@ namespace elastic::json::searchapi
   struct query_node
   {
     //!< Keeps a type of query.
-    query_kinds kind;
+    elastic::json::query_kinds kind;
 
     //!< Keeps a query.
-    std::variant<match_query, term_query, terms_query, range_query,
-                 std::shared_ptr<bool_query>
-                 // exists_query,
-                 // ids_query
-                 >
-        data;
+    std::variant<match_query,
+      term_query,
+      terms_query,
+      range_query,
+      std::shared_ptr<bool_query>
+      // exists_query,
+      // ids_query
+    > data;
   };
 //-------------------------------------------------------------------------//
   using query_node_t = std::unique_ptr<query_node>;
@@ -57,6 +42,4 @@ namespace elastic::json::searchapi
    */
   auto parse_query_object(simdjson::ondemand::object query_object) -> query_node_t;
 //-------------------------------------------------------------------------//
-} // namespace elastic::json::searchapi
-//-------------------------------------------------------------------------//
-#endif // __SIMD_JSON_QUERY_PARSER_H_9A383FB9_69EF_4D2E_8CFD_2640EFA93EE0__
+} // namespace elastic::searchapi::json
